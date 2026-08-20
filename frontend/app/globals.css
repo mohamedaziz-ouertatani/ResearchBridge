@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/*
+  ResearchBridge corpus explorer.
+
+  Direction: a scientific instrument faceplate. The corpus is measured, not
+  browsed - so the interface borrows from lab instrumentation (calibrated
+  scales, tick marks, tabular readouts) rather than from search engines.
+
+  The teal ramp is not decoration: it encodes cosine distance. Saturated
+  teal means semantically near, faded gray-blue means far. Nothing else in
+  the interface is allowed to use it.
+*/
+
+:root {
+  color-scheme: light; /* deliberate single look - the faceplate is pale by design */
+
+  --ink: #14181d;
+  --ink-soft: #4a545f;
+  --ink-faint: #78838f;
+
+  --field: #e7e9ec; /* instrument housing */
+  --panel: #fbfbfc;
+  --rule: #c6cbd2;
+  --rule-soft: #dcdfe4;
+
+  --near: #006d77; /* cosine distance -> 0 */
+  --far: #a9b6bc; /* cosine distance -> 1 */
+  --live: #b45309; /* reserved for active/typing state only */
+
+  /* type-* rather than font-*: see the note in layout.tsx about Tailwind's
+     built-in --font-sans/serif/mono theme keys shadowing same-named vars. */
+  --type-display: var(--ff-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --type-text: var(--ff-serif), Georgia, serif;
+  --type-mono: var(--ff-mono), ui-monospace, "SF Mono", monospace;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-field: var(--field);
+  --color-panel: var(--panel);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-near: var(--near);
+  --color-far: var(--far);
+  --color-live: var(--live);
+  --font-display: var(--type-display);
+  --font-text: var(--type-text);
+  --font-readout: var(--type-mono);
+}
+
+html {
+  background: var(--field);
+}
+
+body {
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--type-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- shared type roles ---------------------------------------------- */
+
+.eyebrow {
+  font-family: var(--type-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.readout {
+  font-family: var(--type-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.display {
+  font-family: var(--type-display);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+}
+
+/* --- focus floor ----------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* --- the corpus strip: real year distribution, doubles as a filter --- */
+
+.tickstrip {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  /* stretch, not end: the bars size by percentage, which needs the track to
+     have a definite height to resolve against */
+  align-items: stretch;
+  gap: 2px;
+}
+
+.tick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  height: 100%;
+}
+
+.tick-bar {
+  background: var(--rule);
+  transition: background 140ms ease, height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tick:hover .tick-bar,
+.tick[data-active="true"] .tick-bar {
+  background: var(--near);
+}
+
+/* --- entrance: results resolve into focus, staggered ----------------- */
+
+@keyframes resolve {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.resolve {
+  animation: resolve 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
