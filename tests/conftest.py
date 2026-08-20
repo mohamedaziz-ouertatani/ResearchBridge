@@ -32,7 +32,8 @@ def _truncate_all(engine) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE TABLE ingestion_errors, ingestion_runs, paper_citations, "
+                "TRUNCATE TABLE extraction_errors, extraction_runs, extracted_claims, evidence, "
+                "ingestion_errors, ingestion_runs, paper_citations, "
                 "paper_categories, paper_authors, authors, papers RESTART IDENTITY CASCADE"
             )
         )

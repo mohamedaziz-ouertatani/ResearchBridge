@@ -138,3 +138,76 @@ class IngestionError(Base):
     error_type: Mapped[str] = mapped_column(String, nullable=False)
     error_detail: Mapped[str] = mapped_column(Text, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Evidence(Base):
+    """A grounded, source-anchored text span backing an ExtractedClaim.
+
+    `extraction_method`/`model_version` record provenance (e.g. "stub"/
+    "stub-v1" for the placeholder extractor, per the blueprint's
+    Free/Open-Source First provider-agnostic design — see §29). Rows with
+    extraction_method="stub" are synthetic placeholder data for exercising
+    the pipeline, not real analysis: never treat them as benchmark ground
+    truth, and filter them out of any real evaluation or research-content
+    query.
+    """
+
+    __tablename__ = "evidence"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String, nullable=False)
+    section: Mapped[str | None] = mapped_column(String, nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_locator: Mapped[str | None] = mapped_column(String, nullable=True)
+    extraction_method: Mapped[str] = mapped_column(String, nullable=False)
+    model_version: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ExtractedClaim(Base):
+    """A system-generated claim about a paper, grounded by one Evidence row.
+
+    Same caveat as Evidence: check the linked evidence.extraction_method
+    before treating a row as real research content. Stub-generated rows
+    (extraction_method="stub" on their evidence) are synthetic test data
+    only.
+    """
+
+    __tablename__ = "extracted_claims"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    claim_type: Mapped[str] = mapped_column(String, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ExtractionRun(Base):
+    __tablename__ = "extraction_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    extractor_name: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    papers_processed: Mapped[int] = mapped_column(Integer, default=0)
+    claims_created: Mapped[int] = mapped_column(Integer, default=0)
+    candidates_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ExtractionError(Base):
+    __tablename__ = "extraction_errors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    extraction_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("extraction_runs.id"), nullable=False
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    error_type: Mapped[str] = mapped_column(String, nullable=False)
+    error_detail: Mapped[str] = mapped_column(Text, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(server_default=func.now())
