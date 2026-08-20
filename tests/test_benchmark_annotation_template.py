@@ -31,7 +31,8 @@ def test_rendered_template_is_valid_yaml_with_all_schema_fields() -> None:
     rendered = render_annotation_template(paper, domain="NLP")
     parsed = yaml.safe_load(rendered)
 
-    assert parsed["paper_id"] == str(paper.id)
+    assert "paper_id" not in parsed  # UUIDs change on re-ingest; (source, source_id) is the stable key
+    assert parsed["source"] == "arxiv"
     assert parsed["source_id"] == "2401.01234"
     assert parsed["title"] == paper.title
     assert parsed["domain"] == "NLP"

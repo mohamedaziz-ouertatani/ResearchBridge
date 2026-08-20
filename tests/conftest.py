@@ -9,14 +9,35 @@ from sqlalchemy.exc import OperationalError
 from researchbridge.db.models import Base
 from researchbridge.db.session import make_engine, make_session_factory
 
+# Deliberately a DIFFERENT database from .env's DATABASE_URL: the fixtures
+# below TRUNCATE every table, so pointing this at the dev database destroys
+# the working corpus (which is exactly what happened once).
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://researchbridge:researchbridge@localhost:5433/researchbridge",
+    "postgresql+psycopg://researchbridge:researchbridge@localhost:5433/researchbridge_test",
 )
+
+
+def _refuse_to_truncate_the_dev_database() -> None:
+    """Abort the whole run if the test DB is also the dev DB.
+
+    The fixtures here TRUNCATE every table. Sharing a database with .env's
+    DATABASE_URL means running the suite silently destroys the ingested
+    corpus, which costs a full re-ingest to rebuild.
+    """
+    dev_url = os.environ.get("DATABASE_URL")
+    if dev_url and dev_url == TEST_DATABASE_URL:
+        pytest.exit(
+            "TEST_DATABASE_URL is the same database as DATABASE_URL. The test "
+            "fixtures TRUNCATE every table and would destroy the dev corpus. "
+            "Point TEST_DATABASE_URL at a separate database (e.g. ..._test).",
+            returncode=1,
+        )
 
 
 @pytest.fixture(scope="session")
 def engine():
+    _refuse_to_truncate_the_dev_database()
     eng = make_engine(TEST_DATABASE_URL)
     try:
         with eng.connect():

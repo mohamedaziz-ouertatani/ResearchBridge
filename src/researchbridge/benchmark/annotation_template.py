@@ -26,7 +26,9 @@ def render_annotation_template(paper: Paper, domain: str) -> str:
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "{paper.id}"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: {paper.source}
 source_id: "{paper.source_id}"
 title: {title}
