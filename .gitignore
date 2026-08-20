@@ -8,3 +8,6 @@ __pycache__/
 *.egg-info/
 .graphify_*
 graphify-out/
+
+# benchmark full text is derived data, refetchable via rb-benchmark-fetch
+benchmark/fulltext/

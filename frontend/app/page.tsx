@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type CorpusStats, type PaperSummary, type SearchHit } from "@/lib/api";
 import { GaugeLegend } from "@/components/ProximityGauge";
@@ -72,9 +73,14 @@ export default function Explorer() {
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
         <span className="display text-[1.0625rem]">ResearchBridge</span>
-        <span className="eyebrow">
-          {stats ? `${stats.total_papers.toLocaleString()} papers · ${stats.total_authors.toLocaleString()} authors` : "connecting"}
-        </span>
+        <div className="flex items-baseline gap-5">
+          <Link href="/annotate" className="eyebrow hover:text-[var(--ink)]">
+            annotation workbench →
+          </Link>
+          <span className="eyebrow">
+            {stats ? `${stats.total_papers.toLocaleString()} papers · ${stats.total_authors.toLocaleString()} authors` : "connecting"}
+          </span>
+        </div>
       </header>
 
       {/* Hero: the aperture. Type meaning in, the corpus resolves by distance. */}
