@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -33,6 +35,11 @@ logger = logging.getLogger(__name__)
 ARXIV_API_URL = "http://export.arxiv.org/api/query"
 DEFAULT_PAGE_SIZE = 100
 
+# arXiv's API terms of use ask callers to leave ~3s between requests. A
+# multi-page backfill issues dozens of them back-to-back, so throttling is
+# a politeness requirement, not an optimization.
+MIN_REQUEST_INTERVAL_SECONDS = 3.0
+
 
 def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, requests.exceptions.RequestException):
@@ -46,11 +53,26 @@ def _is_retryable(exc: BaseException) -> bool:
 class ArxivConnector:
     source_name = "arxiv"
 
-    def __init__(self, search_query: str, page_size: int = DEFAULT_PAGE_SIZE) -> None:
+    def __init__(
+        self,
+        search_query: str,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        min_request_interval: float = MIN_REQUEST_INTERVAL_SECONDS,
+        sleep_fn: Callable[[float], None] = time.sleep,
+        monotonic_fn: Callable[[], float] = time.monotonic,
+    ) -> None:
         """search_query uses arXiv's query syntax, e.g. "cat:cs.LG" or
-        "cat:cs.LG OR cat:cs.AI"."""
+        "cat:cs.LG OR cat:cs.AI".
+
+        sleep_fn/monotonic_fn are injectable so throttling can be tested
+        without real waiting.
+        """
         self.search_query = search_query
         self.page_size = page_size
+        self.min_request_interval = min_request_interval
+        self._sleep = sleep_fn
+        self._monotonic = monotonic_fn
+        self._last_request_at: float | None = None
 
     def fetch(self, resume_state: dict[str, Any] | None) -> ConnectorFetchResult:
         start_index = (resume_state or {}).get("start_index", 0)
@@ -79,6 +101,7 @@ class ArxivConnector:
         reraise=True,
     )
     def _fetch_page(self, start_index: int) -> bytes:
+        self._throttle()
         response = requests.get(
             ARXIV_API_URL,
             params={
@@ -92,6 +115,18 @@ class ArxivConnector:
         )
         response.raise_for_status()
         return response.content
+
+    def _throttle(self) -> None:
+        """Block until MIN_REQUEST_INTERVAL_SECONDS has passed since the last request.
+
+        Applies to retries too (it sits inside the retry-wrapped fetch), so a
+        server that is already rate-limiting us doesn't get hammered further.
+        """
+        if self._last_request_at is not None:
+            remaining = self.min_request_interval - (self._monotonic() - self._last_request_at)
+            if remaining > 0:
+                self._sleep(remaining)
+        self._last_request_at = self._monotonic()
 
     def _normalize_entry(self, entry: Any) -> NormalizedPaper:
         source_id = _extract_arxiv_id(entry.get("id", ""))
