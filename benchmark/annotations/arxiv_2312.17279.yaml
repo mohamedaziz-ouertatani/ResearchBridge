@@ -1,0 +1,31 @@
+# Benchmark annotation - fill in every field below by hand.
+# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
+# Leave a field blank only if the paper genuinely doesn't state it.
+
+paper_id: "f94560b8-7cea-4a62-8e27-5788e41e9a96"
+source: arxiv
+source_id: "2312.17279"
+title: "Stateful Conformer with Cache-based Inference for Streaming Automatic Speech Recognition"
+domain: "NLP"
+year: 2023
+url: "https://arxiv.org/abs/2312.17279v3"
+
+# --- Annotation ---
+
+problem: ""                # What problem does the paper address?
+research_question: ""      # What research question is being investigated?
+method: ""                 # What approach/method is proposed?
+dataset: ""                # What data is used?
+main_contribution: ""      # What is actually new?
+results: ""                # What are the major findings?
+limitations: ""            # What limitations are explicitly stated?
+
+research_gap:
+  addressed: ""            # What gap does the paper address?
+  remaining: ""            # What gap remains?
+
+applications: ""           # What applications are explicitly supported?
+
+key_evidence: []           # Passages supporting the above, e.g.:
+                            #   - text: "quoted passage from the paper"
+                            #     section: "Introduction"

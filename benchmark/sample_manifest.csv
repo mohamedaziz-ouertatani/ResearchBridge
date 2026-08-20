@@ -1,0 +1,41 @@
+domain,source,source_id,year,title,url,annotation_file
+Machine Learning,arxiv,1812.02407,2018,Elastic Gossip: Distributing Neural Network Training Using Gossip-like Protocols,https://arxiv.org/abs/1812.02407v1,arxiv_1812.02407.yaml
+Machine Learning,arxiv,1812.11690,2018,Deep Residual Learning in the JPEG Transform Domain,https://arxiv.org/abs/1812.11690v3,arxiv_1812.11690.yaml
+Machine Learning,arxiv,1912.13503,2019,Side-Tuning: A Baseline for Network Adaptation via Additive Side Networks,https://arxiv.org/abs/1912.13503v4,arxiv_1912.13503.yaml
+Machine Learning,arxiv,2012.15589,2020,PFL-MoE: Personalized Federated Learning Based on Mixture of Experts,https://arxiv.org/abs/2012.15589v1,arxiv_2012.15589.yaml
+Machine Learning,arxiv,2112.15530,2021,Scalable Deep Graph Clustering with Random-walk based Self-supervised Learning,https://arxiv.org/abs/2112.15530v2,arxiv_2112.15530.yaml
+Machine Learning,arxiv,2212.14595,2022,"Posterior sampling with CNN-based, Plug-and-Play regularization with applications to Post-Stack Seismic Inversion",https://arxiv.org/abs/2212.14595v1,arxiv_2212.14595.yaml
+Machine Learning,arxiv,2401.00112,2023,A Maritime Industry Experience for Vessel Operational Anomaly Detection: Utilizing Deep Learning Augmented with Lightweight Interpretable Models,https://arxiv.org/abs/2401.00112v2,arxiv_2401.00112.yaml
+Machine Learning,arxiv,2501.03254,2024,Advanced Displacement Magnitude Prediction in Multi-Material Architected Lattice Structure Beams Using Physics Informed Neural Network Architecture,https://arxiv.org/abs/2501.03254v1,arxiv_2501.03254.yaml
+Machine Learning,arxiv,2608.18319,2026,SingularClip: Preventing Spectral Collapse to Maintain Plasticity in Continual and Reinforcement Learning,https://arxiv.org/abs/2608.18319v1,arxiv_2608.18319.yaml
+Machine Learning,arxiv,2608.18404,2026,Vector Symbolic Policy Gradient,https://arxiv.org/abs/2608.18404v1,arxiv_2608.18404.yaml
+NLP,arxiv,1812.06834,2018,A Tutorial on Deep Latent Variable Models of Natural Language,https://arxiv.org/abs/1812.06834v3,arxiv_1812.06834.yaml
+NLP,arxiv,1912.10915,2019,Probing the phonetic and phonological knowledge of tones in Mandarin TTS models,https://arxiv.org/abs/1912.10915v1,arxiv_1912.10915.yaml
+NLP,arxiv,2012.15495,2020,Towards Zero-Shot Knowledge Distillation for Natural Language Processing,https://arxiv.org/abs/2012.15495v1,arxiv_2012.15495.yaml
+NLP,arxiv,2201.02737,2021,Cognitive Computing to Optimize IT Services,https://arxiv.org/abs/2201.02737v1,arxiv_2201.02737.yaml
+NLP,arxiv,2312.17279,2023,Stateful Conformer with Cache-based Inference for Streaming Automatic Speech Recognition,https://arxiv.org/abs/2312.17279v3,arxiv_2312.17279.yaml
+NLP,arxiv,2412.21015,2024,MapQaTor: An Extensible Framework for Efficient Annotation of Map-Based QA Datasets,https://arxiv.org/abs/2412.21015v2,arxiv_2412.21015.yaml
+NLP,arxiv,2601.11580,2025,Speculative Decoding: Performance or Illusion?,https://arxiv.org/abs/2601.11580v2,arxiv_2601.11580.yaml
+NLP,arxiv,2608.18401,2026,Multimodal Rapport Estimation in Real-World HRI,https://arxiv.org/abs/2608.18401v1,arxiv_2608.18401.yaml
+Computer Vision,arxiv,1812.08126,2018,Generating Diverse and Meaningful Captions,https://arxiv.org/abs/1812.08126v1,arxiv_1812.08126.yaml
+Computer Vision,arxiv,1912.12405,2019,A Genetic Algorithm based Kernel-size Selection Approach for a Multi-column Convolutional Neural Network,https://arxiv.org/abs/1912.12405v2,arxiv_1912.12405.yaml
+Computer Vision,arxiv,2101.10450,2020,"LAIF: AI, Deep Learning for Germany Suetterlin Letter Recognition and Generation",https://arxiv.org/abs/2101.10450v1,arxiv_2101.10450.yaml
+Computer Vision,arxiv,2112.15344,2021,P2P-Loc: Point to Point Tiny Person Localization,https://arxiv.org/abs/2112.15344v2,arxiv_2112.15344.yaml
+Computer Vision,arxiv,2312.17648,2023,Bridging Modality Gap for Visual Grounding with Effecitve Cross-modal Distillation,https://arxiv.org/abs/2312.17648v2,arxiv_2312.17648.yaml
+Computer Vision,arxiv,2501.00603,2024,DiC: Rethinking Conv3x3 Designs in Diffusion Models,https://arxiv.org/abs/2501.00603v2,arxiv_2501.00603.yaml
+Computer Vision,arxiv,2512.24826,2025,Video and Language Alignment in 2D Systems for 3D Multi-object Scenes with Multi-Information Derivative-Free Control,https://arxiv.org/abs/2512.24826v1,arxiv_2512.24826.yaml
+Computer Vision,arxiv,2608.18399,2026,What Does Attention Transfer Transfer? Attention Structure and Robustness in Vision Transformers,https://arxiv.org/abs/2608.18399v1,arxiv_2608.18399.yaml
+Systems,arxiv,1812.02641,2018,Local Conditioning: Exact Message Passing for Cyclic Undirected Distributed Networks,https://arxiv.org/abs/1812.02641v1,arxiv_1812.02641.yaml
+Systems,arxiv,1912.10024,2019,A Data-Centric Approach to Extreme-Scale Ab initio Dissipative Quantum Transport Simulations,https://arxiv.org/abs/1912.10024v1,arxiv_1912.10024.yaml
+Systems,arxiv,2012.15762,2020,Scaling Replicated State Machines with Compartmentalization [Technical Report],https://arxiv.org/abs/2012.15762v3,arxiv_2012.15762.yaml
+Systems,arxiv,2212.09851,2022,PathCAS: An Efficient Middle Ground for Concurrent Search Data Structures,https://arxiv.org/abs/2212.09851v1,arxiv_2212.09851.yaml
+Systems,arxiv,2412.14374,2024,Scaling Deep Learning Training with MPMD Pipeline Parallelism,https://arxiv.org/abs/2412.14374v1,arxiv_2412.14374.yaml
+Systems,arxiv,2512.22036,2025,FUSCO: High-Performance Distributed Data Shuffling via Transformation-Communication Fusion,https://arxiv.org/abs/2512.22036v1,arxiv_2512.22036.yaml
+Systems,arxiv,2608.18933,2026,SkillForge: Self-Distilling Agents for Project-Specific Issue Resolution,https://arxiv.org/abs/2608.18933v1,arxiv_2608.18933.yaml
+General AI / Other,arxiv,1812.08763,2018,Splitting Epistemic Logic Programs,https://arxiv.org/abs/1812.08763v2,arxiv_1812.08763.yaml
+General AI / Other,arxiv,1912.11595,2019,The Windfall Clause: Distributing the Benefits of AI for the Common Good,https://arxiv.org/abs/1912.11595v2,arxiv_1912.11595.yaml
+General AI / Other,arxiv,2112.14657,2021,Dynamic programming with incomplete information to overcome navigational uncertainty in a nautical environment,https://arxiv.org/abs/2112.14657v2,arxiv_2112.14657.yaml
+General AI / Other,arxiv,2401.09459,2023,What's my role? Modelling responsibility for AI-based safety-critical systems,https://arxiv.org/abs/2401.09459v1,arxiv_2401.09459.yaml
+General AI / Other,arxiv,2601.00105,2025,Mortar: Evolving Mechanics for Automatic Game Design,https://arxiv.org/abs/2601.00105v1,arxiv_2601.00105.yaml
+General AI / Other,arxiv,2608.18701,2026,SoftVTBench: A Deformation-Aware Visuo-Tactile Dataset and Benchmark for Deformable-Object Manipulation,https://arxiv.org/abs/2608.18701v1,arxiv_2608.18701.yaml
+General AI / Other,arxiv,2608.18504,2026,UMER: Unifying Embedding and Ranking via Pair-Aware Discriminative Reasoning for Universal Multimodal Retrieval,https://arxiv.org/abs/2608.18504v1,arxiv_2608.18504.yaml

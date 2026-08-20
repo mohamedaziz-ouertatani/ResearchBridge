@@ -1,0 +1,31 @@
+# Benchmark annotation - fill in every field below by hand.
+# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
+# Leave a field blank only if the paper genuinely doesn't state it.
+
+paper_id: "7db62efd-3bf3-4d5c-b5d6-231f0613e7a8"
+source: arxiv
+source_id: "2608.18399"
+title: "What Does Attention Transfer Transfer? Attention Structure and Robustness in Vision Transformers"
+domain: "Computer Vision"
+year: 2026
+url: "https://arxiv.org/abs/2608.18399v1"
+
+# --- Annotation ---
+
+problem: ""                # What problem does the paper address?
+research_question: ""      # What research question is being investigated?
+method: ""                 # What approach/method is proposed?
+dataset: ""                # What data is used?
+main_contribution: ""      # What is actually new?
+results: ""                # What are the major findings?
+limitations: ""            # What limitations are explicitly stated?
+
+research_gap:
+  addressed: ""            # What gap does the paper address?
+  remaining: ""            # What gap remains?
+
+applications: ""           # What applications are explicitly supported?
+
+key_evidence: []           # Passages supporting the above, e.g.:
+                            #   - text: "quoted passage from the paper"
+                            #     section: "Introduction"

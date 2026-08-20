@@ -1,0 +1,31 @@
+# Benchmark annotation - fill in every field below by hand.
+# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
+# Leave a field blank only if the paper genuinely doesn't state it.
+
+paper_id: "a554ae49-1c02-4a3f-9e2a-538a5a098a9c"
+source: arxiv
+source_id: "2501.00603"
+title: "DiC: Rethinking Conv3x3 Designs in Diffusion Models"
+domain: "Computer Vision"
+year: 2024
+url: "https://arxiv.org/abs/2501.00603v2"
+
+# --- Annotation ---
+
+problem: ""                # What problem does the paper address?
+research_question: ""      # What research question is being investigated?
+method: ""                 # What approach/method is proposed?
+dataset: ""                # What data is used?
+main_contribution: ""      # What is actually new?
+results: ""                # What are the major findings?
+limitations: ""            # What limitations are explicitly stated?
+
+research_gap:
+  addressed: ""            # What gap does the paper address?
+  remaining: ""            # What gap remains?
+
+applications: ""           # What applications are explicitly supported?
+
+key_evidence: []           # Passages supporting the above, e.g.:
+                            #   - text: "quoted passage from the paper"
+                            #     section: "Introduction"
