@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "c0bb9df3-1075-4bc3-95b6-b534e517fb3b"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2201.02737"
-title: "Cognitive Computing to Optimize IT Services"
-domain: "NLP"
-year: 2021
-url: "https://arxiv.org/abs/2201.02737v1"
+source_id: "2501.00348"
+title: "Temporal Information Reconstruction and Non-Aligned Residual in Spiking Neural Networks for Speech Classification"
+domain: "General AI / Other"
+year: 2024
+url: "https://arxiv.org/abs/2501.00348v1"
 
 # --- Annotation ---
 

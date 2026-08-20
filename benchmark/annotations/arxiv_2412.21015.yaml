@@ -2,7 +2,9 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "493e1a67-cac1-447f-baf3-693c2a128a0e"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
 source_id: "2412.21015"
 title: "MapQaTor: An Extensible Framework for Efficient Annotation of Map-Based QA Datasets"

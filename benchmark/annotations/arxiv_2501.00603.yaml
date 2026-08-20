@@ -2,7 +2,9 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "a554ae49-1c02-4a3f-9e2a-538a5a098a9c"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
 source_id: "2501.00603"
 title: "DiC: Rethinking Conv3x3 Designs in Diffusion Models"

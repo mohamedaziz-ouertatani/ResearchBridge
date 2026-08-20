@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "74e6c766-991e-44f2-aa10-6c75af655d38"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1912.13503"
-title: "Side-Tuning: A Baseline for Network Adaptation via Additive Side Networks"
+source_id: "2201.00052"
+title: "Evaluating Deep Music Generation Methods Using Data Augmentation"
 domain: "Machine Learning"
-year: 2019
-url: "https://arxiv.org/abs/1912.13503v4"
+year: 2021
+url: "https://arxiv.org/abs/2201.00052v1"
 
 # --- Annotation ---
 

@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "37abf69d-9229-42bc-b865-cb6ead95dddc"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18401"
-title: "Multimodal Rapport Estimation in Real-World HRI"
-domain: "NLP"
-year: 2026
-url: "https://arxiv.org/abs/2608.18401v1"
+source_id: "1912.11323"
+title: "Bidding in Spades"
+domain: "General AI / Other"
+year: 2019
+url: "https://arxiv.org/abs/1912.11323v2"
 
 # --- Annotation ---
 

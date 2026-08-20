@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "ea085db6-2450-4bbd-968d-6e983e2512b9"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18701"
-title: "SoftVTBench: A Deformation-Aware Visuo-Tactile Dataset and Benchmark for Deformable-Object Manipulation"
-domain: "General AI / Other"
-year: 2026
-url: "https://arxiv.org/abs/2608.18701v1"
+source_id: "2001.00098"
+title: "Avoiding Spurious Local Minima in Deep Quadratic Networks"
+domain: "Machine Learning"
+year: 2019
+url: "https://arxiv.org/abs/2001.00098v2"
 
 # --- Annotation ---
 

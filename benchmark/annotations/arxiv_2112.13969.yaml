@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "89738fae-4f8a-4382-acad-1360daa1ae2f"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2601.11580"
-title: "Speculative Decoding: Performance or Illusion?"
+source_id: "2112.13969"
+title: "LINDA: Unsupervised Learning to Interpolate in Natural Language Processing"
 domain: "NLP"
-year: 2025
-url: "https://arxiv.org/abs/2601.11580v2"
+year: 2021
+url: "https://arxiv.org/abs/2112.13969v1"
 
 # --- Annotation ---
 

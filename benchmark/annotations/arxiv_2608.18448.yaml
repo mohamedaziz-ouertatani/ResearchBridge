@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "28a4caea-2c57-45cf-96d1-bb99b5e2c1f5"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2012.15589"
-title: "PFL-MoE: Personalized Federated Learning Based on Mixture of Experts"
-domain: "Machine Learning"
-year: 2020
-url: "https://arxiv.org/abs/2012.15589v1"
+source_id: "2608.18448"
+title: "More Context, Same Budget: Dual-Bounded Relational Recall Beyond Top-K Retrieval"
+domain: "NLP"
+year: 2026
+url: "https://arxiv.org/abs/2608.18448v1"
 
 # --- Annotation ---
 

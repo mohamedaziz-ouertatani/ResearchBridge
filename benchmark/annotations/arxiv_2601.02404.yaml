@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "82163a3d-6dc8-429f-b2ce-4a6c80fa2aec"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18404"
-title: "Vector Symbolic Policy Gradient"
-domain: "Machine Learning"
-year: 2026
-url: "https://arxiv.org/abs/2608.18404v1"
+source_id: "2601.02404"
+title: "PCEval: A Benchmark for Evaluating Physical Computing Capabilities of Large Language Models"
+domain: "NLP"
+year: 2025
+url: "https://arxiv.org/abs/2601.02404v1"
 
 # --- Annotation ---
 

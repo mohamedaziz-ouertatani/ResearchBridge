@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "a7876832-3b0a-4445-8108-81e629d63a44"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2512.22036"
-title: "FUSCO: High-Performance Distributed Data Shuffling via Transformation-Communication Fusion"
-domain: "Systems"
-year: 2025
-url: "https://arxiv.org/abs/2512.22036v1"
+source_id: "2608.18569"
+title: "The Role of Grid Cells in Reducing Spatial Aliasing in Hippocampal Place Representations"
+domain: "Machine Learning"
+year: 2026
+url: "https://arxiv.org/abs/2608.18569v1"
 
 # --- Annotation ---
 

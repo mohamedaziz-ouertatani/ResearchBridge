@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "ca94efe0-0863-4253-958e-6a0acc9a8ca3"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2212.14595"
-title: "Posterior sampling with CNN-based, Plug-and-Play regularization with applications to Post-Stack Seismic Inversion"
+source_id: "2212.14524"
+title: "A novel cluster internal evaluation index based on hyper-balls"
 domain: "Machine Learning"
 year: 2022
-url: "https://arxiv.org/abs/2212.14595v1"
+url: "https://arxiv.org/abs/2212.14524v1"
 
 # --- Annotation ---
 

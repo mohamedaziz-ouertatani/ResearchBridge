@@ -2,13 +2,15 @@
 # Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
 # Leave a field blank only if the paper genuinely doesn't state it.
 
-paper_id: "4cb98a25-dfc0-4a1a-ae7d-374100bbdd31"
+# Identified by (source, source_id), not the papers.id UUID: UUIDs are
+# assigned at insert, so they change on every re-ingest and would leave
+# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2112.15530"
-title: "Scalable Deep Graph Clustering with Random-walk based Self-supervised Learning"
+source_id: "2501.00436"
+title: "Intuitive Analysis of the Quantization-based Optimization: From Stochastic and Quantum Mechanical Perspective"
 domain: "Machine Learning"
-year: 2021
-url: "https://arxiv.org/abs/2112.15530v2"
+year: 2024
+url: "https://arxiv.org/abs/2501.00436v1"
 
 # --- Annotation ---
 
