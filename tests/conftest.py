@@ -30,7 +30,12 @@ def engine():
 
 def _truncate_all(engine) -> None:
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE ingestion_errors, ingestion_runs, papers RESTART IDENTITY CASCADE"))
+        conn.execute(
+            text(
+                "TRUNCATE TABLE ingestion_errors, ingestion_runs, paper_citations, "
+                "paper_categories, paper_authors, authors, papers RESTART IDENTITY CASCADE"
+            )
+        )
 
 
 @pytest.fixture()

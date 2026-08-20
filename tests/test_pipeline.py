@@ -5,18 +5,29 @@ from datetime import date
 
 from sqlalchemy import select
 
-from researchbridge.connectors.base import ConnectorFetchResult, NormalizedPaper
-from researchbridge.db.models import IngestionError, IngestionRun, Paper
+from researchbridge.connectors.base import ConnectorFetchResult, NormalizedAuthor, NormalizedPaper
+from researchbridge.db.models import Author, IngestionError, IngestionRun, Paper, PaperAuthor, PaperCategory
 from researchbridge.ingestion.pipeline import IngestionPipeline
 
 
-def _paper(source_id: str, title: str = "A Paper") -> NormalizedPaper:
+def _paper(
+    source_id: str,
+    title: str = "A Paper",
+    authors: list[NormalizedAuthor] | None = None,
+    categories: list[str] | None = None,
+    doi: str | None = None,
+    raw_metadata: dict | None = None,
+) -> NormalizedPaper:
     return NormalizedPaper(
         source="fake",
         source_id=source_id,
         title=title,
         abstract="An abstract.",
         publication_date=date(2026, 1, 1),
+        authors=authors or [],
+        categories=categories or [],
+        doi=doi,
+        raw_metadata=raw_metadata or {},
     )
 
 
@@ -118,5 +129,82 @@ def test_duplicate_within_same_page_is_deduplicated(session_factory) -> None:
         assert run.records_duplicate == 1
         count = session.execute(select(Paper).where(Paper.source_id == "X")).scalars().all()
         assert len(count) == 1
+    finally:
+        session.close()
+
+
+def test_pipeline_persists_authors_and_categories(session_factory) -> None:
+    paper = _paper(
+        "P1",
+        authors=[NormalizedAuthor(name="Alice Example", order=0), NormalizedAuthor(name="Bob Sample", order=1)],
+        categories=["cs.LG", "cs.AI"],
+    )
+    page = ConnectorFetchResult(papers=[paper], resume_state={"page": 1}, exhausted=True)
+    pipeline = IngestionPipeline(connector=FakeConnector(pages=[page]), session_factory=session_factory)
+
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        paper_row = session.execute(select(Paper).where(Paper.source_id == "P1")).scalar_one()
+
+        links = (
+            session.execute(select(PaperAuthor).where(PaperAuthor.paper_id == paper_row.id))
+            .scalars()
+            .all()
+        )
+        assert len(links) == 2
+        names_by_order = {
+            link.author_order: session.get(Author, link.author_id).name for link in links
+        }
+        assert names_by_order == {0: "Alice Example", 1: "Bob Sample"}
+
+        categories = (
+            session.execute(select(PaperCategory).where(PaperCategory.paper_id == paper_row.id))
+            .scalars()
+            .all()
+        )
+        assert {c.category for c in categories} == {"cs.LG", "cs.AI"}
+        assert all(c.confidence == "high" and c.source == "fake" for c in categories)
+    finally:
+        session.close()
+
+
+def test_pipeline_dedupes_authors_by_name_across_papers(session_factory) -> None:
+    shared_author = NormalizedAuthor(name="Shared Author", order=0)
+    paper1 = _paper("P1", authors=[shared_author])
+    paper2 = _paper("P2", authors=[NormalizedAuthor(name="Shared Author", order=0)])
+    page = ConnectorFetchResult(papers=[paper1, paper2], resume_state={"page": 1}, exhausted=True)
+    pipeline = IngestionPipeline(connector=FakeConnector(pages=[page]), session_factory=session_factory)
+
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        authors = session.execute(select(Author).where(Author.name == "Shared Author")).scalars().all()
+        assert len(authors) == 1  # deduped by exact name match, not one row per paper
+
+        links = session.execute(select(PaperAuthor).where(PaperAuthor.author_id == authors[0].id)).scalars().all()
+        assert len(links) == 2  # linked to both papers
+    finally:
+        session.close()
+
+
+def test_pipeline_normalizes_doi_but_keeps_original_in_raw_metadata(session_factory) -> None:
+    paper = _paper(
+        "P1",
+        doi="https://doi.org/10.1145/ABC.DEF",
+        raw_metadata={"doi": "https://doi.org/10.1145/ABC.DEF"},
+    )
+    page = ConnectorFetchResult(papers=[paper], resume_state={"page": 1}, exhausted=True)
+    pipeline = IngestionPipeline(connector=FakeConnector(pages=[page]), session_factory=session_factory)
+
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        paper_row = session.execute(select(Paper).where(Paper.source_id == "P1")).scalar_one()
+        assert paper_row.doi == "10.1145/abc.def"  # normalized: prefix stripped, lowercased
+        assert paper_row.raw_metadata["doi"] == "https://doi.org/10.1145/ABC.DEF"  # original preserved
     finally:
         session.close()

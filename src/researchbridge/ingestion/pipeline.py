@@ -18,7 +18,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from researchbridge.connectors.base import Connector, NormalizedPaper
-from researchbridge.db.models import IngestionError, IngestionRun, Paper
+from researchbridge.db.models import Author, IngestionError, IngestionRun, Paper, PaperAuthor, PaperCategory
+from researchbridge.ingestion.normalize import normalize_doi
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +98,19 @@ class IngestionPipeline:
 
 
 def _normalize(paper: NormalizedPaper) -> NormalizedPaper:
-    """Explicit pass-through stage.
+    """Normalize fields the connector doesn't already normalize itself.
 
-    Connectors currently return already-normalized NormalizedPaper objects,
-    so there is nothing to transform yet. This stage exists so a future
+    Currently just DOI (stripped of URL/scheme prefixes, lowercased — see
+    ingestion.normalize.normalize_doi). paper.raw_metadata keeps the
+    original, unnormalized DOI as returned by the source; paper.doi becomes
+    the normalized form used for storage and future matching/dedup.
+
+    Connectors otherwise return already-normalized NormalizedPaper objects,
+    so this stage stays mostly a checkpoint — kept explicit so a future
     connector that yields raw provider dicts still fits the same
-    fetch -> normalize -> validate -> deduplicate -> persist shape without
-    restructuring the pipeline.
+    fetch -> normalize -> validate -> deduplicate -> persist shape.
     """
+    paper.doi = normalize_doi(paper.doi)
     return paper
 
 
@@ -173,11 +179,42 @@ def _persist(
                     raw_metadata=paper.raw_metadata,
                 )
                 session.add(row)
+                session.flush()  # populate row.id so author/category rows below can reference it
+
+                for author in paper.authors:
+                    author_row = _get_or_create_author(session, author.name)
+                    session.add(PaperAuthor(paper_id=row.id, author_id=author_row.id, author_order=author.order))
+
+                for category in paper.categories:
+                    session.add(
+                        PaperCategory(
+                            paper_id=row.id,
+                            category=category,
+                            confidence="high",  # arXiv-provided, not independently validated - see PaperCategory docstring
+                            source=paper.source,
+                        )
+                    )
             inserted.append(row)
         except IntegrityError as exc:
             failures.append((paper, str(exc)[:2000]))
 
     return inserted, failures
+
+
+def _get_or_create_author(session: Session, name: str) -> Author:
+    """Get-or-create by exact name match (see Author model docstring for the identity caveat).
+
+    No race protection: the pipeline assumes a single writer. A concurrent
+    insert of the same author name would raise IntegrityError here, which
+    (by design) rolls back and fails the whole paper this author belongs to.
+    """
+    existing = session.execute(select(Author).where(Author.name == name)).scalar_one_or_none()
+    if existing is not None:
+        return existing
+    author = Author(name=name)
+    session.add(author)
+    session.flush()
+    return author
 
 
 def _record_error(

@@ -132,6 +132,7 @@ class ArxivConnector:
                 "comment": entry.get("arxiv_comment"),
                 "pdf_url": pdf_url,
                 "updated": entry.get("updated"),
+                "doi": entry.get("arxiv_doi"),  # verbatim, pre-normalization
                 "authors": [{"name": a.name} for a in authors],
             },
         )

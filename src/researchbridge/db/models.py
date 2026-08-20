@@ -1,9 +1,4 @@
-"""SQLAlchemy models for the Phase 1 (weeks 1-2) ingestion slice.
-
-Only `papers`, `ingestion_runs`, and `ingestion_errors` exist here.
-Authors/categories/citations tables are deferred to weeks 3-4 (see
-docs/superpowers/specs/2026-08-20-phase1-arxiv-ingestion-design.md).
-"""
+"""SQLAlchemy models for the Phase 1 (weeks 1-4) ingestion slice."""
 
 from __future__ import annotations
 
@@ -56,6 +51,79 @@ class IngestionRun(Base):
     records_duplicate: Mapped[int] = mapped_column(Integer, default=0)
     records_failed: Mapped[int] = mapped_column(Integer, default=0)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Author(Base):
+    """An author identity.
+
+    Identity here is a provisional heuristic: rows are deduped by exact
+    name-string match only (arXiv gives no ORCID or other stable
+    identifier). Two different people who publish under the same name
+    string will incorrectly collapse into one row; two spellings of the
+    same person will incorrectly stay separate. This is a known MVP
+    limitation, not a correctness guarantee.
+
+    The schema doesn't need special "merge" columns to stay extensible: a
+    future identity-resolution step can merge two Author rows by
+    repointing their paper_authors.author_id rows onto one survivor and
+    removing the other — an ordinary FK repoint, not a schema change.
+    """
+
+    __tablename__ = "authors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    orcid: Mapped[str | None] = mapped_column(String, nullable=True)
+    author_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class PaperAuthor(Base):
+    __tablename__ = "paper_authors"
+
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), primary_key=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("authors.id"), primary_key=True)
+    author_order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class PaperCategory(Base):
+    """A category label attached to a paper.
+
+    `confidence="high"` for arXiv rows means the category was directly
+    provided by arXiv (author-assigned at submission) — it describes the
+    provenance of the label, not an independent check that the category is
+    actually correct or well-chosen.
+    """
+
+    __tablename__ = "paper_categories"
+    __table_args__ = (UniqueConstraint("paper_id", "category", "source", name="uq_paper_categories_paper_category_source"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class PaperCitation(Base):
+    """Citation edges between papers.
+
+    Schema-only for now: no connector currently supplies citation data (see
+    §12/§30 of the blueprint — that's Semantic Scholar's job, added in a
+    later phase). This table stays empty until a citation-capable source is
+    integrated; nothing in the current pipeline writes to it.
+    """
+
+    __tablename__ = "paper_citations"
+    __table_args__ = (
+        UniqueConstraint("citing_paper_id", "cited_paper_id", "source", name="uq_paper_citations_edge_source"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    citing_paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    cited_paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class IngestionError(Base):
