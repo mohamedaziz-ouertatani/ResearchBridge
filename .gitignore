@@ -1,0 +1,10 @@
+.claude/settings.local.json
+.vscode/
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+*.egg-info/
+.graphify_*
+graphify-out/

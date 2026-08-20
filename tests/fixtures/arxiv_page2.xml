@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+      xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <opensearch:totalResults>3</opensearch:totalResults>
+  <opensearch:startIndex>2</opensearch:startIndex>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+
+  <entry>
+    <id>http://arxiv.org/abs/2408.09999v1</id>
+    <updated>2026-08-15T08:00:00Z</updated>
+    <published>2026-08-15T08:00:00Z</published>
+    <title>A Third Paper</title>
+    <summary>The final paper in this small fixture set.</summary>
+    <author>
+      <name>Dave Person</name>
+    </author>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="http://arxiv.org/abs/2408.09999v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2408.09999v1" rel="related" type="application/pdf"/>
+  </entry>
+</feed>

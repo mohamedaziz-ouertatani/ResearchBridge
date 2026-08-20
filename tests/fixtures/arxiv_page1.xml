@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+      xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <link href="http://export.arxiv.org/api/query" rel="self" type="application/atom+xml"/>
+  <title type="html">ArXiv Query</title>
+  <id>http://export.arxiv.org/api/query</id>
+  <updated>2026-08-19T00:00:00-04:00</updated>
+  <opensearch:totalResults>3</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+
+  <entry>
+    <id>http://arxiv.org/abs/2408.01234v2</id>
+    <updated>2026-08-18T12:00:00Z</updated>
+    <published>2026-08-17T09:30:00Z</published>
+    <title>Graph Transformers for Real-Time Fraud Detection</title>
+    <summary>  We study offline evaluation of graph transformers  for
+    fraud detection and find that real-time deployment remains
+    largely unexplored.  </summary>
+    <author>
+      <name>Alice Example</name>
+    </author>
+    <author>
+      <name>Bob Sample</name>
+    </author>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="http://arxiv.org/abs/2408.01234v2" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2408.01234v2" rel="related" type="application/pdf"/>
+    <arxiv:comment xmlns:arxiv="http://arxiv.org/schemas/atom">10 pages, 4 figures</arxiv:comment>
+  </entry>
+
+  <entry>
+    <id>http://arxiv.org/abs/2408.05678v1</id>
+    <updated>2026-08-16T08:00:00Z</updated>
+    <published>2026-08-16T08:00:00Z</published>
+    <title>Static Dataset Benchmarks Considered Harmful</title>
+    <summary>A position paper arguing for dynamic benchmarks.</summary>
+    <author>
+      <name>Carol Researcher</name>
+    </author>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="http://arxiv.org/abs/2408.05678v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2408.05678v1" rel="related" type="application/pdf"/>
+  </entry>
+</feed>
