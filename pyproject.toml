@@ -10,9 +10,11 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.13",
     "feedparser>=6.0.14",
+    "pgvector>=0.5.0",
     "psycopg[binary]>=3.1",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
+    "sentence-transformers>=6.0.0",
     "sqlalchemy>=2.0",
     "tenacity>=9.1.4",
 ]
@@ -20,6 +22,8 @@ dependencies = [
 [project.scripts]
 rb-ingest = "researchbridge.ingestion.cli:main"
 rb-extract = "researchbridge.extraction.cli:main"
+rb-embed = "researchbridge.embedding.cli_embed:main"
+rb-search = "researchbridge.embedding.cli_search:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

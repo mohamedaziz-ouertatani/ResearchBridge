@@ -5,10 +5,13 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Date, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
+
+EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output size — see embedding/model.py
 
 
 class Base(DeclarativeBase):
@@ -211,3 +214,40 @@ class ExtractionError(Base):
     error_type: Mapped[str] = mapped_column(String, nullable=False)
     error_detail: Mapped[str] = mapped_column(Text, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Embedding(Base):
+    """A dense vector representation of a paper's text (title + abstract, for now).
+
+    `embedding_type`/`model_name` let more than one embedding coexist per
+    paper later (e.g. a different model, or a full-text embedding once
+    Phase 1's abstract-only scope is revisited) without a schema change —
+    the unique constraint is per (paper, type, model), not per paper alone.
+    Vectors are stored L2-normalized, so pgvector's cosine-distance operator
+    (`<=>`) and inner-product operator agree — see embedding/model.py.
+    """
+
+    __tablename__ = "embeddings"
+    __table_args__ = (
+        UniqueConstraint("paper_id", "embedding_type", "model_name", name="uq_embeddings_paper_type_model"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    embedding_type: Mapped[str] = mapped_column(String, nullable=False)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    vector: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class EmbeddingRun(Base):
+    __tablename__ = "embedding_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    papers_processed: Mapped[int] = mapped_column(Integer, default=0)
+    papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)

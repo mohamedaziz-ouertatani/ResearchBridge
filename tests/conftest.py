@@ -23,6 +23,8 @@ def engine():
             pass
     except OperationalError:
         pytest.skip("Postgres not reachable at TEST_DATABASE_URL - run `docker compose up -d`")
+    with eng.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(eng)
     yield eng
     eng.dispose()
@@ -32,7 +34,8 @@ def _truncate_all(engine) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE TABLE extraction_errors, extraction_runs, extracted_claims, evidence, "
+                "TRUNCATE TABLE embedding_runs, embeddings, "
+                "extraction_errors, extraction_runs, extracted_claims, evidence, "
                 "ingestion_errors, ingestion_runs, paper_citations, "
                 "paper_categories, paper_authors, authors, papers RESTART IDENTITY CASCADE"
             )
