@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from researchbridge.connectors.base import Connector, NormalizedPaper
+from researchbridge.connectors.base import Connector, NormalizedAuthor, NormalizedPaper
 from researchbridge.db.models import Author, IngestionError, IngestionRun, Paper, PaperAuthor, PaperCategory
 from researchbridge.ingestion.normalize import normalize_doi
 
@@ -181,7 +181,7 @@ def _persist(
                 session.add(row)
                 session.flush()  # populate row.id so author/category rows below can reference it
 
-                for author in paper.authors:
+                for author in _dedupe_authors(paper.authors):
                     author_row = _get_or_create_author(session, author.name)
                     session.add(PaperAuthor(paper_id=row.id, author_id=author_row.id, author_order=author.order))
 
@@ -199,6 +199,27 @@ def _persist(
             failures.append((paper, str(exc)[:2000]))
 
     return inserted, failures
+
+
+def _dedupe_authors(authors: list[NormalizedAuthor]) -> list[NormalizedAuthor]:
+    """Drop repeated names, keeping each author's first listed position.
+
+    arXiv occasionally lists the same author twice on one paper. Both
+    entries resolve to the same Author row (identity is exact name match -
+    see _get_or_create_author), so inserting one PaperAuthor per entry
+    violates the (paper_id, author_id) primary key and rejects the entire
+    paper. Deduping by the same exact-name rule the Author lookup uses
+    keeps the two consistent: names that differ at all stay separate here
+    and become separate Author rows anyway.
+    """
+    seen: set[str] = set()
+    unique: list[NormalizedAuthor] = []
+    for author in authors:
+        if author.name in seen:
+            continue
+        seen.add(author.name)
+        unique.append(author)
+    return unique
 
 
 def _get_or_create_author(session: Session, name: str) -> Author:

@@ -190,6 +190,55 @@ def test_pipeline_dedupes_authors_by_name_across_papers(session_factory) -> None
         session.close()
 
 
+def test_author_listed_twice_on_one_paper_does_not_drop_the_paper(session_factory) -> None:
+    """arXiv sometimes lists the same author twice; that must not reject the paper.
+
+    Both entries resolve to one Author row, so a second PaperAuthor insert
+    would violate the (paper_id, author_id) primary key and fail the whole
+    paper - which is how six papers were silently lost in a real backfill.
+    """
+    paper = _paper(
+        "P1",
+        authors=[
+            NormalizedAuthor(name="Repeated Author", order=0),
+            NormalizedAuthor(name="Other Author", order=1),
+            NormalizedAuthor(name="Repeated Author", order=2),  # same name again
+        ],
+    )
+    page = ConnectorFetchResult(papers=[paper], resume_state={"page": 1}, exhausted=True)
+    pipeline = IngestionPipeline(connector=FakeConnector(pages=[page]), session_factory=session_factory)
+
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(IngestionRun, run_id)
+        assert run.records_failed == 0
+        assert run.records_inserted == 1
+
+        paper_row = session.execute(select(Paper).where(Paper.source_id == "P1")).scalar_one()
+
+        repeated = session.execute(select(Author).where(Author.name == "Repeated Author")).scalar_one()
+        links_to_repeated = (
+            session.execute(
+                select(PaperAuthor).where(
+                    PaperAuthor.paper_id == paper_row.id, PaperAuthor.author_id == repeated.id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(links_to_repeated) == 1
+        assert links_to_repeated[0].author_order == 0  # first occurrence wins
+
+        all_links = (
+            session.execute(select(PaperAuthor).where(PaperAuthor.paper_id == paper_row.id)).scalars().all()
+        )
+        assert len(all_links) == 2  # the repeat collapsed, the distinct author kept
+    finally:
+        session.close()
+
+
 def test_pipeline_normalizes_doi_but_keeps_original_in_raw_metadata(session_factory) -> None:
     paper = _paper(
         "P1",
