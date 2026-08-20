@@ -1,33 +1,82 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18933"
-title: "SkillForge: Self-Distilling Agents for Project-Specific Issue Resolution"
-domain: "Systems"
+source_id: '2608.18933'
+title: 'SkillForge: Self-Distilling Agents for Project-Specific Issue Resolution'
+domain: Systems
 year: 2026
-url: "https://arxiv.org/abs/2608.18933v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2608.18933v1
+problem: LLM-based software engineering agents perform well on general issue-resolution benchmarks but
+  struggle when deployed on a specific repository because they lack project-specific knowledge (e.g.,
+  repository-specific API contracts, brittle modules, coupled APIs), forcing them to rediscover the same
+  conventions repeatedly -- a cold-start problem.
+research_question: Can a self-distillation framework proactively acquire project-specific knowledge directly
+  from a repository's own code and tests -- rather than reactively from historical issue-resolution signals
+  or costly per-issue online exploration -- and thereby improve downstream automated issue resolution?
+method: 'SkillForge synthesizes project-specific issues by using an LLM to re-implement (rewrite) test-covered
+  core functionality segments of a repository under constrained context (without access to the original
+  implementation), producing realistic buggy variants whose failing tests are converted into SWE-bench-style
+  issues. A SWE agent (Mini-SWE-Agent) resolves these synthetic issues, and SkillForge distills the resulting
+  trajectories into a dual-level, entity-grounded skill repository: global diagnostic skills (Mext: entity
+  purpose, reasoning playbooks, related APIs) retrieved via BM25 at the start of a new issue, and local
+  intervention skills (Mint: concrete repair/pitfall lessons from both successful and failed trajectories)
+  injected just-in-time whenever the agent accesses a matching repository file.'
+dataset: SWE-bench Verified (500 human-validated tasks from popular Python GitHub repositories) and SWE-bench
+  Pro (731 instances spanning Python, JavaScript, TypeScript, and Go repositories, with more challenging
+  long-horizon multi-file tasks).
+main_contribution: A novel proactive self-distillation paradigm (SkillForge) that synthesizes project-specific
+  issues from a repository's own tests/code rather than relying on historical issue trajectories or costly
+  online exploration, combined with a dual-level (global diagnostic + local intervention) entity-grounded
+  skill repository enabling retrieval aligned with the agent's current code-interaction context.
+results: On SWE-bench Verified, SkillForge achieves 72.2% and 60.6% Pass@1 with DeepSeek-V3.2 and GPT-5-mini
+  respectively, improving over the Mini-SWE-Agent baseline (66.4% and 55.0%) by +5.8 and +5.6 percentage
+  points. On SWE-bench Pro, SkillForge improves over Mini-SWE-Agent by +5.8 and +4.1 percentage points
+  for the two models. SkillForge outperforms all evaluated history-driven baselines (SWE-Exp, EvoCoder,
+  MemGovern) and online baselines (SAGE, SWE-Debate, Live-SWE-agent) on both benchmarks.
+limitations: ''
+applications: Automated software issue resolution / repository-specific bug fixing by LLM-based software
+  engineering agents.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Prior self-evolving SWE agent methods acquire project-specific knowledge reactively -- either
+    from historical issue-resolution signals (bounded by the richness of past issues and blind to unexercised
+    long-tail components) or from costly per-issue online test-time exploration (available only after
+    the issue arrives); SkillForge instead proactively synthesizes project-specific issues from the repository's
+    own code and tests before real issues arrive.
+  remaining: ''
+key_evidence:
+- text: 'Existing
 
-applications: ""           # What applications are explicitly supported?
+    self-evolving approaches acquire such knowledge from repository
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    history or online repair trajectories, but they either depend on
+
+    available historical issue-resolution signals or incur substantial
+
+    per-issue test-time exploration cost.'
+  section: Abstract
+- text: 'On SWE-bench
+
+    Verified, SkillForge achieves 72.2% and 60.6% Pass@1, im-
+
+    proving over Mini-SWE-Agent by +5.8 and +5.6 percentage
+
+    points, respectively.'
+  section: Introduction
+- text: 'This limitation creates a cold-start problem: before
+
+    project-specific knowledge has been acquired, even a highly
+
+    capable agent is reduced to a generic repository explorer and
+
+    can repeatedly fall into the same project-specific pitfalls.'
+  section: Introduction
+- text: 'Experiments demonstrate that SkillForge con-
+
+    sistently improves issue resolution performance, yielding ab-
+
+    solute Pass@1 gains of +5.8%/+5.6% on SWE-bench Verified
+
+    and +5.8%/+4.1% on SWE-bench Pro for DeepSeek-V3.2
+
+    and GPT-5-mini, respectively.'
+  section: Conclusion

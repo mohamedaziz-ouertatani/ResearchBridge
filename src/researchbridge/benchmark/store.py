@@ -97,10 +97,10 @@ def save(annotation: Annotation) -> None:
     document["key_evidence"] = annotation.key_evidence
 
     body = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, width=100)
-    header = (
-        "# Benchmark annotation - ResearchBridge.md Sec 25.\n"
-        "# Written by hand through the annotation workbench.\n\n"
-    )
+    # Not "written by hand": this fires for any save through the workbench API,
+    # human or scripted, and a false authorship claim in a ground-truth file
+    # is worse than no claim at all.
+    header = "# Benchmark annotation - ResearchBridge.md Sec 25.\n\n"
     annotation.path.write_text(header + body, encoding="utf-8")
 
 

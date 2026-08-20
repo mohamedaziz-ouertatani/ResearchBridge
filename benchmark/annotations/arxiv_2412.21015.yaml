@@ -1,33 +1,70 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2412.21015"
-title: "MapQaTor: An Extensible Framework for Efficient Annotation of Map-Based QA Datasets"
-domain: "NLP"
+source_id: '2412.21015'
+title: 'MapQaTor: An Extensible Framework for Efficient Annotation of Map-Based QA Datasets'
+domain: NLP
 year: 2024
-url: "https://arxiv.org/abs/2412.21015v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2412.21015v2
+problem: Mapping and navigation services (Google Maps, Apple Maps, OpenStreetMap) struggle to handle natural
+  language geospatial queries, and creating reliable, reproducible, traceable geospatial question-answering
+  (QA) datasets from these map services for evaluating and training LLMs remains challenging and labor-intensive.
+research_question: Can an extensible, open-source annotation framework that integrates with arbitrary
+  map APIs and caches API responses substantially speed up and improve the reliability/traceability of
+  creating map-based QA datasets, compared to manual annotation methods?
+method: The authors build MapQaTor, a web platform that lets users select a map service, submit queries
+  through built-in data-collection tools (Text Search, Place Details, Nearby Search, Compute Routes, Search
+  Along Route), converts queries into the format required by the chosen map API, checks a PostgreSQL-backed
+  cache before making live API calls (recording each call for traceability), visualizes returned data
+  on an embedded map, lets users compose question-answer pairs from the retrieved context, and exports
+  the resulting dataset as JSON. The framework's adapter architecture allows integration with multiple
+  map API providers (Google Maps, OpenStreetMap, Mapbox, TomTom, HERE, Azure Maps).
+dataset: The authors' own MapEval benchmark (specifically the MapEval-Textual subset of 300 multiple-choice
+  questions) annotated using MapQaTor; also a quantitative timing comparison task set (Place Details,
+  Nearby Search, Compute Routes, Search Along Route queries around landmarks like the Louvre Museum and
+  Eiffel Tower) comparing MapQaTor to manual Google Maps web interface annotation.
+main_contribution: MapQaTor is presented as the first framework of its kind for automatically and reproducibly
+  fetching rich contextual map service data to build language-map benchmark datasets, unifying data retrieval,
+  annotation, and visualization in a single extensible platform with API-response caching for reproducible
+  ground truth, and it is shown empirically to speed up annotation by at least 30x over manual methods.
+results: 'MapQaTor sped up annotation by at least 30 times compared to manual methods (e.g., Place Details:
+  10.17s vs 487s manually; Nearby Search: 12.50s vs 456s; Compute Routes: 14s vs 516.5s; Search Along
+  Route: 15.66s vs 476s). On the 300-question MapEval-Textual benchmark annotated with MapQaTor, human
+  evaluators using MapQaTor''s context achieved 86.67% accuracy, more than 20 percentage points higher
+  than the best LLM tested (Claude-3.5-Sonnet and Gemini-1.5-Pro both at 66.33%, GPT-4o at 63.33%). MapQaTor''s
+  Formatted Context also reduced average context length by 85.54% (from 17,534 to 2,536 characters) compared
+  to Structured Context, lowering evaluation token costs.'
+limitations: The platform uses several paid map APIs that may incur usage costs, and after the current
+  free public demonstration period users will need to self-host and supply their own API keys, requiring
+  understanding of API pricing structures that may impact accessibility. Its functionality depends heavily
+  on the availability and stability of external map APIs, so API changes, deprecations, or invalid keys
+  can negatively affect performance. The quality of generated QA pairs depends on the retrieved data and
+  users' ability to formulate meaningful questions, introducing variability in dataset quality. The evaluation
+  metrics used might not capture all aspects of usability, possibly overlooking qualitative user feedback,
+  and the authors note other platforms like Trip Advisor could provide additional useful geospatial context
+  not currently incorporated.
+applications: Creating geospatial/map-based question-answering datasets for benchmarking and improving
+  LLM geospatial reasoning capabilities; the authors used it to build the MapEval benchmark used to evaluate
+  19 LLMs including Claude-3.5-Sonnet, GPT-4o, and Gemini-1.5-Pro.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Existing tool-calling datasets like ToolBench and APIBank include location-based tasks but
+    their data collection processes lack traceability and reproducibility, and geospatial QA dataset development
+    more broadly is described as still in its infancy, with existing resources failing to capture rich
+    contextual map-service information; MapQaTor addresses this by centralizing traceable, cached, reproducible
+    data retrieval and annotation.
+  remaining: In addition to map service data, other platforms such as Trip Advisor can also be a rich
+    source of additional context for geospatial queries.
+key_evidence:
+- text: Evaluation metrics show that, MapQaTor speeds up the annotation process by at least 30 times compared
+    to manual methods, underscoring its potential for developing geospatial resources, such as complex
+    map reasoning datasets.
+  section: Abstract
+- text: In MapEval-Textual, two human evaluators, who were not involved in the annotation process, answered
+    the same 300 MCQs, achieving an average accuracy of 86.67%—more than 20% higher than the top-performing
+    models
+  section: Results
+- text: The platform utilizes several paid map APIs, which may incur costs based on usage.
+  section: Limitations
+- text: While tool-calling datasets like ToolBench (Qin et al.) and APIBank (Li et al., 2023) include
+    location-based tasks, their data collection processes lack traceability and reproducibility.
+  section: Related Works

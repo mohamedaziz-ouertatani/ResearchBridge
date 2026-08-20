@@ -1,33 +1,61 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2012.15485"
-title: "Multiple Plans are Better than One: Diverse Stochastic Planning"
-domain: "General AI / Other"
+source_id: '2012.15485'
+title: 'Multiple Plans are Better than One: Diverse Stochastic Planning'
+domain: General AI / Other
 year: 2020
-url: "https://arxiv.org/abs/2012.15485v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2012.15485v1
+problem: In many planning problems, especially human-robot interaction, it is difficult to fully specify
+  the true objective because human preferences may be private or complex to model; optimizing only a partially
+  known objective function can lead to poor performance with respect to the true (unknown) specification.
+research_question: Given a known but partial objective for a Markov decision process, how can one compute
+  a small, representative set of near-optimal and diverse policies (rather than a single optimal policy)
+  so that a human can later select among them according to unknown preferences?
+method: The authors formulate 'diverse stochastic planning' as a constrained nonlinear optimization problem
+  over sets of policies for an infinite-horizon MDP, characterizing each policy's behavior via its state-action
+  occupancy measure, and defining diversity as the sum of pairwise Jensen-Shannon divergences between
+  occupancy measures. The objective combines total expected reward and diversity via a tradeoff parameter,
+  and by using the dual of the average-cost linear program the problem is recast as a constrained optimization
+  that can be solved efficiently with the Frank-Wolfe algorithm; they prove the algorithm converges to
+  a stationary point and compare it against projected gradient ascent (PGA) with a Sequential Least Squares
+  Programming projection step.
+dataset: No external dataset; evaluation uses synthetic two-dimensional 19x19 grid-world navigation environments
+  (a four-room grid world and a nine-room grid world) with obstacles, walls, doors linking rooms, and
+  stochastic transitions controlled by a 'correct transition' hyperparameter.
+main_contribution: The paper introduces the diverse stochastic planning problem formulation for MDPs based
+  on occupancy-measure behavior characterization and Jensen-Shannon divergence diversity, proposes a Frank-Wolfe-based
+  solution with proven convergence to a stationary point, and empirically shows the Frank-Wolfe approach
+  outperforms projected gradient ascent in both solution quality and runtime.
+results: On the four-room grid world (lambda=8, k=2, alpha=.95), Frank-Wolfe (FW) achieved average reward
+  per policy of 13.24 and diversity 0.50 in 26.90 seconds, versus PGA's -39.02 reward, 0.34 diversity,
+  and 1488.76 seconds, showing FW is both faster and higher quality. Increasing the tradeoff parameter
+  and the return-set size increases policy diversity up to a limit set by the environment's structure
+  (e.g., number of distinct door/room combinations), after which reward drops sharply; performance was
+  also characterized as a function of the stochasticity ('correct transition') parameter.
+limitations: ''
+applications: Human-robot interaction and collaborative systems where a set of candidate near-optimal
+  behaviors can be presented to a human to select according to unknown preferences; the authors also suggest
+  example domains such as a robot vacuum or guard robot for the grid-world design.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior quality-diversity (QD) work in reinforcement learning and planning used domain-dependent
+    or ad hoc behavior characterizations (e.g., action sequences, state trajectories, or Euclidean distance);
+    this paper instead uses state-action occupancy measures, a domain-independent characterization that
+    fully encapsulates a policy's dynamics, combined with a solution algorithm with guaranteed convergence
+    to a local minimum.
+  remaining: An interesting future extension of our approach would be investigating the utility of these
+    near-optimal diverse strategies in generating effective collaboration between groups of autonomous
+    agents.
+key_evidence:
+- text: Motivated by this challenge, we formulate a problem, called diverse stochastic planning, that
+    aims to generate a set of representative — small and diverse — behaviors that are near-optimal with
+    respect to the known objective.
+  section: Abstract
+- text: FW is clearly superior to PGA in both performance and computational efficiency.
+  section: Results
+- text: An interesting future extension of our approach would be investigating the utility of these near-optimal
+    diverse strategies in generating effective collaboration between groups of autonomous agents.
+  section: Conclusion and Future Work
+- text: We use this characterization to define the diversity of a set of policies through the pairwise
+    Jensen-Shannon divergences between the occupancy measures.
+  section: Introduction

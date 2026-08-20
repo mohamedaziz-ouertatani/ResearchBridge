@@ -1,33 +1,71 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1812.02641"
-title: "Local Conditioning: Exact Message Passing for Cyclic Undirected Distributed Networks"
-domain: "Systems"
+source_id: '1812.02641'
+title: 'Local Conditioning: Exact Message Passing for Cyclic Undirected Distributed Networks'
+domain: Systems
 year: 2018
-url: "https://arxiv.org/abs/1812.02641v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1812.02641v1
+problem: Exact probabilistic inference (belief propagation) on cyclic undirected graphical models cannot
+  be performed with standard acyclic message passing, and the standard exact solution -- Clustering (e.g.,
+  the Junction Tree algorithm) -- requires forming cluster nodes, which is infeasible in truly physically
+  distributed systems (e.g., autonomous vehicles, warehouse sensor networks, delivery drones) where only
+  individual nodes of the original network can communicate.
+research_question: How can Local Conditioning -- a method previously given only a theoretical justification
+  for directed (Bayesian) networks -- be implemented in practice for undirected cyclic networks, specifically
+  working out how a node computes outgoing messages and beliefs from incoming message matrices that are
+  conditioned on potentially different, and differently ordered, subsets of loop cutset nodes?
+method: 'The paper develops Local Conditioning (LC) for undirected Gibbs-distribution networks by opening
+  the cyclic graph at a loop cutset L to form an acyclic ''associated tree'' T, then running belief propagation
+  on this tree using matrix-valued messages whose columns are conditioned on configurations of relevant
+  loop cutset nodes. It formalizes three operations needed for practical node-level implementation: (1)
+  ''summing out'' loop cutset nodes upstream of an outgoing message to shrink the message matrix, (2)
+  ''expanding'' incoming message matrices conditioned on different subsets to a common relevant set, and
+  (3) ''reordering'' (via permutation matrices) the expanded matrices so corresponding columns align for
+  element-wise fusion. It proves a Local Conditioning Sum-Product Belief Propagation theorem giving explicit
+  formulas for conditioned beliefs and outgoing messages at loop-cutset and non-loop-cutset nodes.'
+dataset: ''
+main_contribution: The paper's primary contribution over the prior theoretical justification of Local
+  Conditioning (Fay and Jaffray) is a detailed, implementation-level account -- for undirected networks
+  -- of how nodes actually compute outgoing messages and beliefs from incoming messages of different sizes
+  and orderings, via explicit summing-out, expanding, and reordering procedures (including permutation-matrix-based
+  column alignment), worked through a concrete grid-network example.
+results: The paper derives (Theorem 1) explicit recursive formulas for computing local-conditioning messages
+  and beliefs at both loop-cutset and non-loop-cutset nodes, and works a detailed example on a 3x3 grid
+  network showing the expansion, reordering (via permutation matrices), and summing-out operations for
+  messages passed between nodes 4, 5, 6, 8 and 2, 3. It also derives that for an M x N grid network there
+  exists a loop cutset and associated tree with max relevant-set size M+1, implying the complexity of
+  Local Conditioning on grid networks equals that of Clustering.
+limitations: The paper explicitly states it does not address finding a common scaling factor needed to
+  prevent numerical overflow/underflow while still yielding correct probabilities in Conditioning ('The
+  present paper does not address finding such a common factor for scaling'), and it states it has not
+  addressed the question of finding an optimal associated tree for a given loop cutset, nor the further
+  question of finding an optimal loop cutset. It also notes that, despite the implementation contribution,
+  the complexity of Local Conditioning in grid networks is still no better than that of Clustering.
+applications: The paper motivates the work with truly physically distributed systems that cannot use Clustering
+  methods, specifically citing autonomous vehicles communicating with nearby vehicles and roadside base
+  stations, industrial warehouse sensors and robots positioned along rows and columns, and networks of
+  delivery drones.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior work on Local Conditioning (Diez for directed networks; Fay and Jaffray's theoretical
+    justification) either only introduced the ideas through examples or proved message matrices could
+    be reduced in size without detailing how nodes would actually compute beliefs and outgoing messages
+    from incoming messages of different sizes and orderings; this paper fills that implementation gap
+    for undirected networks.
+  remaining: Future work must address suboptimal implementations for networks of prohibitive topology,
+    for example by prematurely summing out relevant loop cutset nodes; the paper also flags open questions
+    of finding optimal associated trees/loop cutsets and a common message-scaling factor for numerical
+    stability as unaddressed.
+key_evidence:
+- text: The emphasis on implementation is the primary contribution over the theoretical justiﬁcation of
+    LC given in Fay et al.
+  section: Abstract
+- text: In our preliminary analysis so far, we have found that for an M × N grid network, there is a loop
+    cutset and an associated tree for that loop cutset with maxi |Ri| = M + 1. In other words, the complexity
+    of Local Conditioning on an M ×N grid network is the same as that of Clustering.
+  section: Results
+- text: The present paper does not address ﬁnding such a common factor for scaling.
+  section: Introduction
+- text: Further work in this area must address suboptimal implementations for networks of prohibitive
+    topology, for example by prematurely summing out relevant loop cutset nodes.
+  section: Conclusion

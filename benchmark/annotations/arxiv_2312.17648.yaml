@@ -1,33 +1,66 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2312.17648"
-title: "Bridging Modality Gap for Visual Grounding with Effecitve Cross-modal Distillation"
-domain: "Computer Vision"
+source_id: '2312.17648'
+title: Bridging Modality Gap for Visual Grounding with Effecitve Cross-modal Distillation
+domain: Computer Vision
 year: 2023
-url: "https://arxiv.org/abs/2312.17648v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2312.17648v2
+problem: Current Transformer-based visual grounding methods use visual and language backbones that are
+  each pre-trained independently on single-modal data, creating a domain gap between the two modalities
+  that end-to-end training cannot fully bridge, which limits the model's multi-modal reasoning ability
+  when it fuses visual and linguistic features to localize an image region described by text.
+research_question: Can distilling the cross-modal semantic consistency knowledge contained in a multimodal
+  pre-trained model (CLIP) into a visual grounding model's separate visual and linguistic branches reduce
+  the modality domain gap and improve visual grounding accuracy?
+method: The authors propose EpmVG (Empowering Pre-trained Model for Visual Grounding), built on a TransVG-style
+  architecture with a visual branch (ResNet/Swin backbone + vision transformer), a linguistic branch (BERT),
+  a cross-modal fusion transformer, and a prediction module. They add a Cross-modal Distillation (CD)
+  module that uses a frozen CLIP model's image encoder and text encoder to produce global image ([DIE])
+  and text ([DTE]) embeddings as soft labels; these are adaptive-average-pooled to match the dimension
+  of the model's own global visual token (p'1_v) and global textual token (p'1_l), and a cosine distillation
+  loss constrains the model's tokens to align with CLIP's embeddings. This distillation loss is combined
+  with the standard smooth-L1 and GIoU bounding-box regression losses for end-to-end training.
+dataset: 'Five visual grounding benchmarks: ReferItGame, Flickr30K Entities, RefCOCO, RefCOCO+, and RefCOCOg,
+  using TransVG (ResNet-50/ResNet-101 backbones) and QRNet (Swin-S backbone) as the base visual grounding
+  models, with CLIP as the frozen teacher for distillation.'
+main_contribution: The paper identifies the single-modal pre-training domain gap as a specific problem
+  in existing visual grounding backbones and introduces a novel cross-modal distillation mechanism that
+  transfers CLIP's image-text consistency knowledge directly into the global visual and linguistic tokens
+  of a visual grounding model, showing this framework is model-agnostic (applied to both TransVG and QRNet)
+  and yields consistent accuracy gains.
+results: EpmVG improves top-1 accuracy over its non-distilled baselines across all five datasets, e.g.,
+  TransVG (ResNet-50) rises from 69.76% to 70.65% on ReferItGame and from 80.49%/83.28%/75.24% to 83.39%/86.20%/78.98%
+  on RefCOCO val/testA/testB. Applied to QRNet (Swin-S), EpmVG reaches 75.84%/83.14% versus QRNet's 74.61%/81.95%
+  on ReferItGame/Flickr30K. On RefCOCO and RefCOCO+ the method gains 3.36%-4.99% absolute improvement
+  on testA and 0.56%-4.31% on testB over prior state-of-the-art, and gains 4.09% on RefCOCOg, outperforming
+  prior one-stage and two-stage state-of-the-art methods.
+limitations: The authors explicitly state that because the pre-trained CLIP model used for distillation
+  has a significantly larger parameter size than the visual grounding model, training requires waiting
+  for the teacher model's inference, resulting in slower training speed after distillation compared to
+  training the visual grounding model alone; they note this does not affect inference speed, however.
+applications: The paper notes visual grounding has widespread applications such as object search, video
+  analysis, automation, robot navigation, and augmented reality.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior Transformer-based visual grounding methods fuse independently pre-trained single-modal
+    visual and linguistic backbones, leaving a domain gap that traditional end-to-end training cannot
+    bridge; EpmVG addresses this by distilling cross-modal consistency information from a multimodal pre-trained
+    model (CLIP) into the visual and linguistic branches.
+  remaining: ''
+key_evidence:
+- text: This problem arises from the domain gap between the single-modal pre-training backbones used in
+    current visual grounding methods, which can hardly be bridged by the traditional end-to-end training
+    method.
+  section: Abstract
+- text: EpmVG relies on a novel cross-modal distillation mechanism that can effectively introduce the
+    consistency information of images and texts from the pre-trained model, reducing the domain gap in
+    the backbone networks
+  section: Abstract
+- text: Due to the utilization of pre-trained models for distillation, their parameter size is significantly
+    larger than that of the visual grounding model, necessitating the waiting for the inference of the
+    pre-trained model during the training process. This results in a slower training speed after distillation
+    compared to solely training the visual grounding model.
+  section: Results
+- text: On the ReferCOCO and ReferCOCO+ datasets, our method gains 3.36%∼4.99% absolute improvement in
+    "testA" and 0.56%∼4.31% in "testB".
+  section: Results

@@ -1,33 +1,60 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1912.12405"
-title: "A Genetic Algorithm based Kernel-size Selection Approach for a Multi-column Convolutional Neural Network"
-domain: "Computer Vision"
+source_id: '1912.12405'
+title: A Genetic Algorithm based Kernel-size Selection Approach for a Multi-column Convolutional Neural
+  Network
+domain: Computer Vision
 year: 2019
-url: "https://arxiv.org/abs/1912.12405v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1912.12405v2
+problem: Finding the optimal combination of hyper-parameters, especially kernel sizes, for large deep
+  neural network architectures such as multi-column CNNs is tedious and typically requires extensive manual
+  laboratory experimentation.
+research_question: Can a genetic algorithm automatically find a good combination of per-layer kernel sizes
+  for a multi-column CNN architecture, reducing manual effort while improving handwritten Bangla character/digit
+  recognition accuracy compared to fixed, hand-chosen kernel sizes?
+method: The authors propose a genetic-algorithm-based kernel-size selection approach for a three-column
+  CNN. Each individual in the population is a vector of kernel sizes (values restricted to 3, 5, or 7)
+  with length equal to the total number of convolutional layers across all columns; the population (size
+  100) is initialized randomly and evolved over 20 generations using Roulette Wheel parent selection,
+  single-point crossover (rate 0.5), and random mutation (probability 0.2), with fitness defined as recognition
+  accuracy on a validation set after training each candidate architecture with RMSProp for 100 epochs
+  per generation. The best-fit individual after evolution is used to set the final kernel sizes of the
+  multi-column CNN.
+dataset: 'Three publicly available Bangla handwritten script datasets: ISIBanglaDigit (Bangla digits,
+  23,500 train / 4,000 test), CMATERdb 3.1.2 (Bangla basic characters, 12,000 train / 3,000 test), and
+  CMATERdb 3.1.3 (Bangla compound characters, 34,229 train / 8,468 test).'
+main_contribution: The paper's contribution is the specific genetic-algorithm-based hyper-parameter (kernel-size)
+  search procedure applied to a multi-column CNN, evaluated on three Bangla handwritten script datasets,
+  showing that GA-found multi-scale kernel combinations outperform any single fixed kernel size (3x3,
+  5x5, or 7x7) applied uniformly across all layers.
+results: The GA-optimized multi-column CNN achieved test accuracies of 99.12% on ISIBanglaDigit, 97.10%
+  on CMATERdb 3.1.2 (basic characters), and 94.77% on CMATERdb 3.1.3 (compound characters), each outperforming
+  the same architecture with fixed 3x3 (98.98%/95.45%/92.56%), 5x5 (99.02%/95.56%/93.12%), or 7x7 (98.87%/95.10%/91.46%)
+  kernels in every layer. These results also exceeded reported accuracies of prior contemporary methods
+  on the same datasets (e.g., 99.02% for ISI digits by Sharif et al., 92.88% for basic characters by LeCun
+  et al., 90.33% for compound characters by Roy et al.).
+limitations: ''
+applications: The authors state that researchers in computer vision and other domains can utilize this
+  genetic-algorithm-based neural architecture search strategy to initialize optimal combinations of kernel
+  sizes and other hyper-parameters of their neural network architectures before final training, to achieve
+  better performance with less human effort.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior approaches to configuring neural network architectures (e.g., multi-column CNNs) were
+    largely empirical, based on exploratory laboratory experiments, while recent reinforcement-learning-based
+    neural architecture search reduced but did not eliminate this effort; this paper addresses kernel-size
+    selection specifically via a genetic algorithm as an alternative automated search technique.
+  remaining: ''
+key_evidence:
+- text: Here, we introduced a genetic algorithm based technique to reduce the eﬀorts of ﬁnding the optimal
+    combination of a hyper-parameter (kernel size) of a convolutional neural network based architecture.
+  section: Abstract
+- text: In case of multi-scaling, the network gives a better performance than all of these three ﬁxed-scaled
+    kernels.
+  section: Results
+- text: This genetic algorithm based neural architecture search methodology opens a new area of research
+    towards pattern recognition including other domains.
+  section: Conclusion
+- text: The best recognition accuracy achieved on these three diﬀerent datasets using our proposed methodology
+    is presented in Table 4 .
+  section: Results

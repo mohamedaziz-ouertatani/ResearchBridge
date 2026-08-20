@@ -1,33 +1,64 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2012.15072"
-title: "RTS3D: Real-time Stereo 3D Detection from 4D Feature-Consistency Embedding Space for Autonomous Driving"
-domain: "Computer Vision"
+source_id: '2012.15072'
+title: 'RTS3D: Real-time Stereo 3D Detection from 4D Feature-Consistency Embedding Space for Autonomous
+  Driving'
+domain: Computer Vision
 year: 2020
-url: "https://arxiv.org/abs/2012.15072v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2012.15072v1
+problem: Existing stereo image-based 3D object detection methods that follow the Pseudo-LiDAR paradigm
+  still show a notable gap in efficiency and accuracy compared to LiDAR-based methods, and they over-rely
+  on a stand-alone depth estimator that requires large amounts of pixel-wise annotation and extra computation,
+  limiting real-world scalability.
+research_question: Can an efficient and accurate 3D object detector be built from stereo images using
+  an intermediate 3D representation that does not require depth-map, instance-mask, or CAD-model supervision,
+  while achieving true real-time performance?
+method: 'The authors propose RTS3D, which builds a 4D feature-consistency embedding (FCE) space as an
+  intermediate 3D representation: a fast monocular 3D detector (KM3D-Net or CenterNet) generates an initial
+  coarse latent 3D box/grid, multi-scale ResNet18 features from the left and right stereo images are warped/back-projected
+  onto this grid, and a semantic-guided Radial Basis Function (RBF) combines texture and semantic cues
+  per voxel to encode feature consistency while filtering noise. A structure-aware attention (StrAA) module
+  further filters spatial noise using a bird''s-eye-view-style 2D convolution, and a PointNet-like network
+  with MLPs predicts the final 3D bounding box and confidence; the process can be iterated to refine the
+  latent space.'
+dataset: KITTI 3D object detection benchmark (7481 training stereo images, 7518 test stereo images, split
+  into 3712 train / remaining val images following prior protocol).
+main_contribution: A novel 4D feature-consistency embedding (FCE) space as an intermediate representation
+  for stereo 3D detection that replaces the 3D occupancy space used by Pseudo-LiDAR methods, requiring
+  no extra supervision (depth maps, instance masks, or CAD models) beyond the 3D bounding box, combined
+  with a semantic-guided RBF and a structure-aware attention module, yielding the first true real-time
+  (FPS>24) stereo 3D detection system.
+results: RTS3D achieves 30.2ms per-frame runtime (FPS>24, the first true real-time stereo 3D detector)
+  and a 10% improvement in average precision (AP3D and APBEV, moderate setting) over the previous state-of-the-art
+  image-only method Stereo R-CNN, while being about 10x faster and requiring no extra label supervision.
+  Ablations show the FCE space is far faster and more accurate than a comparable occupancy space (39.4ms
+  vs 418.4ms runtime, AP3D 43.54 vs 23.53 moderate), and the StrAA module and semantic-guided RBF each
+  further improve accuracy.
+limitations: ''
+applications: 3D object detection for autonomous driving, augmented reality, and robotics; the paper specifically
+  targets autonomous driving safety via real-time stereo camera-based 3D detection as a lower-cost, lower-power
+  alternative to LiDAR.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior Pseudo-LiDAR-similar stereo methods rely on stand-alone depth estimators and extra
+    sub-networks (for instance masks, CAD models, or depth maps) that require expensive pixel-wise annotation
+    and add computation/latency, causing an inherent disconnection in gradient flow and limiting speed
+    and accuracy; RTS3D addresses this by building an FCE space directly from stereo feature consistency
+    without any of that extra supervision.
+  remaining: The authors note that smoothing detection results between adjacent frames is a straightforward
+    way to further improve accuracy and speed, which is what they plan to do in future work.
+key_evidence:
+- text: Experiments on the KITTI benchmark show that RTS3D is the ﬁrst true real-time system (FPS>24)
+    for stereo image 3D detection meanwhile achieves 10% improvement in average precision comparing with
+    the previous state-of-the-art method.
+  section: Abstract
+- text: The main contribution of our approach is a novel 4D intermediate representation of 3D object structure,
+    named FCE space.
+  section: Introduction
+- text: we can observe that our RTS3D is the fastest running speed while our accuracy outperforms all
+    image-only methods. Speciﬁcally, without extra labels helping, RTS3D is 10 times faster than the existing
+    SOTA work Stereo RCNN while achieves 10% improvement in AP3D and APBEV for the moderate setting accuracy.
+  section: Results
+- text: One of the most straightforward methods conceivable is to smooth the detection results between
+    adjacent frames. This is what we will do in future work.
+  section: Conclusion and Discussion

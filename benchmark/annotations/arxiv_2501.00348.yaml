@@ -1,33 +1,82 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2501.00348"
-title: "Temporal Information Reconstruction and Non-Aligned Residual in Spiking Neural Networks for Speech Classification"
-domain: "General AI / Other"
+source_id: '2501.00348'
+title: Temporal Information Reconstruction and Non-Aligned Residual in Spiking Neural Networks for Speech
+  Classification
+domain: General AI / Other
 year: 2024
-url: "https://arxiv.org/abs/2501.00348v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2501.00348v1
+problem: Most spiking neural network (SNN) models for speech classification process the input at only
+  a single temporal resolution, preventing them from learning multi-scale temporal information; additionally,
+  because sub-modules in many SNN models change the time length of the data, effective residual connections
+  cannot be applied between them, hindering optimization.
+research_question: Can reconstructing the temporal dimension of the audio spectrum (to enable multi-scale
+  temporal learning) and enabling residual connections between features of different time lengths improve
+  the speech classification accuracy and efficiency of spiking neural networks?
+method: 'The authors propose two techniques built on the SNN-Delays baseline: (1) Temporal Reconstruction
+  (TR), which groups input data along the time dimension and uses logical OR or MAX operations to merge
+  the frequency information of multiple time points within each group into a single new time point (implemented
+  as TR-with-overlap and TR-without-overlap variants), inspired by hierarchical temporal processing of
+  speech in the human brain, so shallow layers learn on smaller time scales and deep layers learn on larger
+  time scales; and (2) Non-Aligned Residual (NAR), a residual-connection method that allows features with
+  different temporal lengths to be combined, resolving the mismatch that normally prevents residual connections
+  between sub-modules with differing output time lengths.'
+dataset: Spiking Speech Commands (SSC), Spiking Heidelberg Digits (SHD), and Google Speech Commands v0.02
+  (GSC, a non-spiking dataset).
+main_contribution: A novel Temporal Reconstruction (TR) method that lets SNNs learn multi-time-scale information
+  from audio spectrograms by analogy with hierarchical brain processing of speech, and a novel Non-Aligned
+  Residual (NAR) method that enables residual connections between speech data of different temporal lengths
+  -- both applied on top of an SNN-Delays baseline and validated across spiking and non-spiking speech
+  datasets.
+results: The proposed methods achieve a new state-of-the-art (SOTA) test classification accuracy of 81.02%
+  on SSC and 96.04% on SHD among all SNN models. On the non-spiking GSC dataset, the method achieves 95.63%
+  (also reported as 95.62% in the ablation table) test accuracy, surpassing the original SNN-Delays baseline.
+  The combination of NAR and TR (specifically TR without overlap, per the ablation) gives the best results,
+  TR outperforms a simple 1D max-pooling alternative under the same settings, and the proposed methods
+  also increase model throughput/processing speed and reduce energy consumption.
+limitations: ''
+applications: Speech/audio classification tasks using spiking neural networks, with benefits of improved
+  processing speed and reduced energy consumption, relevant to energy-efficient neuromorphic computing
+  applications.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Prior SNN speech-classification models used a single temporal resolution and lacked a way
+    to apply residual connections when sub-module outputs have different time lengths; the paper explicitly
+    notes 'as far as we know, there have few works that use SNN models to deal with the information of
+    multiple temporal scales for speech classification problems,' and addresses this with TR and NAR.
+  remaining: ''
+key_evidence:
+- text: 'Recently, it can be noticed that most models based
 
-applications: ""           # What applications are explicitly supported?
+    on spiking neural networks (SNNs) only use a same level temporal
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    resolution to deal with speech classification problems, which
+
+    makes these models cannot learn the information of input data
+
+    at different temporal scales.'
+  section: Abstract
+- text: 'we have achieved the state-of-the-art
+
+    (SOTA) result 81.02% on SSC for the test classification accuracy
+
+    of all SNN models, and we have obtained the SOTA result
+
+    96.04% on SHD for the classification accuracy of all models.'
+  section: Abstract
+- text: 'However, as far as we
+
+    know, there have few works that use SNN models to deal
+
+    with the information of multiple temporal scales for speech
+
+    classification problems.'
+  section: Related Works
+- text: 'By using TR, we enable the model to learn
+
+    information about the input data on a smaller time scale at the
+
+    shallow layers and learn it on a larger time scale at the deep
+
+    layers.'
+  section: Conclusion

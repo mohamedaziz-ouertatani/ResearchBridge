@@ -1,33 +1,67 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2512.24676"
-title: "A New Decomposition Paradigm for Graph-structured Nonlinear Programs via Message Passing"
-domain: "Machine Learning"
+source_id: '2512.24676'
+title: A New Decomposition Paradigm for Graph-structured Nonlinear Programs via Message Passing
+domain: Machine Learning
 year: 2025
-url: "https://arxiv.org/abs/2512.24676v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2512.24676v2
+problem: Distributed/decentralized optimization of finite-sum nonlinear programs whose variable coupling
+  is described by a (hyper)graph lacks decomposition methods that are simultaneously communication-efficient
+  (single-hop, scope-sized messages), scalable, and provably convergent on graphs with cycles (loopy graphs).
+  Existing graph-agnostic decentralizations, consensus-based methods, and overlapping-neighborhood techniques
+  either replicate the full decision vector, require dense multi-hop communication, or lack general convergence
+  guarantees.
+research_question: Can message passing -- normally exact only on acyclic (tree) graphical models -- be
+  turned into a rigorously convergent, implementable, and communication-efficient decomposition algorithm
+  for continuous nonlinear programs on graphs and hypergraphs that contain cycles?
+method: The authors partition the coupling (hyper)graph into tree clusters (a 'condensed graph' of supernodes)
+  and derive a graph-compliant fixed-point characterization of the solution. Within each tree cluster,
+  intra-cluster coupling is resolved by one forward-backward min-sum message-passing sweep (as in exact
+  dynamic programming on trees); coupling across clusters is handled Jacobi-style using the most recent
+  variables of out-of-cluster neighbors. This single-loop, fully decentralized scheme is called Message-Passing
+  Jacobi (MP-Jacobi). To cut per-iteration computation/communication, they also introduce 'surrogate MP-Jacobi',
+  which replaces exact functional messages/local solves with low-dimensional parametrized surrogates,
+  and extend the whole framework to hypergraphs via hypergraph message passing plus a surrogate hyperedge-splitting
+  strategy for heavily overlapping hyperedges.
+dataset: ''
+main_contribution: The paper presents (to the authors' knowledge) the first provably convergent message-passing-based
+  decomposition method for continuous optimization on loopy graphs, obtained by casting MP-Jacobi as a
+  delayed block-Jacobi method on a partition-induced operator. It gives topology- and partition-explicit
+  convergence rates (linear for strongly convex, sublinear for convex/nonconvex objectives) that do not
+  rely on diagonal dominance or walk-summability assumptions, plus a surrogation technique and a hypergraph
+  extension with hyperedge splitting.
+results: Numerical experiments (MATLAB, convex quadratic programs and decentralized-optimization instances
+  on pairwise graphs, and hypergraph instances) show MP-Jacobi and surrogate MP-Jacobi converge significantly
+  faster than gradient descent and are competitive with centralized block-Jacobi, while surrogate MP-Jacobi
+  achieves similar convergence with substantially reduced communication. Scalability experiments on ring
+  graphs confirm that partitions predicted by the theory to scale better (e.g., more, smaller tree clusters
+  with diameter Θ(m^{2/5})) do scale better empirically, and an example is shown where classical min-sum
+  message passing fails to converge while MP-Jacobi remains convergent without requiring diagonal dominance.
+limitations: ''
+applications: 'The paper lists several motivating application classes fitting its problem formulation:
+  graph-Laplacian linear systems (electrical flows, random-walk/Markov-chain quantities), graph signal
+  processing/denoising, personalized and multi-task learning with soft coupling among agents/tasks, classical
+  distributed optimization (e.g., DGD-CTA/DGD-ATC), and MAP inference on graphical models including robot
+  localization/SLAM, hidden Markov model decoding, and image denoising/inpainting via Fields of Experts.'
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior message-passing convergence results for loopy graphs were restricted to special regimes
+    (scaled diagonal dominance for pairwise convex objectives, or strictly convex quadratics under walk-summability),
+    lacked topology-explicit rates, and existing graph-compliant decentralized methods (consensus, overlapping-domain
+    decomposition) either replicate full decision vectors or bury convergence rates in global spectral/dominance
+    constants that mix topology and problem parameters.
+  remaining: ''
+key_evidence:
+- text: To our knowledge, this is the first convergent message-passing method on loopy graphs.
+  section: Abstract
+- text: 'This paper takes a fundamentally different route than existing graph-compliant decompositions:
+    we develop (to our knowledge) the first framework for nonlin- ear programs on graphs and hypergraphs
+    that is rigorously built around message passing, with an explicit focus on computational and communication
+    efficiency.'
+  section: Introduction
+- text: The proposed MP-Jacobi and surrogate MP-Jacobi converge significantly faster than GD, and are
+    competitive with Jacobi-type baselines.
+  section: Results
+- text: We establish convergence for (strongly) convex and nonconvex objectives, with topology- and partition-explicit
+    rates that quantify curvature/coupling effects and guide clustering and scalability.
+  section: Introduction

@@ -1,33 +1,85 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2512.24565"
-title: "MCPAgentBench: A Real-world Task Benchmark for Evaluating LLM Agent MCP Tool Use"
-domain: "General AI / Other"
+source_id: '2512.24565'
+title: 'MCPAgentBench: A Real-world Task Benchmark for Evaluating LLM Agent MCP Tool Use'
+domain: General AI / Other
 year: 2025
-url: "https://arxiv.org/abs/2512.24565v3"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2512.24565v3
+problem: Existing benchmarks for evaluating LLM agents' use of the Model Context Protocol (MCP) rely on
+  real, remote MCP servers whose instability and unavailability harm reproducibility, use only coarse
+  task categorization without granular difficulty levels for tool-invocation complexity, and lack metrics
+  for measuring task execution efficiency (not just correctness).
+research_question: How well do current mainstream LLMs perform at selecting and invoking MCP tools to
+  complete real-world tasks, in terms of both task completion correctness and execution efficiency (time
+  and token cost), especially under distractor tools and single/serial/parallel multi-tool invocation
+  scenarios?
+method: The authors build MCPAgentBench, an Autogen-based sandbox benchmark with locally deployed simulated
+  MCP servers (for stability/reproducibility) built from authentic MCP tool definitions collected from
+  GitHub, MCP Marketplace, and Hugging Face. For each task, the sandbox presents the agent with a candidate
+  tool list containing both n correct tools (G) and K-n distractor tools (F) that are functionally unrelated
+  or easily confusable, testing tool selection/discrimination. They define new metrics -- Task Finish
+  Score (TFS), Task Efficiency Finish Score (TEFS), Token Efficiency, and Time Efficiency -- to jointly
+  capture planning correctness, execution timing, and resource consumption, and evaluate 11 mainstream
+  LLMs (Claude Sonnet 4.5, DeepSeek V3.2, Gemini 3 Pro Preview, gpt-5, gpt-o3, gpt-o4-mini, grok-4, qwen3-235b
+  variants, kimi-k2, glm-4.6) on the resulting task set.
+dataset: A newly constructed dataset of 841 collected real-world tasks and over 20,000 MCP tools (from
+  MCP Marketplace and Hugging Face/MCPHackathon sources), manually curated and matched down to 178 high-quality
+  task instances spanning daily-life and professional domains with single-tool, dual-tool (serial/parallel),
+  and multi-tool invocation categories.
+main_contribution: 'MCPAgentBench: a new MCP tool-use benchmark that (1) uses locally deployed simulated
+  MCP servers built from authentic tool definitions for stable, reproducible evaluation, (2) introduces
+  realistic distractor tools to test selection robustness, (3) categorizes tasks by invocation complexity
+  (single/serial/parallel/multi-tool) for difficulty-aware analysis, and (4) proposes efficiency-aware
+  metrics (TFS, TEFS, Token Efficiency, Time Efficiency) that go beyond simple task-completion correctness.'
+results: Under TFS, Claude Sonnet 4.5, gpt-o3, and glm-4.6 scored highest (71.6, 66.0, 65.1) while Gemini
+  3 Pro Preview scored lowest (48.1). Under the stricter TEFS metric, Claude Sonnet 4.5, glm-4.6, and
+  qwen3-235b-a22b-instruct-2507 led (57.7, 54.4, 51.8) while Gemini 3 Pro Preview was lowest (33.5); nearly
+  all models dropped over 10 points from TFS to TEFS (o3 dropped 28.5 points), showing models prioritize
+  task completion over efficiency. OpenAI-series models scored 0 TEFS on Dual Parallel tasks due to an
+  extreme serial invocation strategy, while Claude Sonnet 4.5's aggressive parallelization gave it top
+  Time Efficiency but hurt its score on Dual Serial tasks. qwen3-235b-a22b-instruct-2507 had the highest
+  Token Efficiency, and TEFS generally increased with model scale (with a dip at Qwen 2.5 32B) and decreased
+  as the number of distractor tools increased.
+limitations: ''
+applications: Evaluating and comparing the tool-use/planning capabilities of LLM-based agents that interact
+  with external tools via the Model Context Protocol, informing model selection and highlighting parallel-tool-invocation
+  deficiencies for real-world agent deployment.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Existing MCP benchmarks (MCP-Universe, MCP-RADAR, MCPWorld, MCPToolBench++) rely on live/remote
+    MCP servers (hurting reproducibility) and focus on task correctness and protocol compliance without
+    difficulty-aware task categorization or execution-efficiency metrics; MCPAgentBench addresses this
+    with local stable MCP servers, distractor-based difficulty categorization, and dedicated efficiency
+    metrics (TEFS, Token/Time Efficiency).
+  remaining: ''
+key_evidence:
+- text: 'Firstly, a stability and de-
 
-applications: ""           # What applications are explicitly supported?
+    pendency issue exists, as current benchmarks often rely on real,
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    remote MCP servers, where service stability and availability
+
+    heavily impact the reproducibility of testing results.'
+  section: Introduction
+- text: 'Nearly all evaluated models exhibit a decline of over 10
+
+    points in TEFS compared to TFS, with the o3 model record-
+
+    ing the most significant drop of 28.5 points.'
+  section: Results
+- text: 'This limitation is partic-
+
+    ularly prominent in OpenAI series models (e.g., gpt-5), which
+
+    record a TEFS of 0 for Dual Parallel tasks, failing to execute
+
+    required parallel operations efficiently or accurately.'
+  section: Results
+- text: 'We collect authentic 841
+
+    tasks and over 20000 MCP Tools from sources including
+
+    MCP Marketplace [MCP Market, 2025] and Hugging-
+
+    Face [MCPHackathon, 2025].'
+  section: Introduction

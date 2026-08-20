@@ -1,33 +1,63 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2112.15344"
-title: "P2P-Loc: Point to Point Tiny Person Localization"
-domain: "Computer Vision"
+source_id: '2112.15344'
+title: 'P2P-Loc: Point to Point Tiny Person Localization'
+domain: Computer Vision
 year: 2021
-url: "https://arxiv.org/abs/2112.15344v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2112.15344v2
+problem: Bounding-box annotation for visual object localization (e.g., tiny person/pedestrian localization
+  in surveillance, driving-assistance, and drone imagery) is expensive and laborious, and is often unnecessarily
+  precise or even infeasible for small, low-resolution, or low-signal-to-noise objects where exact object
+  size does not matter.
+research_question: Can person localization be performed effectively using only coarsely annotated points
+  (any point within the object extent, 'CoarsePoint') instead of precise bounding boxes or precise points,
+  despite the label uncertainty this coarse supervision introduces?
+method: The authors propose CoarsePoint, a point-based localization task, together with a 'point self-refinement'
+  algorithm that iteratively improves coarse point labels in a self-paced way. An estimator (e.g., RepPoints,
+  built on a ResNet-50 backbone) is trained under the current (initially coarse) point supervision, then
+  used to predict 'semantic statistic points' (SSPs) on training images; predicted points are assigned
+  to objects via nearest-point clustering, and the top-K highest-scoring points per object within a distance
+  threshold are merged (score-weighted averaging) into a refined point annotation, which becomes the supervision
+  for the next iteration. The refined pseudo-box annotations are then fed to a separate locator network
+  (e.g., RepPoints, Sparse RCNN, or Faster RCNN) for final prediction.
+dataset: 'TinyPerson (72,651 annotated low-resolution human objects in 1,610 images, mostly smaller than
+  32x32 pixels) and Visdrone-Person, a human-detection subset built from the VisDrone image-object-detection
+  track (10,209 images: 6,471 train / 548 val / 3,190 test).'
+main_contribution: The paper introduces CoarsePoint as a new vision task and sets the first solid baseline
+  for object localization under coarse point supervision, and proposes the point self-refinement approach
+  that iteratively promotes coarse point labels toward more semantically stable/discriminative locations
+  (e.g., the head), narrowing the performance gap with precise bounding-box supervision.
+results: CoarsePoint with self-refinement achieves comparable performance to precise bounding-box-based
+  methods while saving up to 80% of annotation cost (and 66% versus precise-point annotation). On VisDrone-Person,
+  self-refinement improved AP_all(1.0) and AP_normal(1.0) by 8.82 and 42.9 points respectively under RepPoints+RepPoints,
+  and by 13.2/24.2 points under RepPoints+Sparse-RCNN; on TinyPerson with Faster-RCNN as both estimator
+  and locator, AP_all(1.0) improved by 20.27 points and AP_small(1.0) by 32.28 points. More refinement
+  iterations and larger initial pseudo-box sizes both improved performance, with diminishing returns as
+  iterations increased. Manual annotation timing showed coarse points took 1.8s versus 5.3s for precision
+  points and 9.4s for bounding boxes, losing only 5.4/0.4 AP points respectively.
+limitations: ''
+applications: The paper frames tiny person/pedestrian localization for visual surveillance, driving assistance,
+  and mobile robotics as the target applications, and specifically targets scenarios where objects are
+  far away or low-resolution (e.g., drone imagery) such that precise bounding-box or keypoint annotation
+  is time-consuming or infeasible.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior localization work required either fully supervised bounding-box annotation (expensive
+    and unnecessary when object size doesn't matter) or precise point annotation (e.g., object-as-point
+    or click-supervision methods), and weakly supervised object detection lacked instance-level constraints;
+    no prior work established a baseline for localization under intentionally coarse (any-point-within-object)
+    point supervision.
+  remaining: ''
+key_evidence:
+- text: Experimental results show that our approach has achieved comparable object localization performance
+    while saving up to 80% of annotation cost.
+  section: Abstract
+- text: We propose a CoarsePoint vision task, and under the relaxed point supervision, we set the ﬁrst
+    solid baseline for object localization;
+  section: Introduction
+- text: It only lost 5, 0.4 points of AP all 1.0 while saving the annotation cost up to 80% and 66% in
+    comparison with bounding-box and precision point correspondingly.
+  section: Results
+- text: self-reﬁnement improves AP all 1.0 and AP normal 1.0 by 8.82 and 42.9 points respectively under
+    RP+RP conditions.
+  section: Results

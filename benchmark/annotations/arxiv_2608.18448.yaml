@@ -1,33 +1,76 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18448"
-title: "More Context, Same Budget: Dual-Bounded Relational Recall Beyond Top-K Retrieval"
-domain: "NLP"
+source_id: '2608.18448'
+title: 'More Context, Same Budget: Dual-Bounded Relational Recall Beyond Top-K Retrieval'
+domain: NLP
 year: 2026
-url: "https://arxiv.org/abs/2608.18448v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2608.18448v1
+problem: Under a fixed retrieval context budget, flat top-k ranking can leave complete multi-hop evidence
+  sets incomplete because later evidence sometimes becomes relevant only through its relationship to already-selected
+  evidence, and simply continuing down a relevance-ranked list does not capture this.
+research_question: When the number of retrieval objects and tokens is held fixed (matched) between two
+  allocation strategies, can spending part of the budget on bounded graph-adjacent context around relevance-selected
+  seeds recover the complete official supporting-evidence set for a question more often than spending
+  the same budget on additional flat top-k ranked items?
+method: The paper proposes Dual-Bounded Relational Recall (DBRR), an allocation strategy that, given a
+  common BM25-family relevance-ranked candidate list, reserves part of a fixed retrieval-unit and token
+  budget for context reachable via a frozen relationship graph adjacent to relevance-selected seeds, rather
+  than only continuing down the ranked list. It is compared against a matched flat top-k baseline using
+  the same ranking stage and same maximum object/token ceilings, and validated with random-neighbor and
+  degree-preserving shuffled-graph controls to test whether real relationship semantics (rather than any
+  neighbor-shaped expansion) drive the effect, using McNemar tests, bootstrap confidence intervals, and
+  Holm-adjusted multiplicity corrections.
+dataset: HotpotQA FullWiki development population (7,405 paired questions), using its official supporting-fact
+  annotations and its bridge vs. comparison question-type labels; a frozen relationship graph with 5,233,329
+  nodes and 19,300,783 edges built over the resident corpus.
+main_contribution: The paper provides a paired, matched-budget experimental measurement isolating the
+  effect of post-ranking context allocation (relational vs. flat) on complete supporting-evidence recovery,
+  reporting the magnitude and heterogeneity of this allocation effect (including bridge vs. comparison
+  strata and graph-specificity controls) along with an independently verified, sealed-result reproducibility
+  package.
+results: The Primary relational allocation increased complete supporting-evidence recovery by 23.8 percentage
+  points over the matched flat baseline (paired risk difference 0.2377, 95% bootstrap interval 0.2269-0.2489),
+  recovering complete support on 58.3% of questions vs. 34.5% for the flat baseline; it improved 1,952
+  questions, tied 5,261, and harmed 192. The effect was concentrated in bridge questions (28.7-point increase,
+  WIN) versus comparison questions (4.2-point increase, classified INCONCLUSIVE against the practical
+  margin). The real relationship graph outperformed random-neighbor and degree-preserving shuffled-graph
+  controls both across the full population and, more strongly, in a gold-derived evaluation-only diagnostic
+  population.
+limitations: Study A ends at retrieval and does not test whether a downstream reader answers correctly,
+  cites evidence, or benefits from the recovered evidence. The matched flat baseline is not a comprehensive
+  representation of contemporary retrieval; there is no direct comparison with learned path retrieval,
+  multi-hop dense retrieval, GraphRAG, agentic search, web retrieval, or a production RAG system, and
+  results come from one frozen HotpotQA FullWiki design and one frozen relationship graph, so general
+  superiority is outside the evidence. The Primary allocation harmed 192 questions, precluding a monotonic-benefit
+  interpretation, and selective allocation (knowing in advance when relational expansion helps) remains
+  an open problem. The final package did not include the raw source corpus, so independent verification
+  could recompute results from the sealed package but could not rerun retrieval from source documents,
+  and the public method description omits deterministic allocation details, so the study is not "fully
+  reproducible" from the public description alone.
+applications: ''
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior retrieval evaluation typically conflates a retriever's relevance ranking with the downstream
+    allocation decision (how a ranked list is turned into a bounded context), treating allocation as an
+    implementation detail rather than a measured experimental variable; this paper isolates and measures
+    that allocation decision under matched budgets.
+  remaining: 'The paper identifies three next experiments as future work: (1) testing whether improved
+    evidence availability translates into better downstream reader/generator answer accuracy, (2) comparing
+    bounded relational allocation against learned dense, learned path, GraphRAG, agentic, and web-retrieval
+    systems under matched declared budgets, and (3) developing a deployable selective-allocation policy
+    that predicts when relational expansion is worth its cost without official support labels.'
+key_evidence:
+- text: Across 7,405 FullWiki questions, the Primary DBRR allocation increased complete supporting-evidence
+    recovery by 23.8 percentage points over its matched flat baseline (paired risk difference 0.2377;
+    question-level bootstrap 95% interval 0.2269 to 0.2489).
+  section: Abstract
+- text: Study A ends at retrieval. It reports whether the complete official support set was recovered,
+    not whether a reader answered correctly, cited the evidence, learned a fact, revised a belief, or
+    resisted a false revision.
+  section: Limitations, Reproducibility, and Disclosure
+- text: The third next experiment is selective allocation. A deployable policy must predict opportunity
+    without official support labels.
+  section: Discussion
+- text: The Primary allocation recovered the complete support set on 4,315 questions (58.3%), compared
+    with 2,555 questions (34.5%) for the matched flat baseline.
+  section: Results

@@ -1,33 +1,92 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2112.13969"
-title: "LINDA: Unsupervised Learning to Interpolate in Natural Language Processing"
-domain: "NLP"
+source_id: '2112.13969'
+title: 'LINDA: Unsupervised Learning to Interpolate in Natural Language Processing'
+domain: NLP
 year: 2021
-url: "https://arxiv.org/abs/2112.13969v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2112.13969v1
+problem: Mixup-style data augmentation, which interpolates pairs of training examples, is difficult to
+  apply to NLP because text is discrete and variable-length, so interpolation between two sentences is
+  not well-defined. Existing NLP adaptations rely on domain-specific heuristics or manually crafted resources
+  (e.g., padding sequences to equal length, dictionary-based word substitution, or interpolating token/sentence
+  embeddings) rather than a principled notion of interpolation.
+research_question: What does it mean to interpolate between two natural language sentences of different
+  lengths and discrete vocabulary, and can a neural network be trained, without heuristics or manually
+  crafted resources, to learn such text interpolation and use it to apply mixup effectively in NLP?
+method: 'The paper proposes LINDA (Learning to INterpolate for Data Augmentation), which defines text
+  interpolation as sampling from a conditional language model p(y|x^a, x^b, alpha) that must satisfy four
+  formal conditions (closeness to x^a as alpha to 0, closeness to x^b as alpha to 1, high likelihood of
+  both, and non-degeneracy/smoothness). LINDA is parametrized with an encoder-decoder (seq2seq) architecture:
+  an encoder produces representations for each input sentence, a length converter (based on a location-based
+  attention method from Shu et al. 2020) resamples both encoded sequences to a shared interpolated target
+  length L~ = ceil(alpha*La + (1-alpha)*Lb), the two length-matched representation sets are linearly combined
+  with weight alpha, and a decoder reconstructs/generates the interpolated sentence from this combined
+  representation. The model is trained (by fine-tuning BART) with an objective and regularization designed
+  to enforce the four interpolation conditions, on a Wikipedia corpus, and is then used as a drop-in interpolation
+  engine inside mixup for text classification data augmentation.'
+dataset: 'Wikipedia corpus (for training LINDA''s interpolation model, built on BART). For downstream
+  evaluation: TREC-Coarse, TREC-Fine, SST-2, IMDB, RTE, MNLI, QNLI for in-domain classification (full
+  and low-resource/5-10-shot settings), and Amazon Review, Yelp Review, and a Movies dataset (SST-2+IMDB)
+  for out-of-domain (OOD) generalization experiments, using BERT-base as the downstream classifier.'
+main_contribution: The paper is the first to formalize text interpolation as conditions on a conditional
+  language model and to propose a learned, heuristic-free neural interpolation model (LINDA) that can
+  interpolate between arbitrary pairs of natural language sentences over a learned language manifold,
+  then plug this model into mixup for NLP data augmentation.
+results: LINDA outperforms other augmentation baselines (EDA, SSMBA, Mixup) in low-resource settings on
+  TREC-Coarse, SST-2, and IMDB (with TREC-Fine 5-shot being a close exception within standard deviation),
+  and in the full-data setting outperforms baselines on all datasets except IMDB. On NLI datasets, LINDA
+  improves evaluation accuracy by 5.4% on RTE, 0.7% on QNLI, and 0.5% on MNLI over the Vanilla baseline,
+  while other augmentation methods (except SSMBAsoft) degrade baseline performance. LINDA also consistently
+  improves over baseline in both in-domain and OOD settings across ARclothing, Movie, and Yelp domain-transfer
+  experiments, unlike EDA and Mixup which showed no such improvement.
+limitations: ''
+applications: The paper applies LINDA as a drop-in interpolation engine within mixup for text classification
+  data augmentation, demonstrating benefits for low-resource training settings and out-of-domain generalization.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Prior NLP mixup approaches used ad-hoc heuristics to overcome the discrete, variable-length
+    nature of text -- e.g. padding sequences to equal length before mixing words (Guo et al. 2019), interpolating
+    contextual word embeddings without clarity on whether token-level interpolation implies sentence-level
+    interpolation (Chen et al. 2020), or interpolating in a non-stationary classifier embedding space
+    (Sun et al. 2020). LINDA instead defines text interpolation formally via conditions on a conditional
+    language model and learns it without heuristics or manually crafted resources.
+  remaining: ''
+key_evidence:
+- text: 'we instead propose an unsupervised learn-
 
-applications: ""           # What applications are explicitly supported?
+    ing approach to text interpolation for the pur-
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    pose of data augmentation, to which we re-
+
+    fer as “Learning to INterpolate for Data Aug-
+
+    mentation” (LINDA), that does not require
+
+    any heuristics nor manually crafted resources'
+  section: Abstract
+- text: 'In order for sampling from this distribution to be
+
+    text interpolation, four conditions must be met.'
+  section: Method
+- text: 'LINDA improves the evaluation accu-
+
+    racy by 5.4% on RTE, 0.7% on QNLI, and 0.5%
+
+    on MNLI when all the other augmentation meth-
+
+    ods, except for SSMBAsoft, degrade the baseline
+
+    (Vanilla) performance.'
+  section: Results
+- text: 'LINDA outperforms all the
+
+    other data augmentation methods, including EDA
+
+    and SSMBA, on most datasets and settings, and
+
+    consistently outperforms non-augmentation base-
+
+    lines, which is not the case with the other augmen-
+
+    tation methods.'
+  section: Conclusion

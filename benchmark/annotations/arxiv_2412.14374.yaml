@@ -1,33 +1,61 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2412.14374"
-title: "Scaling Deep Learning Training with MPMD Pipeline Parallelism"
-domain: "Systems"
+source_id: '2412.14374'
+title: Scaling Deep Learning Training with MPMD Pipeline Parallelism
+domain: Systems
 year: 2024
-url: "https://arxiv.org/abs/2412.14374v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2412.14374v1
+problem: Training very large deep learning models requires combining multiple parallelization strategies
+  across device hierarchies, but the SPMD (Single-Program Multiple-Data) programming model used by systems
+  like GSPMD/JAX can only express one restrictive variant of pipeline parallelism, precluding pipeline
+  schedules (e.g., 1F1B, Interleaved 1F1B) that require different actors to run different programs (an
+  MPMD paradigm) and that improve throughput and memory usage.
+research_question: Can a system provide a flexible, user-friendly programming model for expressing arbitrary
+  pipeline-parallel schedules (an MPMD dataflow) on top of the existing SPMD/GSPMD infrastructure in JAX,
+  without requiring manual, model-specific reimplementation, while matching or beating SPMD-only pipeline
+  parallelism performance?
+method: 'The paper introduces JaxPP, a system built on top of JAX/GSPMD that lets users define pipeline
+  schedules for gradient accumulation via a task-graph programming model: pipeline stages become tasks
+  that JaxPP automatically distributes over a cluster and for which it automatically infers inter-stage
+  (potentially non-adjacent) communication. JaxPP implements a single-controller MPMD runtime that asynchronously
+  executes SPMD tasks (forward/backward computations per stage) according to arbitrary user-specified
+  schedules such as GPipe, 1F1B, and Interleaved 1F1B, combined with tensor and data parallelism mapped
+  onto high- and low-bandwidth mesh dimensions respectively.'
+dataset: No training text/data corpus is used for accuracy evaluation; the paper benchmarks system training
+  throughput using GPT-3 175B (Brown et al., 2020) and Llama2 70B (Touvron et al., 2023) model architectures
+  on an NVIDIA EOS cluster of DGX H100 nodes (8x H100 GPUs per node, InfiniBand NDR400).
+main_contribution: 'The main new contributions are: a programming model that lets users express pipeline
+  parallelism and arbitrary (including non-adjacent) inter-stage communication without manual intervention;
+  a task-graph implementation for scheduling tasks, inferring communication, and managing resources (allocation/buffer
+  deletion) over a distributed device mesh; and a single-controller MPMD runtime supporting execution
+  of arbitrary user-specified pipeline schedules, extending GSPMD/SPMD beyond its single supported pipeline
+  variant.'
+results: JaxPP's pipeline parallelism improved hardware utilization by up to 1.11x over the best-performing
+  SPMD (JAX FSDP) configuration. Training GPT-3 175B on 128 H100 GPUs, JaxPP was 44.6% faster than SPMD
+  pipeline parallelism, reaching 457 TFLOPS/device while requiring 1K fewer lines of user code, and achieved
+  91.4% of NeMo's throughput while remaining model-agnostic (NeMo uses custom high-performance kernels
+  JaxPP does not). Weak-scaling experiments on GPT-3 175B from 64 to 1024 GPUs achieved 92.87% scaling
+  efficiency, comparable to JAX FSDP's 93.97%. On Llama2 70B (8 nodes), JaxPP matched JAX FSDP but reached
+  only 83.2% of NeMo's throughput.
+limitations: ''
+applications: ''
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: GSPMD can encode only one restrictive variant of pipeline parallelism (assuming homogeneous
+    stages and strict per-iteration synchronization), which forbids different rematerialization strategies
+    per stage and precludes schedules like 1F1B/Interleaved 1F1B that require an MPMD paradigm; JaxPP
+    addresses this by adding a user-facing MPMD scheduling layer on top of GSPMD.
+  remaining: ''
+key_evidence:
+- text: The pipeline parallelism implementation of JaxPP improves hardware utilization by up to 1.11×
+    with respect to the best performing SPMD configuration.
+  section: Abstract
+- text: GSPMD can implement only one variant of pipeline parallelism, precluding any form of pipeline
+    parallelism that requires a Multiple-Program Multiple-Data (MPMD) paradigm.
+  section: Introduction
+- text: JaxPP is 44.6% faster than SPMD pipeline parallelism, achieving 457 TFLOPS/device, while being
+    more expressive and requiring 1K fewer lines of user code.
+  section: Evaluation
+- text: JaxPP effectively scales GPT-3 175B training from 64 to 1024 GPUs, achieving a 92.87% weak scaling
+    efficiency.
+  section: Evaluation

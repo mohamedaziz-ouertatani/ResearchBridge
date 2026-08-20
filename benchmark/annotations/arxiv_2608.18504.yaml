@@ -1,33 +1,91 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18504"
-title: "UMER: Unifying Embedding and Ranking via Pair-Aware Discriminative Reasoning for Universal Multimodal Retrieval"
-domain: "General AI / Other"
+source_id: '2608.18504'
+title: 'UMER: Unifying Embedding and Ranking via Pair-Aware Discriminative Reasoning for Universal Multimodal
+  Retrieval'
+domain: General AI / Other
 year: 2026
-url: "https://arxiv.org/abs/2608.18504v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2608.18504v1
+problem: In universal multimodal retrieval, MLLM-based embedding methods that use Chain-of-Thought (CoT)
+  reasoning generate rationales for the query or candidate independently (item-wise), so they cannot explain
+  why a positive candidate matches or why a semantically confusable hard negative fails. Additionally,
+  a single contrastive embedding objective struggles to serve both content-matching tasks (image/video
+  retrieval) and reasoning-intensive tasks (QA, classification) that require fine-grained relevance judgment.
+research_question: Can jointly learning contrastive embeddings and discriminative pairwise ranking within
+  a single MLLM, using reasoning that explicitly compares query-candidate pairs rather than describing
+  items in isolation, improve universal multimodal retrieval across both content-matching and reasoning-intensive
+  tasks?
+method: 'The paper proposes UMER (Unified Multimodal Embedding and Ranking), which replaces item-wise
+  self-reflective CoT with Pair-Aware Discriminative Reasoning: for a query and a positive/hard-negative
+  candidate pair, the model autoregressively generates a reasoning trace that explicitly compares matching
+  and discrepancy evidence, then a learnable [RANK] token produces a relevance logit. A single shared
+  MLLM backbone uses branch-wise attention masks to independently encode query and candidate embeddings
+  (pooled from M learnable embedding tokens, trained with an in-batch contrastive loss augmented with
+  mined hard negatives) while also supporting full pairwise attention for the reasoning/ranking phase
+  (trained with cross-entropy CoT loss, BCE, and a pairwise margin loss). A Complementary Mutual Distillation
+  (CMD) mechanism transfers reliable pairwise preferences bidirectionally between the embedding and ranking
+  branches. At inference, UMER supports a budget-adjustable Embedding-then-CoT-Ranking pipeline (embedding-only
+  retrieval, or embedding retrieval followed by reranking of top-K candidates).'
+dataset: MMEB-V2 benchmark (78 tasks spanning image, video, and visual-document retrieval, including classification,
+  QA, visual grounding, image/video/moment retrieval, and visual document retrieval), initialized from
+  Qwen2-VL-2B-Instruct/Qwen2-VL-7B backbones; hard negatives were mined using a frozen Qwen3-VL-Embedding-8B
+  model, and pair-aware CoT training data was generated/audited using Qwen3.5-9B.
+main_contribution: The paper introduces Pair-Aware Discriminative Reasoning (comparing query-candidate
+  pairs rather than reasoning about items independently) and unifies contrastive embedding learning with
+  discriminative pairwise ranking in a single MLLM via Complementary Mutual Distillation, achieving state-of-the-art
+  results on MMEB-V2 while supporting budget-adjustable inference (embedding-only vs. hybrid embedding+reranking).
+results: On MMEB-V2, UMER-H (hybrid) reaches an overall score of 65.5, up from 63.1 for the embedding-only
+  branch (UMER-E) and 63.9 for the ranking-only branch (UMER-R). UMER-E achieves the best embedding-only
+  score of 63.1 with zero reasoning tokens, giving query/indexing speedups of 118.6x/99.6x over UME-R1
+  and 3.9x/3.1x over PLUME. Pair-aware embeddings widen the positive-to-hard-negative cosine margin from
+  5.24 to 6.80 points compared to item-wise UME-R1, and default hybrid inference (K=5) reaches 65.5, capturing
+  80% of the maximum observed gain over UMER-E at only 24% of the K=20 latency.
+limitations: ''
+applications: The paper positions UMER's budget-adjustable Embedding-then-CoT-Ranking pipeline as supporting
+  both efficiency-oriented settings (single forward pass, large-scale vector-index retrieval) and accuracy-oriented
+  or hard-sample settings (additional pair-aware CoT generation and reranking).
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Existing CoT-based embedding methods (e.g., UME-R1, Embed-RL, PLUME, LaME) use item-wise
+    reasoning that does not model query-candidate interactions and cannot explain why a positive matches
+    or a hard negative fails; existing rerankers are trained/deployed as separate second-stage modules
+    so ranking knowledge only reaches embeddings via discrete offline targets. UMER addresses this by
+    unifying embedding, pair-aware reasoning, and ranking within a single co-optimized MLLM.
+  remaining: ''
+key_evidence:
+- text: 'existing CoT-based embedding methods
 
-applications: ""           # What applications are explicitly supported?
+    (Lan et al. 2026; Jiang et al. 2026; He et al. 2026) usu-
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    ally adopt an item-wise self-reflective reasoning paradigm,
+
+    where the model independently describes the query or can-
+
+    didate.'
+  section: Introduction
+- text: 'we design a Pair-Aware
+
+    Discriminative CoT paradigm that takes positive and hard-
+
+    negative query–candidate pairs as reasoning inputs, encour-
+
+    aging the model to explicitly compare matching and discrep-
+
+    ancy evidence and to produce a deterministic ranking judg-
+
+    ment.'
+  section: Introduction
+- text: 'As an inference-time score fusion, UMER-
+
+    H improves the overall score from 63.1 for UMER-E and
+
+    63.9 for UMER-R to 65.5.'
+  section: Results
+- text: 'It achieves the best
+
+    embedding-only score of 63.1 with zero reasoning tokens,
+
+    yielding query/indexing speedups of 118.6×/99.6× over
+
+    UME-R1 and 3.9×/3.1× over PLUME.'
+  section: Results

@@ -1,33 +1,82 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1912.10915"
-title: "Probing the phonetic and phonological knowledge of tones in Mandarin TTS models"
-domain: "NLP"
+source_id: '1912.10915'
+title: Probing the phonetic and phonological knowledge of tones in Mandarin TTS models
+domain: NLP
 year: 2019
-url: "https://arxiv.org/abs/1912.10915v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1912.10915v1
+problem: It is unclear to what extent neural text-to-speech (TTS) models capture the underlying phonetic
+  and phonological structure of speech (rather than merely reproducing surface statistical regularities),
+  and prior speech science lacks controlled psycholinguistic-style probing of TTS models comparable to
+  work done on neural language models' syntactic abilities.
+research_question: Do Mandarin TTS models (Tacotron 2, with and without BERT embeddings, plus a WaveGlow
+  vocoder) learn the phonetic knowledge of gradient tonal coarticulation and the phonological knowledge
+  of categorical Tone-3 sandhi rules, and can such probing validate TTS models as tools for linguistic
+  research?
+method: The authors feed controlled linguistic stimuli (576 nonsense bisyllabic sentences varying tone
+  combinations for coarticulation; 38 bisyllabic words, 32 trisyllabic words, and 39 phrases of Tone-3
+  syllables for sandhi) into two Tacotron 2 models -- one using only Pinyin phonemic input and one using
+  Pinyin plus upsampled character-level Chinese BERT embeddings concatenated as input -- to predict mel-spectrograms,
+  which are converted to waveform via a WaveGlow vocoder. Generated speech is analyzed acoustically (f0
+  tracking via Praat/Parselmouth, LOESS-fitted regression curves for coarticulation) and evaluated by
+  five trained native-Mandarin-speaking linguists for mean opinion score (naturalness/prosody) and for
+  Tone-3 sandhi errors, using paired Mann-Whitney U tests and mixed logistic regression models to compare
+  model performance.
+dataset: Chinese Standard Mandarin Speech Corpus (CSMSC), 10,000 recorded sentences (12 hours) by a single
+  female speaker with phoneme-level TextGrid annotations, split into 9800/100/100 train/dev/test sentences;
+  plus custom-designed linguistic stimuli sets for tonal coarticulation (576 sentences) and Tone-3 sandhi
+  (bisyllabic, trisyllabic, and phrase-level items) compiled from prior linguistics studies and online
+  corpora.
+main_contribution: This is among the first studies to probe the phonetic and phonological knowledge encoded
+  in TTS models using linguistically controlled stimuli (rather than psycholinguistic probing of language
+  models' syntax, as done in prior NLP work), demonstrating that TTS models faithfully reproduce gradient
+  tonal coarticulation patterns matching human speaker data but fail to reliably apply the categorical
+  Tone-3 sandhi rule, and arguing that TTS models can therefore serve as a complementary tool for generating
+  and validating linguistic hypotheses.
+results: 'Tacotron 2 with BERT embeddings scored higher on naturalness (4.04 vs 3.65) and prosody (4.21
+  vs 3.86) than baseline Tacotron 2 (ground truth: 4.39/4.53), with all pairwise Mann-Whitney U comparisons
+  significant (p <= .001) after Bonferroni correction. Tonal coarticulation patterns produced by Tacotron
+  2 closely mirrored classic native-speaker findings, showing strong assimilatory carry-over effects and
+  weaker dissimilatory anticipatory effects. For Tone-3 sandhi, both models made few errors on bisyllabic
+  words (baseline Tacotron 2 more accurate than BERT model, beta=2.35, p<=0.001), performed nearly equally
+  poorly on trisyllabic words (beta=-0.05, p=0.82), and on complex sentences Tacotron 2+BERT outperformed
+  the baseline (beta=-0.52, p=0.01), averaging 0.92 mistakes per phrase versus 1.31 for the baseline;
+  overall sandhi accuracy remained low for both models.'
+limitations: The authors state that, given the limitations of current TTS models, the research questions
+  that can be explored via this approach are also limited. They note the low Tone-3 sandhi accuracy could
+  be caused by the models not fully acquiring the underlying linguistic rules under the current data-driven
+  training approach, or alternatively by insufficient relevant training instances, since the sandhi stimuli
+  are not highly frequent in daily conversation, so the two explanations cannot be fully disentangled
+  with this study's design.
+applications: The authors suggest TTS models can be used to generate and validate linguistic hypotheses,
+  mine linguistic knowledge from large quantities of coarsely annotated text-speech pairs (which are easier
+  to obtain than time-aligned phonemic transcriptions), and serve as a complementary method to traditional
+  phonetic experiments, with the added advantage over representation-learning approaches that researchers
+  can directly verify plausibility by listening to generated speech samples.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: While NLP researchers have probed neural language models with controlled psycholinguistic
+    stimuli to study syntactic abilities, comparable phonetic/phonological probing of TTS models was lacking
+    in speech science; this study fills that gap by applying controlled linguistic stimuli (tonal coarticulation
+    and Tone-3 sandhi) to Mandarin TTS models.
+  remaining: The authors note that, given the limitations of current TTS models, the range of research
+    questions this probing approach can address remains limited, and highlight the need for linguistically
+    informed stimuli in both training and evaluation of future TTS models to better cover phonological
+    processes like tone sandhi.
+key_evidence:
+- text: Results show that both baseline Tacotron 2 and Tacotron 2 with BERT embeddings capture the surface
+    tonal coarticulation patterns well but fail to consistently apply the Tone-3 sandhi rule to novel
+    sentences.
+  section: Abstract
+- text: The ﬁndings closely mirror those obtained from native speakers [14] even in ﬁne-grained details,
+    suggesting that these coarticulatory patterns are learned and faithfully reproduced in TTS models
+    in novel sentences.
+  section: Results
+- text: These results suggest that Tacotron 2 models, though capable of generating highly natural speech
+    (including prosodic contours), still could not be used as a model for categorical Tone-3 sandhi in
+    Mandarin.
+  section: Results
+- text: Given the limitations of current TTS models, the research questions that can be explored in this
+    approach are also limited, but nonetheless, with proper evaluation, they can be applied to generate
+    novel hypotheses or provide additional evidence to experimental results.
+  section: Discussion

@@ -1,33 +1,67 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1912.11323"
-title: "Bidding in Spades"
-domain: "General AI / Other"
+source_id: '1912.11323'
+title: Bidding in Spades
+domain: General AI / Other
 year: 2019
-url: "https://arxiv.org/abs/1912.11323v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1912.11323v2
+problem: The card game Spades has received little research attention compared to games like Bridge and
+  Poker, and no strong publicly available bidding bots or state-of-the-art algorithms exist for the bidding
+  phase, which requires choosing a bid (0-13, including the risky 'nil' bid) that maximizes winning probability
+  under partial information and partnership constraints.
+research_question: Can a bidding algorithm be designed for Spades that outperforms both existing rule-based
+  bidding bots and average recreational human players, particularly by better estimating the expected
+  utility of bidding nil versus a regular bid?
+method: 'The authors propose Bidding-in-Spades (BIS), a heuristic algorithm that estimates the expected
+  utility of each possible bid and picks the best one. It combines two rule-based heuristic estimators
+  -- ''regularTakes'' (expected tricks from a hand via Monte Carlo-derived probability tables of side-suit
+  high cards, spade high cards, long spades, and short-suit cuts) and ''nilValue'' (an almost-suit-independence
+  approximation of nil success probability) -- with a supervised-learning correction: a Logistic Regression
+  model trained on millions of real games to produce ''success curves'' mapping nilValue and prior bidding
+  sequences to an actual nil-success probability. The bid is chosen by comparing the expected nil score
+  against a threshold versus the regular bid. BIS is agnostic to the playing module and includes end-of-game
+  bid modifications for close-game situations.'
+dataset: 2 million rounds of real online Spades games (December 2018) used to train the Logistic Regression
+  success-curve model; over 400K rounds from October 2019 games used to evaluate BIS against humans; approximately
+  35K rounds (10K games) per pairwise bot comparison.
+main_contribution: 'The paper introduces the first published Spades bidding algorithm shown to outperform
+  recreational humans, and its core innovation is the ''success curves'' component: using supervised learning
+  (Logistic Regression) on real human game data to correct/calibrate heuristic nil-success probability
+  estimates conditioned on the sequence of previous bids, rather than relying purely on hand-crafted heuristics.'
+results: Combined with a fixed rule-based playing module (SRP), BIS's bidding beat other bidding algorithms
+  (RB, MS, IO) with win rates ranging from about 51.9% to 68.6% depending on opponent and playing module.
+  Against real humans (400K+ rounds), the BIS partnership won 56% of games, 2 percentage points above
+  the previous rule-based bidder. BIS bid nil more often than humans (13.6% vs 12.6% of rounds) and succeeded
+  more often (68.8% vs 63.2%). Ablation showed the success-curve component accounts for about 1/4 of BIS's
+  overall improvement over the best rule-based bidder (win rate 51.2% when success curves are removed).
+limitations: The authors note the extracted human-vs-BIS dataset suffers from selection bias because only
+  completed games were recorded, while humans tend to quit when losing badly. They also note a variant
+  with a dynamically computed nil threshold (BIS*) performed slightly worse than using a constant threshold,
+  possibly because inaccurate estimation is worse than a constant, and they 'hope to better understand
+  the weak points of the estimation and improve the threshold decision in future work.'
+applications: The authors state BIS is flexible enough to bid in Spades variants such as Cutthroat Spades
+  (Solo), Mirror, Spades with jokers, Whiz and Suicide with minor modification, and conjecture the approach
+  could produce strong bidding modules for other trick-taking games such as Skat, Whist and Callbreak.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: No strong publicly available Spades bidding bots existed for comparison, and prior Spades
+    AI research (University of Alberta group, AI-Factory) either used simplified perfect-information variants
+    or focused on the playing phase / used only rule-based bidding, leaving accurate nil-bidding estimation
+    largely unaddressed.
+  remaining: Future research is focused on better tackling the weak points of the bidding module (cases
+    where probability estimations are off), on improving the playing module, and on combining UCT (Monte
+    Carlo tree search) with BIS for bidding without excessive computation time, with the ultimate goal
+    of a combined Spades agent with super-human strength.
+key_evidence:
+- text: This work is the first to publish a Spades bidding algorithm that outperforms recreational humans.
+  section: Conclusion
+- text: Combined with a rule-based playing module, BIS is superior to other rule-based bidding algorithms
+    and to the average recreational human, beating humans in 56% of the games.
+  section: Introduction
+- text: The current BIS algorithm beats the simple variant in 51.2% of the games, and gains 2.5% higher
+    score on average. This means that the success curves are responsible for about 1/4 of the overall
+    improvement that BIS obtains over the best rule-based bidder RB.
+  section: Results
+- text: Note that this data suffers from selection bias because games were only recorded if they ended,
+    while humans tend to quit games when they are losing badly.
+  section: Discussion

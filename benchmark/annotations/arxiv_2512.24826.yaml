@@ -1,33 +1,65 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2512.24826"
-title: "Video and Language Alignment in 2D Systems for 3D Multi-object Scenes with Multi-Information Derivative-Free Control"
-domain: "Computer Vision"
+source_id: '2512.24826'
+title: Video and Language Alignment in 2D Systems for 3D Multi-object Scenes with Multi-Information Derivative-Free
+  Control
+domain: Computer Vision
 year: 2025
-url: "https://arxiv.org/abs/2512.24826v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2512.24826v1
+problem: Vision-language models (VLMs) trained on 2D visual inputs face a dimensional shift when reasoning
+  about 3D scenes, since they must process a sequence of discrete 2D viewpoints; poorly chosen camera
+  viewpoints hide object features (e.g. rock textures relevant to planetary science) and hurt VLM accuracy,
+  but training data and compute for 3D-aware finetuning are scarce.
+research_question: Can an in-scene camera controller be trained online, without access to VLM parameters
+  or finetuning, to select viewpoint sequences that improve a 2D-trained VLM's accuracy on 3D multi-object
+  scenes, by optimizing a multivariate mutual information estimate of scene information versus model correctness?
+method: The authors propose MI-ZO, an algorithm that estimates multivariate mutual information (multi-information)
+  between a weighted mixture of visual/textual entropy sources and VLM correctness labels, using active
+  regret minimisation implemented via zeroth-order (derivative-free) optimisation to iteratively adjust
+  mixture weights so that redundancy between sources is reduced. This MI-ZO measure feeds a lightweight
+  controller (polynomial regression with least-squares approximation and an interaction matrix) that predicts
+  a sequence of camera rotation/zoom actions for an in-scene camera, without backpropagating through or
+  finetuning the VLM.
+dataset: 'A custom diagnostic called UC-3DS-MI (Uniform and Complex 3D Scenes for Multi-information),
+  and three newly introduced cross-modal benchmarks: GeoProperties-3DS (Mars rover-derived 3D rock/outcrop
+  models with textual summaries), FeatureID-3DS (3D scenes with world features like ''ladder''/''doorway''),
+  and PartialView-3DS (two-object scenes with occlusion by a partition). VLMs tested: Video-LLaMA-13B
+  and Chat-UniVi-13B.'
+main_contribution: A new zeroth-order multivariate mutual information estimation method (MI-ZO) with active
+  regret minimisation for n>2 variables, and a compute-efficient adaptive control framework that uses
+  this measure to steer an in-scene camera for 2D VLMs analyzing 3D scenes without any VLM finetuning
+  or gradient access; also three new cross-modal 3D-scene benchmarks and the UC-3DS-MI diagnostic.
+results: On GeoProperties-3DS, the best MI-ar variant (GH-LEDar) reduced balanced error rate to 40.4%
+  for Video-LLaMA-13B (a -21.0pp change from the no-control baseline of 59.8% and 61.3%), outperforming
+  standard control baselines like PID (57.2%), Linear+SGD (55.8%), RBF Network (55.1%), and Extended Kalman
+  (54.5%). On FeatureID-3DS with only 5 camera actions, GH-LEDar raised Video-LLaMA-13B accuracy to 30.9%
+  (+10.3pp) versus 23.6% (+3.1pp) for the Poly+ZO+MI baseline without the MI metric. On PartialView-3DS
+  with 8 actions, GH-LEDar reached 39.3% accuracy (+21.0pp) for Video-LLaMA-13B, again exceeding all other
+  control methods tested.
+limitations: ''
+applications: Applications explicitly discussed include scientific analysis such as planetary science/geological
+  analysis of Mars rover imagery, generating and evaluating 3D virtual environment assets (e.g. buildings
+  for street scenes, particle accelerator component models), and general integration of 2D VLMs into automated
+  workflows that complement human expert analysis.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior work on adaptive control for cross-modal 3D tasks and on multivariate mutual information
+    estimation had not combined the two to guide camera actions for VLMs without finetuning; standard
+    mutual information measures provide no theoretical guarantee of positivity/optimality once the number
+    of variables exceeds two, a gap this paper addresses with active regret minimisation via zeroth-order
+    optimisation.
+  remaining: ''
+key_evidence:
+- text: We introduce a new method that improves multivariate mutual information estimates by regret minimisation
+    with derivative-free optimisation.
+  section: Abstract
+- text: The problem is that mutual information provides no theoretical guarantees of optimality when the
+    number of variables or individual measurements exceeds two.
+  section: Problem
+- text: Our controller with 𝐺𝑂-𝐿𝐸𝐷-𝑂𝐿ar reduces the BER on the GeoProperties-3DS benchmark (see the results
+    in Table 2). Performance on all runs where Poly+ZO+MI is enhanced with our MI measurements exceeds
+    the reduction in errors attained by the highest ranked standard control method.
+  section: Results
+- text: In this paper, we propose a novel multi-information estimation method and efficient derivative-free
+    control to predict camera actions that provide optimal sequences of views on 3D scenes.
+  section: Conclusion

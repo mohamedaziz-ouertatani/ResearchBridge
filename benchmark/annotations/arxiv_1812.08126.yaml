@@ -1,33 +1,63 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1812.08126"
-title: "Generating Diverse and Meaningful Captions"
-domain: "Computer Vision"
+source_id: '1812.08126'
+title: Generating Diverse and Meaningful Captions
+domain: Computer Vision
 year: 2018
-url: "https://arxiv.org/abs/1812.08126v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1812.08126v1
+problem: State-of-the-art image captioning models trained with standard Maximum Likelihood Estimation
+  (MLE) produce fluent but generic captions that disproportionately replicate common n-grams and full
+  captions seen in training, because both the training objective and the standard n-gram-based evaluation
+  metrics reward replicating frequent phrasing rather than describing what is specific to each image.
+research_question: Can the error signal from a separately-trained Image Retrieval model be used to improve
+  the specificity of a neural image captioning model's outputs in an unsupervised way, and do more specific
+  captions also turn out to be more diverse?
+method: The authors take a pretrained encoder-decoder image captioning model (ResNet-101 CNN encoder plus
+  two LSTMs with region-based attention, based on Anderson et al. 2018) and continue training it using
+  a specificity loss computed by a frozen, pretrained Image Retrieval model (from the SentEval toolkit,
+  using ResNet-101 image embeddings and InferSent+GloVe caption embeddings). Four specificity loss variants
+  are defined (dot-product, cosine, and their contrastive counterparts using a similar 'distractor' image).
+  Because caption sampling is non-differentiable, gradients are backpropagated using the Straight-Through
+  estimator. Only the captioning model (NLG) is updated; the retrieval model (NLU) remains frozen throughout,
+  unlike prior GAN-based joint-training approaches.
+dataset: MS COCO dataset with the Karpathy 5k splits (113k training images, 5k validation, 5k test, 5
+  captions per image), vocabulary size 9487 tokens after preprocessing.
+main_contribution: An unsupervised specificity-guided training approach for image captioning that uses
+  a frozen Image Retrieval model as an auxiliary loss signal (rather than joint adversarial/GAN training),
+  applicable to any multimodal NLG task with a corresponding NLU component, that improves both caption
+  specificity (recall@k, mean rank) and diversity/novelty metrics over prior state of the art.
+results: 'The contrastive specificity-trained models (CDP and CCos) achieve the best diversity (84.48%
+  and 84.37%) and novelty (77.49% and 77.29%) versus a baseline of 76.26% diversity / 69.08% novelty,
+  and outperform previously reported diversity results from Devlin et al. and Shetty et al. (Adv-samp:
+  73.9% novelty). Vocabulary size increases from 812 (baseline) to up to 1064 words. On standard n-gram
+  metrics the models show only a slight decrease relative to baseline (e.g. CIDEr 0.980 vs baseline 1.036)
+  while remaining competitive, and specificity metrics (recall@1/5/10, mean rank) improve most for the
+  contrastive variants (e.g. CDP mean rank 32.79 vs baseline 39.25).'
+limitations: ''
+applications: ''
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior GAN-based approaches to diverse captioning (e.g. joint adversarial training) suffer
+    from training instability and can develop degenerate communication protocols between generator and
+    discriminator that diverge from natural language; this paper addresses that by freezing the NLU/retrieval
+    component so only the captioning model learns, avoiding the instability and drift seen in prior GAN
+    training.
+  remaining: The authors suggest further research into training approaches that incentivize multimodal
+    models to build a more complete, bi-directional understanding of their modalities, and encourage further
+    exploration of evaluation methods that assess additional desirable qualities in automatically generated
+    captions.
+key_evidence:
+- text: In this work, we address this limitation and train a model that generates more diverse and specific
+    captions through an unsupervised training approach that incorporates a learning signal from an Image
+    Retrieval model.
+  section: Abstract
+- text: Instead of allowing both systems to learn from each other, we freeze the NLU side and allow only
+    the NLG to learn from the NLU; the NLU model is pre-trained on ground-truth captions, without any
+    input from the NLG.
+  section: Method
+- text: As can be seen in Table 1, our models demonstrate increased diversity and novelty, outperforming
+    previously reported results.
+  section: Results
+- text: We use the MS COCO dataset [20] with the Karpathy 5k splits [17], containing 113k images for training
+    and 5k each for validation and test, with 5 captions for each image.
+  section: Method

@@ -1,33 +1,64 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1912.10024"
-title: "A Data-Centric Approach to Extreme-Scale Ab initio Dissipative Quantum Transport Simulations"
-domain: "Systems"
+source_id: '1912.10024'
+title: A Data-Centric Approach to Extreme-Scale Ab initio Dissipative Quantum Transport Simulations
+domain: Systems
 year: 2019
-url: "https://arxiv.org/abs/1912.10024v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1912.10024v1
+problem: Ab initio dissipative quantum transport (QT) simulation of atomically-resolved nanotransistors
+  (needed to understand nanoscale self-heating/Joule heating effects that threaten chip thermal management)
+  is extremely computationally expensive, and the existing state-of-the-art solver (OMEN) does not scale
+  efficiently to realistic device sizes of 10,000+ atoms on modern supercomputers.
+research_question: Can a data-centric reorganization of a complex, nonlinear ab initio quantum transport
+  solver's data movement (rather than its numerical algorithm) yield large performance and communication-avoidance
+  gains, allowing simulation of realistic nanoelectronic devices at extreme scale?
+method: The authors reformulate the OMEN electro-thermal quantum transport solver using the Stateful Dataflow
+  multiGraph (SDFG) data-centric intermediate representation, which captures coarse- and fine-grained
+  data-movement patterns as an explicit dataflow graph parsed from a much shorter Python implementation.
+  They apply graph transformations to this SDFG (e.g., fission and reorganizing memory accesses) to derive
+  a tensor-free, communication-avoiding (CA) variant of the self-energy/Green's-function solver, without
+  modifying the underlying physical/numerical operations, and retarget the resulting optimized code (called
+  DaCe OMEN) to run efficiently on different supercomputer architectures using MPI and per-platform BLAS
+  libraries.
+dataset: No external benchmark dataset; the workload is a physics simulation of silicon FinFET nanotransistor
+  structures (atomistic device models of varying size, from ~1,000 atoms up to 10,000+ atoms), run on
+  the Summit and Piz Daint supercomputers.
+main_contribution: This paper is the first to apply communication-avoiding principles derived from a data-centric
+  dataflow representation (SDFG) to a full, complex, nonlinear real-world scientific application (the
+  OMEN QT solver), achieving up to two orders of magnitude speedup and enabling simulation of devices
+  an order of magnitude larger than previously possible at the same computational cost.
+results: The restructured code achieves 85.45 Pflop/s sustained double-precision performance on 4,560
+  nodes of Summit (42.55% of peak) and 90.89 Pflop/s in mixed precision. It enables simulation of devices
+  with more than 10,000 atoms in 14x shorter duration than the original code needs for 1,000-atom systems
+  on the same hardware, reduces time-to-solution per atom and communication volume by factors of up to
+  140 and 136 respectively, and represents a 10x improvement in maximum simulated device size over the
+  prior state of the art.
+limitations: ''
+applications: Simulating self-heating/Joule-heating effects in Fin field-effect transistors (FinFETs)
+  used in modern integrated circuits; the authors also note the electro-thermal model improvements are
+  expected to benefit research on Lithium-ion battery (LIB) thermal safety and phase-change random access
+  memory (PCRAM) devices used as solid-state synapses in neuromorphic computing circuits.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior state-of-the-art QT solvers (including earlier versions of OMEN, a two-time Gordon
+    Bell finalist) could not efficiently scale ab initio dissipative quantum transport simulations to
+    realistic device sizes because their communication and data-movement patterns were not systematically
+    analyzed or optimized; this paper addresses that by using a data-centric representation to identify
+    and eliminate unnecessary communication.
+  remaining: ''
+key_evidence:
+- text: The computational efficiency of a state of the art ab initio quantum transport (QT) solver, capable
+    of revealing the coupled electro-thermal properties of atomically-resolved nano-transistors, has been
+    improved by up to two orders of magnitude through a data centric reorganization of the application.
+  section: Abstract
+- text: Record ab initio dissipative quantum transport simulation in devices made of ≥10,000 atoms (10×
+    improvement w.r.t. state-of-the-art). Double precision performance of 85.45 Pflop/s on 4,560 nodes
+    of Summit (27,360 GPUs), and mixed precision of 90.89 Pflop/s.
+  section: Justification for Prize
+- text: Through modeling made possible by a data-centric intermediate representation, and graph transformations
+    of the underlying macro- and micro- dataflow, this work is the first to introduce communication-avoiding
+    principles to a full application.
+  section: Discussion
+- text: Current research in nano-transistors, LIBs, and PCRAM cells, to cite a few applications, is expected
+    to benefit from the improvements that have been made to the electro-thermal model of OMEN.
+  section: Discussion

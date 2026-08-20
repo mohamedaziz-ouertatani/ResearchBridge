@@ -1,33 +1,66 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2212.09851"
-title: "PathCAS: An Efficient Middle Ground for Concurrent Search Data Structures"
-domain: "Systems"
+source_id: '2212.09851'
+title: 'PathCAS: An Efficient Middle Ground for Concurrent Search Data Structures'
+domain: Systems
 year: 2022
-url: "https://arxiv.org/abs/2212.09851v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2212.09851v1
+problem: Building concurrent search data structures traditionally forces a choice between highly complex,
+  hard-to-verify fine-grained lock-free/lock-based algorithms that achieve top performance, and simpler
+  general techniques like transactional memory (TM) that are easier to use but suffer from overhead, limited
+  hardware availability, or security-related disabling on real platforms.
+research_question: Can a synchronization primitive occupy a useful middle ground between fine-grained
+  handcrafted designs and transactional memory, sacrificing some generality for simplicity while remaining
+  competitive with state-of-the-art handcrafted concurrent search trees?
+method: The paper introduces PathCAS, a primitive combining ideas from multi-word compare-and-swap (KCAS,
+  building on the lock-free Harris-Fraser-Pratt KCAS algorithm) with transactional-memory-like semantics
+  (start/read/add/visit/validate/exec/vexec). It uses per-node version numbers to validate that visited
+  nodes are unchanged, restricting itself relative to full TM by not guaranteeing opacity and using a
+  bounded read-set. PathCAS is used to build a lock-free internal binary search tree and extended to a
+  lock-free relaxed internal AVL tree (using Bougé's rebalancing scheme), with both a hardware-transactional-memory
+  (HTM) fast-path implementation and a software-only fallback.
+dataset: 'No external datasets; evaluation uses synthetic microbenchmarks (uniform random keys) via the
+  Setbench benchmark framework, with tree sizes of 2x10^5, 2x10^6, and 2x10^7 keys and update rates of
+  1%, 10%, and 100%, on Intel and AMD multicore systems (AMD system: two EPYC 7662 CPUs, 256 hardware
+  threads).'
+main_contribution: The paper's specific new contribution is the PathCAS primitive itself (combining KCAS
+  with version-based path validation and a strong-vexec mechanism to avoid spurious failures), and its
+  use to build the first PathCAS-based lock-free internal BST and internal AVL tree implementations that
+  are both relatively easy to prove correct and empirically competitive with the fastest known handcrafted
+  concurrent search trees.
+results: 'PathCAS-based trees are highly competitive across read-heavy to update-heavy workloads: the
+  unbalanced BST implementation outperforms the state of the art in unbalanced BSTs, and the balanced
+  AVL implementation matches the fastest known balanced BST in read-mostly workloads. Compared to MCMS
+  (a prior KCAS-based middle-ground approach), PathCAS is orders of magnitude faster, e.g., at 100% searches
+  and 100,000 keys with HTM, MCMS achieves 0.4M ops/sec at 48 threads versus 77M ops/sec for PathCAS,
+  and PathCAS is thousands of times faster than MCMS at 190 threads.'
+limitations: The paper notes it focuses only on two tree data structures in this work, though it claims
+  (without full detail) that PathCAS can be applied to (a,b)-trees, lists, hash-tables, hash-lists, stacks,
+  queues, skip-lists and dynamic graph connectivity structures, and states it plans to share more of these
+  implementations as future work. It also notes vexec can fail spuriously and that avoiding vexec failures
+  altogether is impossible.
+applications: Concurrent search data structures such as binary search trees and AVL trees for use in multithreaded/shared-memory
+  systems; the authors also mention having implemented (a,b)-trees, lists, hash-tables, hash-lists, stacks,
+  queues, skip-lists, and dynamic graph connectivity data structures using the same PathCAS approach.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior middle-ground techniques between fine-grained handcrafted designs and transactional
+    memory (such as MCMS) often fail to scale for high-performance search data structures because their
+    software fallback path writes to the entire search path, causing contention and cascading hardware-transaction
+    aborts; PathCAS avoids this overhead while still simplifying correctness arguments relative to fine-grained
+    designs.
+  remaining: The authors plan to share implementations of additional PathCAS-based data structures (a,b)-trees,
+    lists, hash-tables, hash-lists, stacks, queues, skip-lists, and dynamic graph connectivity structures)
+    as future work, beyond the two trees presented in this paper.
+key_evidence:
+- text: In this paper, we explore this middle ground, and present PathCAS, a primitive that combines ideas
+    from multi-word CAS (KCAS) and transactional memory approaches, while carefully avoiding overhead.
+  section: Abstract
+- text: We find that the resulting tree is orders of magnitude slower than our PathCAS tree. For example,
+    for 100% searches and 100,000 keys, on a system with hardware TM, the throughput of the MCMS tree
+    is 0.4M at 48 threads, whereas the throughput of PathCAS is 77M.
+  section: Results
+- text: However, we plan to share more of our implementations as part of future work.
+  section: Conclusion
+- text: PathCAS does not guarantee opacity, and (2) PathCAS has a bounded read-set.
+  section: Introduction

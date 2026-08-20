@@ -1,33 +1,76 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2601.02404"
-title: "PCEval: A Benchmark for Evaluating Physical Computing Capabilities of Large Language Models"
-domain: "NLP"
+source_id: '2601.02404'
+title: 'PCEval: A Benchmark for Evaluating Physical Computing Capabilities of Large Language Models'
+domain: NLP
 year: 2025
-url: "https://arxiv.org/abs/2601.02404v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2601.02404v1
+problem: 'Physical computing (connecting software to hardware, e.g. Arduino projects) is central to STEM
+  education but is difficult to teach and assess: teachers need dual software/hardware expertise, and
+  evaluating physical circuits with tangled wires and small components is a persistent burden. It is unknown
+  whether current LLMs can actually help with this hardware-dependent domain, since prior LLM benchmarks
+  focus on pure software and prior LLM-for-electronics work relies on labor-intensive manual expert evaluation.'
+research_question: How capable are current LLMs at both the logical and physical aspects of physical computing
+  tasks (generating circuits and hardware-compatible code), and can this be measured with a fully automated,
+  reproducible evaluation instead of manual expert judgment?
+method: 'The authors introduce PCEVAL, a benchmark of 50 Arduino-based educational projects (each with
+  a natural-language Description, Logical circuit, Physical (breadboard) circuit, Code, and an automated
+  Test procedure), decomposed into four generation tasks: Logical Circuit Generation (D,C->L), Physical
+  Circuit Generation (D,C->P), Code from Logical Circuit (D,L->C), and Code from Physical Circuit (D,P->C).
+  Evaluation pairs each LLM-generated artifact with a reference component and runs it through the Wokwi
+  simulation environment plus a circuit-validation protocol that detects errors such as pin conflicts,
+  breadboard bypasses, and redundant/extraneous/missing/isolated components; five trials per task-model
+  combination are averaged. They also test two mitigation strategies, multi-turn self-improvement (up
+  to 5 turns using structured failure logs) and chain-of-thought prompting (generating an intermediate
+  logical circuit before physical output).'
+dataset: 'PCEVAL itself: 50 original Arduino physical-computing projects (across 4 complexity levels)
+  designed by the authors, evaluated via the Wokwi online Arduino/ESP32 simulator (Shaked, 2020).'
+main_contribution: PCEVAL is presented as the first benchmark that fully automates evaluation of both
+  logical and physical (breadboard) circuit generation together with hardware-compatible code generation
+  for LLMs, removing the need for manual expert assessment used by prior work (e.g., MICRO25/Jansen 2023).
+  It also reports the first systematic empirical finding that LLMs are much weaker at physical breadboard
+  layout generation than at logical circuit design or code generation.
+results: 'Across 13 LLMs, code generation was consistently easier than circuit generation (e.g., Claude
+  3.7 Sonnet: 63.4% code overall vs 39.6% circuit overall; GPT-4.1: 64.2% vs 31.2%). Physical circuit
+  generation (D,C->P) was far harder than logical circuit generation (D,C->L): the best model o3-mini
+  scored 45.2% on physical vs 66.0% on logical; Claude 3.7 Sonnet scored only 13.6% on physical vs 65.6%
+  on logical. Performance degraded sharply with project complexity for physical circuits (e.g., o3-mini
+  dropped from 65.0% at Level 1 to 25.5% at Level 4). Pin conflicts were the dominant failure mode (e.g.,
+  Claude 3.7 Sonnet averaged 7.52 pin conflicts per sample). Self-improvement (multi-turn refinement)
+  and chain-of-thought prompting gave partial gains (e.g., o3-mini improved from 61.7% to 76.5% overall
+  with self-improvement; GPT-4o gained +10.4% and Mistral-Small 3 +18.0% on physical code tasks with chain-of-thought).'
+limitations: The authors state PCEVAL prioritizes educational, introductory-level projects and excludes
+  professional physical-computing scenarios involving advanced constraints such as power optimization,
+  real-time requirements, and EMI considerations, so findings inform educational AI tools rather than
+  industrial/research-grade embedded systems. They also note the benchmark focuses on Arduino Uno, narrowing
+  platform scope, though they argue the task decomposition is platform-independent and validate this with
+  a cross-platform check on ESP32.
+applications: The benchmark is intended to guide development of AI tools that support physical computing
+  education, such as automated circuit verification to reduce instructor workload and assist less-experienced
+  teachers, and to inform the design of LLM-based educational assistants for Arduino-based classroom projects.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior LLM-for-electronics work (e.g., MICRO25/Jansen 2023, EmbedGenius) relied on manual
+    expert evaluation or only validated code against pre-defined circuits, without a scalable, automated,
+    reproducible way to evaluate both physical circuit generation and code generation under physical constraints;
+    PCEVAL addresses this via decomposed tasks with fully automated, standardized evaluation.
+  remaining: The authors note that benchmarks like PCEVAL should evolve beyond functional correctness
+    to incorporate educational usability metrics (readability conventions, step-by-step guidance, pedagogical
+    clarity), and that future extensions must bridge the gap between computational correctness and instructional
+    effectiveness.
+key_evidence:
+- text: To address this gap, we introduce PCEVAL (Physical Computing Evaluation), the first benchmark
+    in physical computing that enables a fully automatic evaluation of the capabilities of LLM in both
+    the logical and physical aspects of the projects, without requiring human assessment.
+  section: Abstract
+- text: Our findings reveal that while LLMs perform well in code generation and logical circuit design,
+    they struggle significantly with physical breadboard layout creation, particularly in managing proper
+    pin connections and avoiding circuit errors.
+  section: Abstract
+- text: Even top performers like o3-mini (45.2%) and Claude 3.7 Sonnet (13.6%) found this task considerably
+    more challenging than logical circuit design (where they scored 66.0% and 65.6%, respectively).
+  section: Results
+- text: PCEVAL prioritizes educational contexts, focusing on introductory-level projects common in STEM
+    classrooms. While valuable for teaching applications, this scope excludes professional physical computing
+    scenarios involving advanced constraints (e.g., power optimization, real-time requirements, EMI considerations).
+  section: Limitations

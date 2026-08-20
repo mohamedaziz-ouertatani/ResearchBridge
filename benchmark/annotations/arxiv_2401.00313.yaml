@@ -1,33 +1,94 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2401.00313"
-title: "Matching of Users and Creators in Two-Sided Markets with Departures"
-domain: "Machine Learning"
+source_id: '2401.00313'
+title: Matching of Users and Creators in Two-Sided Markets with Departures
+domain: Machine Learning
 year: 2023
-url: "https://arxiv.org/abs/2401.00313v3"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2401.00313v3
+problem: Two-sided platforms (social media, streaming, marketplaces) that match content creators and users
+  rely on recommendation algorithms, but most prior work considers only user preferences and ignores creator
+  incentives, even though both users and creators can permanently leave the platform if they don't experience
+  sufficient engagement, and such departures can cascade.
+research_question: How should a platform design recommendation algorithms to maximize long-term total
+  user engagement when both users and creators may permanently leave the platform (two-sided departures),
+  and how does this differ computationally and in performance from algorithms that only account for one
+  side (or neither side) of departures?
+method: 'The authors model content recommendation as a sequential decision problem where each user and
+  creator has a high-dimensional type vector, engagement is the cosine similarity/dot product between
+  matched user-creator types, and users/creators leave if their participation constraints (a minimum engagement
+  threshold for users, a minimum audience size for creators) are violated. They formalize a ''Forward-Looking''
+  (FL) optimal algorithm as a maximum stable set integer linear program, contrast it with a ''User-Centric''
+  (UC) myopic greedy baseline, prove NP-hardness results (via reduction from maximum independent set)
+  for the two-sided case, and design two practical polynomial-time heuristics: a Local Clustering (LC)
+  algorithm that partitions users/creators into local neighborhood balls, and a Creator Ranking with Potential
+  Audience Size (CR1/CR2) algorithm that iteratively prioritizes creators with the smallest potential
+  audience.'
+dataset: No real-world dataset is used; the paper is theoretical/algorithmic, evaluated via constructed
+  examples, probabilistic/asymptotic analysis with randomly generated user and creator types, and numerical
+  simulations comparing UC, CR1, CR2, and FL algorithms.
+main_contribution: 'The paper is the first to jointly model two-sided (user and creator) departures in
+  platform content recommendation, proving that this two-sided setting is fundamentally harder than one-sided
+  settings: computing or even constant-factor approximating the optimal (Forward-Looking) matching is
+  NP-hard, whereas the one-sided (creator-only departure) case admits a (1/e - epsilon) polynomial-time
+  approximation. It also shows the commonly used myopic User-Centric algorithm can achieve arbitrarily
+  poor (even zero) long-term engagement, and introduces two practical heuristic algorithms (Local Clustering
+  with a provable constant-factor approximation under a density assumption, and Creator Ranking) as alternatives.'
+results: The paper proves total engagement under a one-sided (creator-only departures) formulation is
+  submodular, giving a (1/e - epsilon) polynomial-time approximation algorithm (Theorem 1). With two-sided
+  departures, finding the maximum stable set is NP-hard, and approximating it within any constant factor
+  is also NP-hard (Theorem 2), via reduction from maximum independent set. The User-Centric algorithm's
+  ratio of long-term engagement to Forward-Looking's can be zero in the worst case, and Theorem 4 shows
+  that under market-balance conditions (e.g., K > C/2), User-Centric achieves near-zero long-term engagement
+  with high probability even under random types. The Local Clustering algorithm achieves a provable constant-factor
+  approximation under a density assumption (e.g., r(e-bar,3) >= e-bar/37 for D=3). Simulations show the
+  Creator Ranking (CR2) algorithm performs well empirically relative to Forward-Looking, especially in
+  regimes where User-Centric performs poorly (e.g., large K, large U and a-bar).
+limitations: The Local Clustering algorithm requires a density assumption to produce theoretical guarantees,
+  and the authors note it could be improved for cases where this assumption does not hold. The Creator
+  Ranking (CR1/CR2) algorithm has no theoretical approximation guarantee -- it is only supported by simulations,
+  and it is noted as an open question whether it can be shown to guarantee a constant-factor approximation.
+  The model also assumes the platform has complete, fixed knowledge of user and creator types, setting
+  aside learning aspects.
+applications: The model is motivated by and applicable to social media and content platforms such as Spotify,
+  YouTube, Etsy, Facebook, X (Twitter), TikTok, and Twitch, where recommendation algorithms must balance
+  user engagement against sustaining creator audiences.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Prior literature on platform recommendation largely treats one side of the market (users
+    or creators) as fixed/given and does not simultaneously address both user and creator departure incentives;
+    this paper endogenizes both user and creator participation decisions through explicit participation
+    constraints and studies the resulting dynamic matching problem.
+  remaining: 'Future directions include: modeling more general participation constraints (e.g., ranges
+    of recommendation counts, upper bounds on creator attention, pairing determined by factors beyond
+    cosine similarity); exploring low-rank special cases of the ILP constraint matrix for possible polynomial-time
+    approximation schemes; improving Local Clustering when the density assumption fails; determining whether
+    CR2 has a provable approximation guarantee; extending the model to richer dynamics such as creators
+    changing content characteristics or shifting user preferences; and incorporating platform learning
+    of user/creator types rather than assuming they are known.'
+key_evidence:
+- text: 'We show that a user-centric greedy
 
-applications: ""           # What applications are explicitly supported?
+    algorithm that does not consider creator departures can result in arbitrarily poor total engagement,
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    relative to an algorithm that maximizes total engagement while accounting for two-sided departures.'
+  section: Abstract
+- text: 'we prove
+
+    that with two-sided departures, approximating maximum total engagement within any constant factor
+    is
+
+    NP-hard.'
+  section: Abstract
+- text: 'Theorem 5 shows that the Local Clustering algorithm achieves some constant-factor approximation
+    guar-
+
+    antee in long-term engagement compared to Forward-Looking, and gives a lower bound for D = 3'
+  section: Method
+- text: 'The Local Clustering algorithm requires a density assumption to produce theoretical guarantees.
+    We
+
+    may be able to improve the algorithm in cases where the density assumption does not hold, in order
+    to
+
+    either obtain approximations on these more general instances or achieve better empirical performance.'
+  section: Conclusion

@@ -1,33 +1,78 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2501.00603"
-title: "DiC: Rethinking Conv3x3 Designs in Diffusion Models"
-domain: "Computer Vision"
+source_id: '2501.00603'
+title: 'DiC: Rethinking Conv3x3 Designs in Diffusion Models'
+domain: Computer Vision
 year: 2024
-url: "https://arxiv.org/abs/2501.00603v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2501.00603v2
+problem: Diffusion models have shifted from CNN-attention hybrids to fully transformer-based isotropic
+  architectures that scale well but suffer slow inference due to the computational overhead of self-attention,
+  making large transformer-based diffusion models impractical for real-time, resource-constrained applications.
+research_question: Can a diffusion model built purely from 3x3 convolutions, historically considered too
+  limited in receptive field to scale, be architecturally redesigned to match or surpass the generative
+  performance of Diffusion Transformers while retaining the hardware-friendly speed advantage of Conv3x3
+  operations?
+method: 'The authors build DiC (Diffusion CNN), a purely Conv3x3-based diffusion architecture, via a roadmap
+  of empirically-motivated design changes: (1) adopting an Encoder-Decoder Hourglass (U-Net) architecture
+  instead of isotropic designs so downsampling/upsampling compensates for Conv3x3''s narrow receptive
+  field, (2) introducing sparse (strided) skip connections instead of dense blockwise skips to reduce
+  redundancy and improve scalability, and (3) conditioning improvements including stage-specific condition
+  embeddings (independent embedding tables per encoder-decoder stage), mid-block condition injection,
+  DiT-style conditional gating (AdaLN), and switching activations from SiLU to GELU.'
+dataset: ImageNet (256x256 and 512x512, conditional generation), using the sd-vae-ft-ema VAE from latent
+  diffusion models
+main_contribution: DiC is introduced as, per the authors, a swift yet competitive diffusion architecture
+  baseline built entirely from 3x3 convolutions -- a design roadmap (hourglass architecture + sparse skip
+  connections + stage-specific/mid-block/gated conditioning) that lets a pure-CNN diffusion model surpass
+  Diffusion Transformers in FID/IS while maintaining substantially higher inference throughput.
+results: On ImageNet 256x256 at 400K iterations, DiC models outperform equivalently-scaled DiTs across
+  all sizes, e.g. DiC-XL reaches FID 13.11 (IS 100.15) vs DiT-XL/2's FID 20.05 (IS 66.74), and DiC-XL
+  achieves 313.7 throughput vs DiT-XL/2's 66.8. With classifier-free guidance and scaled training, DiC-H
+  reaches FID 2.25 at 256x256 (batch 256 x 2M iterations) comparable to DiT-XL/2's FID 2.27 (256x7M) with
+  far higher throughput (160.8 vs 66.8). On 512x512, DiC-XL/DiC-H outperform DiT-XL/2 in FID/IS while
+  requiring fewer FLOPs after Winograd acceleration.
+limitations: ''
+applications: The authors motivate the work for real-time, resource-constrained diffusion-based image
+  (and by extension video) generation applications where large-scale transformer-based diffusion models
+  are impractical due to substantial inference time costs; DiC's speed advantage is presented as making
+  it a practical solution for high-quality image synthesis.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: 3x3 convolutions come with inherent limitations, particularly a constrained receptive field,
+    which may hinder their scalability in complex generative tasks; the paper addresses this by showing
+    that an hourglass architecture plus sparse skips and conditioning redesign lets pure Conv3x3 models
+    scale competitively with transformer-based diffusion models.
+  remaining: ''
+key_evidence:
+- text: 'Unfortunately, diffusion models incorporating self-
 
-applications: ""           # What applications are explicitly supported?
+    attention face significant computational overhead and latency
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    when scaled up.'
+  section: Introduction
+- text: 'We firstly perform initial trials to scale up purely 3x3-based
+
+    CNNs within existing scalable frameworks, but these ex-
+
+    periments yielded results that are still inferior to Diffusion
+
+    Transformer counterparts.'
+  section: Introduction
+- text: 'Despite having compa-
+
+    rable FLOPs to models like DiT-XL/2 and PixArt-α-XL/2,
+
+    our DiC-XL achieves a significantly lower FID of 13.11 and
+
+    an impressive IS of 100.15, showcasing its superior genera-
+
+    tive quality.'
+  section: Results
+- text: 'These results reveal
+
+    that CNNs could reach performance that is no worse than
+
+    Diffusion Transformers, and they have a great throughput
+
+    advantage.'
+  section: Results

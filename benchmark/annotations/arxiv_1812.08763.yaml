@@ -1,33 +1,62 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1812.08763"
-title: "Splitting Epistemic Logic Programs"
-domain: "General AI / Other"
+source_id: '1812.08763'
+title: Splitting Epistemic Logic Programs
+domain: General AI / Other
 year: 2018
-url: "https://arxiv.org/abs/1812.08763v2"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1812.08763v2
+problem: Epistemic logic programs extend answer set programming with subjective literals (K/M operators)
+  that query whether an objective literal holds in all or some stable models, but the semantics of these
+  operators is non-trivial because subjective literals can affect the very set of stable models they query,
+  leading to cyclic reasoning. Different semantic proposals in the literature disagree on the resulting
+  'world views' for cyclic programs, and comparisons between proposals have been limited to checking individual
+  examples rather than general properties.
+research_question: Can the well-known splitting property for standard logic programs be extended to epistemic
+  logic programs, and which of the existing semantic proposals for epistemic specifications actually satisfy
+  this extended 'epistemic splitting' property?
+method: The authors define an 'epistemic splitting set' and 'epistemic splitting' property, generalizing
+  the Lifschitz-Turner splitting theorem so that a program can be divided into a bottom part and a top
+  part that refers to the bottom only through subjective (K/M) literals. They formally prove that Gelfond's
+  original 1991 (G91) semantics satisfies epistemic splitting, derive consequences (uniqueness of world
+  view for stratified programs, monotonicity of subjective constraints), and then test the property against
+  several other proposed semantics (G11, K15, S17, F15, and their own Founded Autoepistemic Equilibrium
+  Logic C19) using formal proofs and hand-constructed counterexamples.
+dataset: ''
+main_contribution: The paper introduces the epistemic splitting property as a formal criterion for evaluating
+  semantics of epistemic logic programs, proves that only Gelfond's 1991 semantics (and its generalizations)
+  and the authors' own Founded Autoepistemic Equilibrium Logic satisfy it, and shows via counterexamples
+  that the more recent revisions (G11, K15, S17, F15) fail to satisfy it. It also applies epistemic splitting
+  to simplify the generate-define-test formalization of conformant planning as epistemic logic programs.
+results: The paper formally proves (Main Theorem) that G91 semantics satisfies epistemic splitting, and
+  by extension so do the generalizations by Wang and Zhang (2005) and Truszczynski (2011). It shows, using
+  explicit counterexample programs (e.g. a program with rules a∨b, c←Ka, and a constraint ←not c), that
+  the G11, K15, S17, and F15 semantics all violate epistemic splitting or subjective constraint monotonicity.
+  Theorem 5 (citing Fandinno 2019) establishes that the authors' Founded Autoepistemic Equilibrium Logic
+  (C19) also satisfies epistemic splitting, and is the only semantics that satisfies both epistemic splitting
+  and the 'foundedness' property that rules out self-supported world views.
+limitations: ''
+applications: Epistemic splitting is applied to simplify the representation of conformant planning problems
+  as epistemic logic programs by enabling a generate-define-test decomposition, illustrated with a lamp/light-switching
+  planning example.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior comparisons among different semantics for epistemic specifications were limited to
+    checking behavior on individual test examples, lacking a general formal property that could be checked
+    across whole families of programs; this paper supplies such a property (epistemic splitting).
+  remaining: The paper notes that semantics satisfying epistemic splitting may satisfy even stronger notions
+    of splitting, which is left as future work; it also states two different splitting properties (this
+    paper's and Watson 2000's) apply to incomparable classes of programs.
+key_evidence:
+- text: Interestingly, we prove (through counterexamples) that most of the existing approaches fail to
+    fulﬁll the epistemic splitting property, except the original semantics proposed by Gelfond in 1991
+    and a recent proposal by the authors, called Founded Autoepistemic Equilibrium Logic.
+  section: Abstract
+- text: Main Theorem. Semantics G91 satisﬁes epistemic splitting.
+  section: Method
+- text: 'The following counterexample shows that this semantics does not satisfy epistemic splitting:'
+  section: Results
+- text: Our study of the main semantics in the literature has shown that only the original semantics (G91;
+    Gelfond 1991), its generalisations to propositional formulas (Wang and Zhang 2005; Truszczy´nski 2011)
+    and Founded Autoepistemic Equilibrium Logic (C19; Cabalar et al. 2019a), satisfy epistemic splitting
+    while the rest of approaches we considered do not, as we showed with counterexamples.
+  section: Conclusion

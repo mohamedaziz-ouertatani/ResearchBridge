@@ -1,33 +1,67 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1812.06834"
-title: "A Tutorial on Deep Latent Variable Models of Natural Language"
-domain: "NLP"
+source_id: '1812.06834'
+title: A Tutorial on Deep Latent Variable Models of Natural Language
+domain: NLP
 year: 2018
-url: "https://arxiv.org/abs/1812.06834v3"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1812.06834v3
+problem: 'Combining latent variable models with deep learning is powerful but difficult: deep parameterizations
+  of conditional likelihoods usually make posterior inference intractable, and latent variable objectives
+  often complicate backpropagation by introducing points of non-differentiability.'
+research_question: How can deep latent variable models of natural language be understood, constructed,
+  and learned, and how does variational inference (including amortized/neural inference) make posterior
+  inference and learning tractable in this setting?
+method: This is a tutorial/survey rather than an empirical paper. It introduces archetypal latent variable
+  models of sentences (discrete, continuous, and structured, e.g. latent-variable Naive Bayes, continuous
+  latent-vector sentence models, and Hidden Markov Models) alongside their 'deep' variants parameterized
+  with MLPs and RNNs. It then surveys learning and inference techniques for these models, including direct
+  maximization of the log marginal likelihood, the Expectation Maximization algorithm, and (in later sections)
+  amortized variational inference and variational autoencoders.
+dataset: ''
+main_contribution: The paper provides a unified, pedagogical treatment connecting classical latent variable
+  models (Naive Bayes, topic models, HMMs, DMV) to their deep neural parameterizations, and surveys applications
+  and inference/learning techniques (variational inference, amortized inference, VAEs) for NLP, organized
+  as a tutorial accompanying an EMNLP 2018 tutorial.
+results: As a tutorial/survey, it does not report new experimental results; instead it walks through derivations
+  (e.g. EM update equations for a Naive Bayes model) and discusses parameter-efficiency comparisons, e.g.
+  that a deep categorical sentence model requires O(Kd^2+Vd) parameters versus O(KV) (or O(KVT) with position-specific
+  distributions) for the shallow Naive Bayes model.
+limitations: ''
+applications: Discussed application areas for latent variable models include document clustering (unsupervised
+  document classification), mixture-of-experts models for ensembling (e.g. neural machine translation
+  and diverse image captioning), topic modeling, sentence generation, unsupervised part-of-speech tagging
+  and dependency parsing (e.g. DMV-based models), and text summarization/generation conditioned on latent
+  templates or plans.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: The tutorial addresses the gap that deep parameterizations of latent variable models usually
+    make posterior inference intractable and complicate backpropagation, by organizing and explaining
+    the variational inference machinery (including amortized/neural inference) that makes learning such
+    models feasible.
+  remaining: ''
+key_evidence:
+- text: 'While these “deep latent variable” models provide a rich, ﬂexible framework for modeling many
+    real-world phenomena, difﬁculties exist: deep pa-
 
-applications: ""           # What applications are explicitly supported?
+    rameterizations of conditional likelihoods usually make posterior inference intractable, and latent
+    variable
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    objectives often complicate backpropagation by introducing points of non-differentiability.'
+  section: Introduction
+- text: 'This tutorial
+
+    explores these issues in depth through the lens of variational inference (Jordan et al., 1999; Wainwright
+    and
+
+    Jordan, 2008), a key technique for performing approximate posterior inference.'
+  section: Introduction
+- text: 'Note that this deep model allows for avoiding the Naive Bayes assumption while still using only
+    O(Kd2 +
+
+    Vd) parameters, assuming ht ∈Rd.'
+  section: Method
+- text: 'The Expectation Maximization (EM) algorithm (Dempster et al., 1977) is an iterative method for
+    learning
+
+    latent variable models with tractable posterior inference.'
+  section: Method

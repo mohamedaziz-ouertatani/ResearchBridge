@@ -1,33 +1,87 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2301.00089"
-title: "Autonomous Driving Simulator based on Neurorobotics Platform"
-domain: "General AI / Other"
+source_id: '2301.00089'
+title: Autonomous Driving Simulator based on Neurorobotics Platform
+domain: General AI / Other
 year: 2022
-url: "https://arxiv.org/abs/2301.00089v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2301.00089v1
+problem: Existing autonomous-driving simulators (e.g. CARLA, AirSim, PTV Vissim) place AI algorithms only
+  on the ego vehicle while surrounding traffic objects (pedestrians, other vehicles) follow fixed, pre-programmed
+  trajectories or random motion, so simulated environments cannot truly react to or interact with the
+  agent, leaving a blind spot in multi-agent simulation realism.
+research_question: Can a new autonomous-driving simulator built on the Neurorobotics Platform (NRP-Core),
+  using its "Engines" and "Transceiver Functions" concepts, be developed to let every object in the simulated
+  environment run its own AI/behavior model and interact bidirectionally with the ego vehicle, moving
+  toward a truer real-world, multi-agent simulation?
+method: The authors build an initial demo autonomous-driving simulator on the NRP-Core platform, integrating
+  the Gazebo physics simulator for the 3D world/vehicle physics, a YOLOv5-based object-detection Engine
+  that receives camera images via Transceiver Functions (using Protobuf-gRPC and JSON DataPack protocols),
+  and a PID-controller-based trajectory-following Engine that drives the vehicle along a pre-defined trajectory.
+  Engines run as independent simulation participants (representing the car, pedestrians, weather, etc.)
+  that exchange DataPacks (JSON, Protobuf, or ROS message types) through Transceiver Functions, and the
+  system is tested first with single Engines and then with multiple Engines (YOLOv5 detection + driving
+  control) running simultaneously.
+dataset: No formal benchmark dataset; the object-detection model is the pretrained (original, not fine-tuned)
+  YOLOv5 network run on camera images rendered by the Gazebo simulator of a 3D map called Parkring, and
+  a supplementary Unity3D scene is used for comparison.
+main_contribution: A first working demo/foundation for an autonomous-driving simulator built on NRP-Core
+  that combines an object-detection Engine (YOLOv5) and an autonomous-driving control Engine (PID trajectory
+  following) communicating via Transceiver Functions, demonstrating the feasibility of NRP-Core's multi-Engine
+  architecture for building simulators where environment objects could eventually run independent AI behaviors
+  instead of fixed scripts.
+results: Single-engine object detection with YOLOv5 detected most objects with confidence around 80-93%
+  for people but produced misclassifications (e.g., shrubs detected as a car or potted plant, a bus detected
+  as a suitcase) and ran at only about 10-13 FPS (dropping to 5 FPS in more complex scenes) in Gazebo.
+  Single-engine PID trajectory-following ran smoothly at 20-40 FPS around the Parkring map. When both
+  Engines ran together (multi-engine simulation), performance degraded sharply to only 9-11 FPS with slow,
+  non-smooth vehicle movement, attributed mainly to the slow JSON-protocol transmission of image data
+  between the Transceiver Function and the YOLOv5 Engine.
+limitations: 'The authors explicitly state the model ''is still imperfect and has many disadvantages that
+  would be improved,'' including: the original untrained YOLOv5 network was not fine-tuned on a task-specific
+  dataset, causing detection errors; Gazebo''s rough, cartoon-like 3D models and poor rendering/texture
+  quality (e.g., a bus rendered as a featureless black box) hurt detection accuracy; Gazebo has a low
+  performance ceiling and its simulation slows drastically (''stumble'') as map size or camera resolution
+  increases; the JSON communication protocol used for image transmission is slow and creates a bottleneck
+  causing blocking in the simulation loop; and there is presently no proper autonomous-driving control
+  algorithm, so the vehicle only follows a pre-defined fixed trajectory rather than making real driving
+  decisions. The paper also notes ''there are no suitable standards'' yet for the benchmark part of the
+  project.'
+applications: The intended application is a real-world simulation platform that can train, research, test,
+  and validate different AI algorithms for autonomous vehicles, ultimately providing benchmark/evaluation
+  feedback to adjust algorithms before deployment on real vehicles, and enabling multi-agent simulation
+  where surrounding vehicles/pedestrians/weather have their own reactive AI behavior.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Existing simulators only deploy AI to the ego vehicle while environment objects follow fixed
+    pre-programmed trajectories with one-way information transfer; this project uses NRP-Core's Engine/Transceiver
+    Function architecture to begin building a simulator where environment participants could each be driven
+    by independent AI and interact bidirectionally with the agent vehicle.
+  remaining: The paper recommends future work to switch image transmission from JSON to the faster Protobuf-gRPC
+    protocol to fix the multi-engine performance bottleneck, to replace Gazebo with a higher-fidelity
+    simulator such as Unity3D or Unreal Engine for better rendering and FPS, and notes that developing
+    an actual benchmark for the platform 'is a huge project regarded as further complete development for
+    the application' since there are currently no suitable standards.
+key_evidence:
+- text: 'These simulators ﬂaunt that they have the closest real-world simulation, but their environment
+    objects,
 
-applications: ""           # What applications are explicitly supported?
+    such as pedestrians and other vehicles around the agent-vehicle, are already ﬁxed programmed.'
+  section: Introduction
+- text: 'The result of multi-Engines simulation actually works in that the Yolo v5 Engine can detect the
+    image and show it
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    in a window and at the same time, the vehicle can move along the trajectory automatically drive. But
+    the simulation
+
+    performance is not good, and the FPS can only hold between 9 -11 fps.'
+  section: Results
+- text: 'The autonomous driving simulator and application on NRP-Core achieve the ﬁrst goal of building
+    a concept and foundation
+
+    for multi-agents, and at the same time, this model is still imperfect and has many disadvantages that
+    would be improved.'
+  section: Discussion
+- text: 'The part of the benchmark because there are no suitable standards
+
+    and further development is a huge project regarded as further complete development for the application.'
+  section: Conclusion

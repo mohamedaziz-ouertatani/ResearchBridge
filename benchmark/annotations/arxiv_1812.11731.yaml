@@ -1,33 +1,64 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "1812.11731"
-title: "Batch Size Influence on Performance of Graphic and Tensor Processing Units during Training and Inference Phases"
-domain: "Machine Learning"
+source_id: '1812.11731'
+title: Batch Size Influence on Performance of Graphic and Tensor Processing Units during Training and
+  Inference Phases
+domain: Machine Learning
 year: 2018
-url: "https://arxiv.org/abs/1812.11731v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/1812.11731v1
+problem: While Google TPUs and NVIDIA GPUs have both been benchmarked individually for deep learning performance,
+  there is a lack of systematic study on how their relative performance scales with dataset size and hyper-parameters,
+  particularly batch size, for both training and inference phases.
+research_question: How does the maximally possible batch size affect the training and inference performance
+  (speed and accuracy) of a GPU (NVIDIA Tesla K80) versus a TPU (Google TPUv2), and at what batch size/data
+  volume does TPU usage become faster than GPU usage?
+method: The authors run a simple deep convolutional neural network on both a GPU (NVIDIA Tesla K80) and
+  a TPU (Google Cloud TPUv2, 8 cores) via Google Colaboratory, sweeping batch sizes from 8 up to 130,000
+  images (with image duplication to extend dataset range). They measure wall-clock training and inference
+  time per image with and without first-epoch initialization overhead, compute speedup as GPU runtime
+  divided by TPU runtime, and separately track prediction accuracy, loss, and ROC/AUC curves for both
+  hardware types.
+dataset: MNIST (60,000 training / 10,000 test images of handwritten digits, 28x28) and Fashion-MNIST (60,000
+  training / 10,000 test images of fashion products across 10 categories, 28x28), both used as standard
+  benchmarking datasets.
+main_contribution: A systematic empirical scaling study comparing GPU (K80) and TPU (TPUv2) training/inference
+  speed as a function of batch size and dataset size, showing that even a low-scale TPUv2 (only 8 cores)
+  becomes substantially faster than a powerful GPU once batch size crosses certain thresholds, without
+  loss of accuracy.
+results: 'TPUv2 achieved a speedup of up to 10x over the GPU K80 for training (without overhead) and up
+  to 2x for prediction (with and without overhead). Speedup for training became greater than 1x once batch
+  size exceeded 512 images, and for prediction once it exceeded 40,000 images; speedup saturates around
+  8000 images due to the GPU/TPU maximum batch size limit (~8192) for 28x28 images. Accuracy and loss
+  were nearly identical between GPU and TPU: MNIST accuracy 0.9944 (GPU) vs 0.9937 (TPU), Fashion-MNIST
+  accuracy 0.9255 (GPU) vs 0.9279 (TPU), with loss matching to the 2nd-3rd significant digit.'
+limitations: ''
+applications: The authors suggest these results can be used to select optimal parameters for applications
+  processing large batches of data, such as real-time monitoring in advanced driver assistance systems
+  (ADAS), including real-time obstacle and lane detection, traffic video analysis, and monitoring driver
+  behavior.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Despite availability of some performance tests comparing TPU and GPU, systematic studies
+    scaling their performance in relation to datasets of different sizes and hyper-parameters (e.g. batch
+    size) were absent; this paper addresses that gap for MNIST/Fashion-MNIST at varying batch sizes.
+  remaining: The authors note that investigations of network size impact and image size impact (beyond
+    28x28) are under work and will be published elsewhere, as will comparisons involving NVIDIA Tesla
+    V100/Titan V Tensor Core Units and techniques like quantization and pruning for squeezing model size.
+key_evidence:
+- text: The significant speedup was obtained even for extremely low-scale usage of Google TPUv2 units
+    (8 cores only) in comparison to the quite powerful GPU NVIDIA Tesla K80 card with the speedup up to
+    10x for training stage (without taking into account the overheads) and speedup up to 2x for prediction
+    stage (with and without taking into account overheads).
+  section: Abstract
+- text: the speedup was observed for batch sizes >512 images for training phase and >40 000 images for
+    prediction phase
+  section: Abstract
+- text: Despite availability of some performance tests, like Google TPU vs. NVIDIA GPU K80 [2] and Google
+    Cloud TPUv2 vs. GPU NVIDIA V100 [3], the systematic studies on the scaling their performance (accuracy,
+    loss, inference time, etc.) in relation to datasets of different sizes and hyper-parameters (for example,
+    different batch sizes) are absent.
+  section: Introduction
+- text: These results can be used for selection of the optimal parameters for applications where a large
+    batch of data needs to be processed, for example, for monitoring real-time road condition in advanced
+    driver assistance systems (ADAS)
+  section: Discussion

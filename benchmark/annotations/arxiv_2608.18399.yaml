@@ -1,33 +1,73 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2608.18399"
-title: "What Does Attention Transfer Transfer? Attention Structure and Robustness in Vision Transformers"
-domain: "Computer Vision"
+source_id: '2608.18399'
+title: What Does Attention Transfer Transfer? Attention Structure and Robustness in Vision Transformers
+domain: Computer Vision
 year: 2026
-url: "https://arxiv.org/abs/2608.18399v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2608.18399v1
+problem: Vision transformers trained to copy a pretrained teacher's attention maps (attention-map distillation)
+  recover most of the teacher's in-distribution accuracy after fine-tuning, but remain measurably less
+  robust under distribution shift than fully fine-tuned students; prior work conjectured but never directly
+  measured whether this robustness deficit stems from an incomplete transfer of attention structure or
+  from something else (e.g. features).
+research_question: What does attention-map distillation actually transfer in terms of measurable attention
+  structure (concentration, redundancy, stability), does that transferred structure explain the observed
+  robustness gap versus fine-tuning, and does the gap change over training, and does causally intervening
+  on the transferred structure change robustness?
+method: The authors train ViT-S/16 students on ImageNet-100 in three conditions (scratch, weight-transfer/fine-tune
+  from a self-supervised MAE teacher, and attention-transfer/distill via per-layer per-head KL divergence
+  to the teacher's attention maps), each with 3 seeds under one pre-registered early-stopping rule, plus
+  full-schedule reruns and a causal intervention adding Guo et al.'s Attention Diversification Loss (ADL)
+  at four doses to the distillation objective. They measure attention structure (per-row entropy/top-k
+  mass, cross-row redundancy, clean-vs-corrupt attention/Q-K cosine stability) and effective robustness
+  (OOD accuracy over 4 natural-shift benchmarks divided by ID accuracy), using matched-accuracy and endpoint
+  comparison coordinates with paired bootstrap confidence intervals.
+dataset: ImageNet-100 (training/validation), evaluated for out-of-distribution robustness on ImageNet-A,
+  ImageNet-R, ImageNet-Sketch, and ImageNet-V2, plus a secondary self-generated frozen ImageNet-C corruption
+  probe.
+main_contribution: The first direct measurement of what attention-map distillation transfers in terms
+  of attention structure tied to robustness, showing the transfer is essentially perfect and stable across
+  training; a demonstration that the endpoint robustness gap versus fine-tuning is substantially a training-maturity
+  artifact that closes when schedules are completed or accuracy is matched; and a causal dose-response
+  experiment showing that forcing the transferred attention structure to change (via ADL) produces no
+  detectable robustness response, supporting a feature-based (rather than attention-structure-based) explanation
+  for the residual gap.
+results: The distilled student's attention sits at mean KL(teacher||student)=0.017 nats versus 1.65 nats
+  for fine-tuning (about 97x closer). At rule-governed endpoints the robustness gap versus fine-tuning
+  is real (0.0575, 0.0323, 0.0181 across 3 seeds, all excluding zero). Endpoint robustness correlates
+  with stopping epoch at r=0.978 across 15 distill-family runs, and full-schedule reruns shrink the gap
+  to 0.0044, 0.0013, 0.0110 (below the pre-registered 0.01 threshold in two of three seeds). Under the
+  causal ADL intervention, cross-row redundancy moves monotonically (up to -0.0247 at the top dose, half
+  the distill-finetune structural separation) but matched-skill effective robustness change stays within
+  ±1pp with no monotone trend across doses.
+limitations: Everything is measured on ViT-S with an MAE-S teacher on ImageNet-100, so magnitudes (gaps,
+  redundancy levels, dose calibrations) are stated as regime-bound and not claimed to generalize to other
+  settings; portability of the mechanism to larger scale is argued but not shown. The early-stopping rule
+  turned out to be a peak-detector on curves with no peak, making stopping time a 'lottery'; three seeds
+  per condition bound variance estimates; and the features account rests on elimination and intervention
+  rather than direct exhibition of the deficient features.
+applications: ''
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Li et al. (2024) measured the attention-transfer robustness gap at fixed budgets with no
+    stopping rule or convergence evidence and conjectured but did not test that it is feature-borne; this
+    paper builds the instrumentation to test that conjecture directly, at 14x fewer parameters and 10x
+    less data.
+  remaining: 'The authors propose a testable claim at Li et al.''s larger scale: if ViT-L attention-transfer
+    students at 200 epochs are early on their robustness-maturity curve, extending distillation budgets
+    there should compress the gap; if the gap instead persists at true completion, the maturity account
+    would be bounded to small models and a scale-dependent feature story would be needed -- this experiment
+    is left as future work.'
+key_evidence:
+- text: What the copy delivers has never been measured directly in the attention structure and tied to
+    robustness.
+  section: Abstract
+- text: the distilled student's attention sits on average 97× closer to its teacher's than fine-tuning
+    ends up from the same teacher
+  section: Introduction
+- text: The endpoint robustness gap at this scale is substantially a training-maturity artifact.
+  section: Results
+- text: Forcing cross-row redundancy through half of the condition separation produced no detectable robustness
+    response at matched skill, under either registered way of matching accuracy. This is consistent with
+    the deficit residing in features, not in the visible routing.
+  section: Results

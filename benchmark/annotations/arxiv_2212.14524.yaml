@@ -1,33 +1,57 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2212.14524"
-title: "A novel cluster internal evaluation index based on hyper-balls"
-domain: "Machine Learning"
+source_id: '2212.14524'
+title: A novel cluster internal evaluation index based on hyper-balls
+domain: Machine Learning
 year: 2022
-url: "https://arxiv.org/abs/2212.14524v1"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2212.14524v1
+problem: Evaluating clustering quality and determining the optimal number of clusters is difficult, especially
+  for data sets containing noise or clusters of arbitrary shape, where existing internal validity indices
+  tend to perform poorly.
+research_question: Can a cluster internal evaluation index built on multi-granularity hyper-ball representations
+  of the data more accurately assess clustering quality and determine the optimal cluster number than
+  existing indices, particularly for noisy data and arbitrarily shaped clusters?
+method: The data set is characterized at multiple granularities using hyper-balls (HBs), refined from
+  coarse to fine granularity via iterative 2-means splitting until a balance degree (the difference between
+  the maximum and average distance of points to the HB center) falls below a threshold. Noisy hyper-balls
+  (containing fewer than 4 samples) are removed. The proposed Hyper-ball-based Cluster Validity Index
+  (HCVI) is then computed per cluster as the ratio of intracluster compactness (max distance between hyper-balls
+  in a cluster) to intercluster separation (min distance between a cluster's hyper-balls and hyper-balls
+  of other clusters), averaged and normalized across the possible number of clusters l (2 <= l <= sqrt(m)).
+dataset: Synthetic data sets and real data sets (not individually named in the excerpted text).
+main_contribution: A new cluster internal validity index (HCVI) based on hyper-ball granular representations,
+  along with an improved hyper-ball splitting method (using the balance degree BD) and a noise-removal
+  step, that together allow evaluation of clustering quality and determination of the optimal cluster
+  number for noisy data with arbitrarily shaped clusters.
+results: The experimental results on synthetic and real data sets indicate that the new HCVI index outperforms
+  existing cluster validity indices, and it can evaluate clustering results produced by several classic
+  clustering methods and determine the optimal cluster number for data sets containing noise and arbitrarily
+  shaped clusters.
+limitations: ''
+applications: ''
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Existing hyper-ball splitting methods (e.g., GCHB's Distribution Measure-based split) tend
+    to generate too many hyper-balls, so the paper addresses this by proposing a more effective splitting
+    method based on balance degree to determine the optimal cluster number for noisy, arbitrarily shaped
+    data.
+  remaining: ''
+key_evidence:
+- text: 'It is crucial to evaluate the quality and determine the optimal number of clus-
 
-applications: ""           # What applications are explicitly supported?
+    ters in cluster analysis.'
+  section: Abstract
+- text: 'The proposed methods can evaluate the clustering results produced by
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    the several classic methods and determine the optimal cluster number for data
+
+    sets containing noises and clusters with arbitrary shapes.'
+  section: Abstract
+- text: 'However, this splitting method
+
+    leads to too many hyper-ball, so we propose a more effective improvement method to determine
+
+    the optimal cluster number for data sets containing noises and clusters with arbitrary shapes.'
+  section: Method
+- text: HCV I(Ck) = com(Ck)/sep(Ck).
+  section: Method

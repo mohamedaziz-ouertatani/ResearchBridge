@@ -1,33 +1,81 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2312.17279"
-title: "Stateful Conformer with Cache-based Inference for Streaming Automatic Speech Recognition"
-domain: "NLP"
+source_id: '2312.17279'
+title: Stateful Conformer with Cache-based Inference for Streaming Automatic Speech Recognition
+domain: NLP
 year: 2023
-url: "https://arxiv.org/abs/2312.17279v3"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2312.17279v3
+problem: Streaming automatic speech recognition (ASR) models must operate with limited future context
+  (since full future audio is unavailable), which degrades accuracy relative to offline models; approaches
+  that reuse offline models for streaming via buffered/overlapping chunks incur significant redundant
+  computation and suffer accuracy inconsistency between training and streaming inference.
+research_question: Can the non-autoregressive FastConformer encoder be adapted for streaming ASR -- via
+  constrained look-ahead/past context and an activation-caching inference mechanism -- to close the accuracy
+  gap between offline and streaming inference while reducing computation compared to conventional buffered
+  streaming, and can a shared hybrid CTC/RNNT decoder architecture further improve accuracy and efficiency?
+method: The authors adapt the FastConformer encoder for streaming by making all convolutions fully causal,
+  replacing batch normalization with layer normalization, and constraining self-attention context using
+  a 'chunk-aware look-ahead' scheme (chunking input audio so all tokens in a chunk see the same limited
+  future context, rather than look-ahead compounding with depth as in regular per-layer look-ahead). At
+  inference, they introduce a cache-based mechanism that stores intermediate activations (fixed-size caches
+  for causal depthwise convolutions, growing-to-fixed caches for self-attention keys/values, and RNN hidden
+  states for the RNNT decoder) so the non-autoregressive encoder runs autoregressively without redundant
+  recomputation. They also propose a hybrid architecture with a shared encoder feeding both a CTC decoder
+  and an RNNT decoder, trained jointly with a weighted loss (ltotal = alpha*lctc + lrnnt).
+dataset: LibriSpeech (with 10% speed perturbation) and NeMo ASRSET 3.0 (a 26K-hour multi-domain speech
+  dataset); evaluation also reported on SPGISpeech, Earnings22, GigaSpeech, TEDLIUM, Common Voice (MCV),
+  VoxPopuli, and AMI
+main_contribution: 'The paper''s novel contributions are: an activation-caching mechanism that converts
+  a non-autoregressively trained FastConformer encoder into an autoregressive, recompute-free streaming
+  model with zero duplicated computation; a chunk-aware look-ahead design that avoids the latency blow-up
+  and token recomputation of regular per-layer look-ahead; a hybrid CTC/RNNT architecture with a shared
+  encoder; and a multi-latency training scheme letting a single model support multiple streaming latencies.'
+results: 'On LibriSpeech test-other at matched ~1360ms latency, cache-aware chunk-aware streaming achieves
+  7.1% WER (CTC) and 6.3% WER (RNNT), beating buffered streaming baselines (8.0% CTC, 11.3% RNNT) with
+  lower latency and less computation. Chunk-aware look-ahead outperforms regular look-ahead at equal latency
+  (e.g. RNNT 6.3% vs 7.1% at 1360ms). On the large multi-domain benchmark suite, cache-aware models outperform
+  buffered streaming across all datasets (e.g. RNNT averaged WER 10.6% at 520ms cache-aware vs 15.0% for
+  buffered at 2000ms). A multi-latency-trained model achieves better accuracy than single-latency models
+  while supporting multiple latencies from one model (e.g. CTC at 520ms: 6.2% multi-lookahead vs 6.2%/...
+  single-lookahead comparisons show multi-lookahead consistently matching or beating single-lookahead).'
+limitations: ''
+applications: Streaming automatic speech recognition applications requiring both accuracy and low, controllable
+  latency; the hybrid CTC/RNNT architecture is noted to save compute by training a single shared-encoder
+  model instead of two separate models; the multi-latency training approach is presented as useful for
+  deployments needing to support multiple latency requirements from a single trained model.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
+  addressed: Many streaming models suffer an accuracy disparity between train and inference time; this
+    work eliminates that gap by using consistent limited left/right context during both training and streaming
+    inference, and by avoiding the redundant computation inherent to buffered streaming approaches via
+    activation caching.
+  remaining: ''
+key_evidence:
+- text: 'The proposed model is thoughtfully designed
 
-applications: ""           # What applications are explicitly supported?
+    in a way to eliminate the accuracy disparity between the
 
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+    train and inference time which is common for many stream-
+
+    ing models.'
+  section: Abstract
+- text: 'We propose a caching mechanism by converting the Fast-
+
+    Conformer’s non-autoregressive encoder into an autoregres-
+
+    sive recurrent model during inference using a cache for acti-
+
+    vations computed from previous timesteps.'
+  section: Introduction
+- text: 'Cache-aware models show significantly better ac-
+
+    curacy with lower latency while using less computation com-
+
+    pared with the buffered approach.'
+  section: Results
+- text: 'The multi-lookahead model even shows
+
+    better accuracy than single lookahead models while just one
+
+    model is trained for multiple latencies.'
+  section: Results

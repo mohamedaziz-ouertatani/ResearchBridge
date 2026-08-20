@@ -1,33 +1,77 @@
-# Benchmark annotation - fill in every field below by hand.
-# Source of truth: ResearchBridge.md Sec 25 (Annotation Schema).
-# Leave a field blank only if the paper genuinely doesn't state it.
+# Benchmark annotation - ResearchBridge.md Sec 25.
 
-# Identified by (source, source_id), not the papers.id UUID: UUIDs are
-# assigned at insert, so they change on every re-ingest and would leave
-# these files pointing at rows that no longer exist.
 source: arxiv
-source_id: "2512.22113"
-title: "PRAXIS: Integrating Program Analysis with Observability for Root-Cause Analysis"
-domain: "Systems"
+source_id: '2512.22113'
+title: 'PRAXIS: Integrating Program Analysis with Observability for Root-Cause Analysis'
+domain: Systems
 year: 2025
-url: "https://arxiv.org/abs/2512.22113v3"
-
-# --- Annotation ---
-
-problem: ""                # What problem does the paper address?
-research_question: ""      # What research question is being investigated?
-method: ""                 # What approach/method is proposed?
-dataset: ""                # What data is used?
-main_contribution: ""      # What is actually new?
-results: ""                # What are the major findings?
-limitations: ""            # What limitations are explicitly stated?
-
+url: https://arxiv.org/abs/2512.22113v3
+problem: Production cloud incidents cost over $2M per hour on average, and roughly 24% of them are not
+  resolved by simple operational mitigations, requiring engineers to perform root-cause analysis (RCA).
+  Existing LLM-based agentic RCA approaches (ReAct-style agents) rely mostly on observability data and
+  unstructured plain-text prompts, and even when they add code context they treat code as monolithic text
+  rather than exploiting its dependency structure, limiting their ability to diagnose code- and configuration-caused
+  incidents.
+research_question: Can an LLM-driven agentic workflow that explicitly traverses both microservice-level
+  dependency structure and code-level program dependency structure diagnose the root cause of cloud incidents
+  more accurately and efficiently than existing ReAct-style RCA agents?
+method: 'The paper proposes PRAXIS, an orchestrator that combines two graph structures: a service dependency
+  graph (SDG) capturing microservice-level dependencies, and a hammock-block program dependence graph
+  (PDG) capturing code-level control, data, and call dependencies for each microservice (built with Tree-sitter
+  and CLDK). PRAXIS operates in four phases: (1) gathering observability data (alerts, traces, logs, events,
+  metrics) and constructing the SDG/PDG; (2) using an LLM to select initial candidate microservices from
+  the SDG based on the incident context; (3) LLM-driven iterative traversal of each candidate''s PDG (selecting
+  an initial hammock block, then expanding/relating/discarding/completing traversal) to build an incident-centric
+  program context and classify the microservice as PRIMARY FAILURE, SYMPTOM ONLY, or UNRELATED, including
+  cross-SDG-PDG traversal when multiple microservices are implicated; and (4) consolidating all per-microservice
+  judgments into a final RCA report.'
+dataset: The authors built the Code-Cloud-RCA Benchmark, integrated into ITBench, consisting of 30 real-world-inspired
+  incident scenarios (data schema mismatches, external-dependency failures, internal logic bugs, resource
+  label mismatches, constant misconfigurations, feature-flag/ConfigMap misconfigurations, deployment manifest
+  errors, and resource/infrastructure faults) injected into a live Kubernetes microservice application,
+  evaluated across five LLMs (o4-mini, gpt-5-codex, mistral-medium-3.1, deepseek-r1, gpt-oss-120b).
+main_contribution: The paper's novel contribution is the joint, structure-aware use of an SDG and a hammock-block
+  PDG for agentic RCA, including a cross-SDG-PDG traversal mechanism that lets the LLM move between microservices
+  and their code-level dependency graphs to form a coherent root-cause explanation, plus the open-sourced
+  Code-Cloud-RCA Benchmark of 30 scenarios for evaluating such approaches.
+results: 'Across 5 LLMs and 2,250 trajectories, PRAXIS consistently outperformed the ReAct-style SRE-Agent
+  and SRE-Agent+CT baselines: root-cause reasoning (RCR) accuracy improved by up to 6.3x and root-cause
+  identification (RCI) accuracy by up to 3.4x, while token consumption dropped 5.3x (from 884.9k to 166.5k
+  tokens per successful diagnosis). With gpt-5-codex, PRAXIS reached 61.54% RCR and 73.85% RCI versus
+  0.00% RCR / 11.43% RCI for the plain SRE-Agent baseline.'
+limitations: The authors state PRAXIS's effectiveness is contingent on the availability and quality of
+  observability data; sparse or ambiguous signals can cause it to falsely attribute incidents to fault-free
+  code paths. It also depends on correctness/completeness of the dependency graphs, so missing edges or
+  isolated nodes cause traversal to terminate prematurely. It achieves near-zero accuracy on deployment-manifest
+  and resource/infrastructure-related incidents because these lack application-layer observability and
+  are not captured in its graphs, and concurrency/timing bugs are explicitly out of scope since PRAXIS
+  lacks dynamic runtime analysis. Static code analysis also cannot accurately capture dynamic bindings
+  (e.g., Java reflection), leaving unlinked gaps in the PDG, and gains are naturally limited when microservice
+  source code is unavailable.
+applications: PRAXIS is intended to support DevOps/SRE teams performing production cloud incident diagnosis,
+  and the authors describe integrating it with CI/CD pipelines for incremental PDG updates during continuous
+  deployment.
 research_gap:
-  addressed: ""            # What gap does the paper address?
-  remaining: ""            # What gap remains?
-
-applications: ""           # What applications are explicitly supported?
-
-key_evidence: []           # Passages supporting the above, e.g.:
-                            #   - text: "quoted passage from the paper"
-                            #     section: "Introduction"
+  addressed: Prior agentic RCA approaches either used only observability data with unstructured LLM reasoning
+    (ReAct-style), or incorporated code context as plain text without exploiting its dependency structure;
+    PRAXIS addresses this by explicitly imposing joint SDG and hammock-block PDG structure on the LLM's
+    reasoning and traversal.
+  remaining: The authors state future work will extend PRAXIS to diagnose resource-, infrastructure-,
+    and deployment-related incidents by adding resource/infrastructure and deployment-manifest dependency
+    graphs, and will incorporate dynamic program analysis (runtime instrumentation and dynamic tracing)
+    to address static-analysis gaps and enable diagnosis of concurrency bugs.
+key_evidence:
+- text: Compared to state-of-the-art ReAct baselines, PRAXIS improves RCA accuracy by up to 6.3× while
+    reducing token consumption by 5.3×.
+  section: Abstract
+- text: PRAXIS achieved a root-cause reasoning accuracy of 61.5% and a root-cause identification accuracy
+    of 73.9%, an increase of 6.3× and 3.4×, respectively, over state-of-the-art ReAct baselines
+  section: Introduction
+- text: PRAXIS's effectiveness is contingent on the availability and quality of observability data to
+    anchor its PDG traversal. Sparse or ambiguous traces, logs, metrics, or events can limit PRAXIS's
+    ability to accurately align runtime error signals with corresponding dependency paths to traverse.
+  section: Discussion
+- text: Future iterations of PRAXIS will be extended to diagnose resource-, infrastructure-, and deployment-related
+    incidents by augmenting the current dependency graphs with resource/infrastructure and deployment-manifest
+    graphs that explicitly capture those dependencies.
+  section: Discussion
