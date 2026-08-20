@@ -22,6 +22,19 @@ This changes what counts as a realistic MVP. When proposing architecture or road
 - Confidence values must be things a solo builder can actually justify — categorical (High/Medium/Low) tied to explicit rules, not decimal floats implying a calibration process that doesn't exist yet.
 - The roadmap below is written in phases; treat "Phase 1" as the only phase with committed weekly milestones. Phases 2–5 stay directional until Phase 1 ships and is evaluated.
 
+**Free/Open-Source First.** This is a project-wide constraint, not a suggestion — it applies to every phase and every architectural decision below:
+
+- Prefer free and open-source software, libraries, frameworks, databases, models, and tools whenever a suitable option exists.
+- Do not introduce paid APIs or cloud services by default.
+- Anthropic/OpenAI or other paid LLM APIs must be treated as optional integrations, never core dependencies.
+- The MVP must remain fully functional without any paid APIs.
+- For LLM functionality, implement a provider abstraction and a free/local fallback wherever practical (see §29).
+- During development and testing, prefer, in this order: local/open-source models, mock/stub providers, free API tiers where explicitly available, local PostgreSQL + pgvector, local processing, and free/open-source infrastructure generally.
+- If a paid service would provide a significant advantage, propose it separately, state its cost/dependency explicitly, and do not make it mandatory without the builder's approval.
+- Never assume an API is free — verify its current pricing/licensing before recommending it.
+- Avoid vendor lock-in: keep every external provider behind a replaceable interface.
+- Target state: the builder can develop and demonstrate the MVP with zero mandatory software/API costs, excluding optional hardware, electricity, or internet costs.
+
 ---
 
 # 1. Project Overview
@@ -1134,7 +1147,13 @@ A simple baseline:
 ```text
 Paper Abstract / Structured Content
               ↓
-       Extraction model
+     Extraction Interface
+              ↓
+┌──────────────────────┐
+│ Local / Free Model   │  ← default
+│ Mock Extractor       │  ← testing
+│ Paid API             │  ← optional
+└──────────────────────┘
               ↓
       JSON structured output
               ↓
@@ -1145,14 +1164,20 @@ Paper Abstract / Structured Content
          PostgreSQL
 ```
 
-Potential approaches:
+Per the Free/Open-Source First constraint (Builder Context), extraction sits behind a single provider-agnostic interface with three interchangeable implementations:
 
-- schema-constrained LLM extraction,
+- **Local / Free Model** — the default. An open-source or local model (a small local LLM, or a non-LLM scientific NLP model) performs extraction with no paid API call involved.
+- **Mock Extractor** — used in tests and for validating pipeline mechanics (schema, evidence grounding, persistence) without depending on any model at all.
+- **Paid API** — strictly optional. Anthropic/OpenAI/other paid LLM APIs may be wired in behind the same interface, but must never be required for the MVP to build, run, or be demonstrated. Any paid option must be proposed separately with its cost stated explicitly, and adopted only with the builder's approval.
+
+Potential approaches within any of the three implementations:
+
+- schema-constrained LLM extraction (local or paid),
 - scientific NLP models,
 - rule-based extraction for deterministic fields,
 - hybrid methods.
 
-Compare methods rather than assuming an LLM is automatically best.
+Compare methods rather than assuming an LLM — local or paid — is automatically best.
 
 ---
 
@@ -1418,17 +1443,17 @@ Small quantized LLMs
 Limited OCR experiments
 ```
 
-Prefer remote/cloud/university infrastructure later for:
+Cloud/paid infrastructure is optional, not a default progression. Per the Free/Open-Source First constraint (Builder Context), the MVP must run fully on local/free infrastructure. If any of the following ever becomes genuinely necessary, treat it as a separate, explicitly-approved proposal with cost stated upfront — not a default next step:
 
 ```text
-Large LLM inference
-Large-scale embeddings
-Fine-tuning
-Large corpus processing
-Production deployment
+Large LLM inference (paid API)
+Large-scale embeddings (paid API)
+Fine-tuning (cloud compute)
+Large corpus processing (cloud compute)
+Production deployment (cloud hosting)
 ```
 
-Do not design the MVP around requiring a powerful GPU.
+Do not design the MVP around requiring a powerful GPU, and do not design it around requiring paid cloud infrastructure either.
 
 ---
 
@@ -2020,7 +2045,10 @@ Avoid:
 - assuming a domain-expert review panel is available; design Phase 1–2 review workflows for one reviewer (yourself),
 - letting ingestion failures pass silently — a solo builder has no team to notice a quietly broken pipeline, so failures must be loud and logged from week 1,
 - annotating the benchmark after looking at system output, or presenting RQ1–RQ5 results without acknowledging that the same person designed the system and labeled its ground truth,
-- treating a categorical confidence rule as validated just because it's plausible — check it against benchmark precision once results exist.
+- treating a categorical confidence rule as validated just because it's plausible — check it against benchmark precision once results exist,
+- introducing a paid API or cloud service as a default/mandatory dependency instead of an optional, explicitly-approved one (see Builder Context: Free/Open-Source First),
+- assuming an API or model is free without verifying current pricing/licensing first,
+- wiring an LLM integration directly against one paid provider instead of behind a replaceable provider interface.
 
 ---
 
