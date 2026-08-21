@@ -28,6 +28,7 @@ dependencies = [
 
 [project.scripts]
 rb-ingest = "researchbridge.ingestion.cli:main"
+rb-ingest-springer = "researchbridge.ingestion.cli_springer:main"
 rb-extract = "researchbridge.extraction.cli:main"
 rb-extract-evaluate = "researchbridge.extraction.cli_evaluate:main"
 rb-gaps-detect = "researchbridge.gaps.cli_detect:main"

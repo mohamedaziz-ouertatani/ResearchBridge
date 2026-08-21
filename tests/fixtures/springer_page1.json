@@ -1,0 +1,56 @@
+{
+  "apiMessage": "This JSON was provided by Springer Nature",
+  "query": "\"machine learning\"",
+  "result": [{"total": "3", "start": "1", "pageLength": "2", "recordsDisplayed": "2"}],
+  "records": [
+    {
+      "contentType": "Article",
+      "identifier": "doi:10.1007/s10994-026-00001-1",
+      "language": "en",
+      "url": [
+        {"format": "html", "platform": "web", "value": "http://link.springer.com/openurl/fulltext?id=doi:10.1007/s10994-026-00001-1"},
+        {"format": "pdf", "platform": "web", "value": "http://link.springer.com/openurl/pdf?id=doi:10.1007/s10994-026-00001-1"},
+        {"format": "", "platform": "", "value": "http://dx.doi.org/10.1007/s10994-026-00001-1"}
+      ],
+      "title": "A Study of Machine Learning Techniques",
+      "creators": [
+        {"creator": "Alice Example", "ORCID": "0000-0001-0000-0001"},
+        {"creator": "Bob Sample"}
+      ],
+      "publicationName": "Machine Learning",
+      "openaccess": "true",
+      "doi": "10.1007/s10994-026-00001-1",
+      "publisher": "Springer",
+      "publisherName": "Springer US",
+      "publicationDate": "2026-01-15",
+      "publicationType": "Journal",
+      "abstract": "This paper studies machine learning techniques for classification.",
+      "keyword": ["Machine Learning", "Classification"],
+      "subjects": ["Computer Science", "Artificial Intelligence"],
+      "genre": "OriginalPaper"
+    },
+    {
+      "contentType": "Chapter",
+      "identifier": "doi:10.1007/978-3-030-00002-2_5",
+      "language": "en",
+      "url": [
+        {"format": "html", "platform": "web", "value": "http://link.springer.com/openurl/fulltext?id=doi:10.1007/978-3-030-00002-2_5"}
+      ],
+      "title": "Second Paper on Deep Learning",
+      "creators": [
+        {"creator": "Carol Person"}
+      ],
+      "publicationName": "Advances in Deep Learning",
+      "openaccess": "false",
+      "doi": "10.1007/978-3-030-00002-2_5",
+      "publisher": "Springer",
+      "publisherName": "Springer International Publishing",
+      "publicationDate": "2026-02-01",
+      "publicationType": "Book",
+      "abstract": "A chapter about deep learning architectures.",
+      "keyword": ["Deep Learning"],
+      "subjects": ["Computer Science"],
+      "genre": "Chapter"
+    }
+  ]
+}

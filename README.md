@@ -24,6 +24,14 @@ uv run alembic upgrade head
 uv run rb-ingest --search-query "cat:cs.LG OR cat:cs.AI" --page-size 100
 ```
 
+Springer Nature (requires `SPRINGER_META_API_KEY` in `.env` — register at
+https://dev.springernature.com; field-scoped queries like `subject:"..."`
+require a premium key, so the default query uses plain free-text terms):
+
+```bash
+uv run rb-ingest-springer --query '"artificial intelligence" OR "machine learning" OR "computer science"' --page-size 100
+```
+
 ## Tests
 
 ```bash

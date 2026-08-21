@@ -1,0 +1,30 @@
+{
+  "apiMessage": "This JSON was provided by Springer Nature",
+  "query": "\"machine learning\"",
+  "result": [{"total": "3", "start": "3", "pageLength": "2", "recordsDisplayed": "1"}],
+  "records": [
+    {
+      "contentType": "Article",
+      "identifier": "doi:10.1007/s10994-026-00003-3",
+      "language": "en",
+      "url": [
+        {"format": "html", "platform": "web", "value": "http://link.springer.com/openurl/fulltext?id=doi:10.1007/s10994-026-00003-3"}
+      ],
+      "title": "The Final Paper in This Fixture Set",
+      "creators": [
+        {"creator": "Dave Person"}
+      ],
+      "publicationName": "Machine Learning",
+      "openaccess": "true",
+      "doi": "10.1007/s10994-026-00003-3",
+      "publisher": "Springer",
+      "publisherName": "Springer US",
+      "publicationDate": "2026-03-01",
+      "publicationType": "Journal",
+      "abstract": "The final paper in this small fixture set.",
+      "keyword": ["Neural Networks"],
+      "subjects": ["Computer Science", "Artificial Intelligence"],
+      "genre": "OriginalPaper"
+    }
+  ]
+}
