@@ -1,0 +1,224 @@
+# Sec 27 retrieval evaluation: topical queries independent of any single
+# benchmark paper, unlike relevance.py's self-retrieval queries (which are
+# derived from reading one target paper, and were found to saturate at a
+# perfect 1.0 for every baseline as a result - see relevance.py's docstring
+# and the commit that added this file).
+#
+# Each query was written first, with no specific paper in mind. Candidates
+# were pooled from TF-IDF + BM25 + embedding search (top 12 each, standard
+# IR pooling so judgment isn't biased toward whichever method was checked
+# first), then judged relevant or not by reading title/abstract. Multiple
+# relevant documents per query, unlike the self-retrieval set's exactly one -
+# this is what actually lets Recall@K and nDCG@K mean something here.
+
+queries:
+- query: Detecting adversarial examples in image classifiers
+  relevant_source_ids:
+  - '1812.11377'
+  - '1912.12859'
+  - '2001.05844'
+  - '2012.15386'
+  - '2112.14337'
+  - '2112.14340'
+  - '2301.01218'
+  - '2401.00148'
+  - '2501.00537'
+  - '2512.23837'
+- query: Federated learning with non-IID client data
+  relevant_source_ids:
+  - '2012.08565'
+  - '2012.10936'
+  - '2012.15589'
+  - '2112.14244'
+  - '2212.07224'
+  - '2312.10411'
+  - '2312.13923'
+  - '2312.14219'
+  - '2512.20363'
+  - '2608.14995'
+  - '2608.15639'
+- query: Byzantine fault tolerant distributed consensus
+  relevant_source_ids:
+  - '1812.11747'
+  - '1912.05895'
+  - '1912.09528'
+  - '1912.09644'
+  - '1912.10367'
+  - '2012.08313'
+  - '2112.11337'
+  - '2201.03648'
+  - '2312.11029'
+  - '2312.12677'
+  - '2312.13777'
+  - '2412.14061'
+  - '2608.13434'
+  - '2608.16504'
+- query: Graph neural networks for molecular property prediction
+  relevant_source_ids:
+  - '1812.08434'
+  - '2102.01011'
+  - '2412.20796'
+  - '2501.01458'
+  - '2608.18982'
+  - '2608.19121'
+- query: Speech recognition for low-resource languages
+  relevant_source_ids:
+  - '1812.06864'
+  - '1812.06953'
+  - '1812.07625'
+  - '1812.07754'
+  - '1812.09323'
+  - '1812.09336'
+  - '1812.09798'
+  - '1912.13106'
+  - '2012.15562'
+  - '2112.12522'
+  - '2212.12048'
+  - '2212.12510'
+  - '2212.14149'
+  - '2301.00066'
+  - '2301.00304'
+  - '2501.00509'
+- query: Differential privacy in machine learning training
+  relevant_source_ids:
+  - '1812.03288'
+  - '1912.04859'
+  - '2001.00012'
+  - '2001.00493'
+  - '2101.00036'
+  - '2112.12411'
+  - '2301.00301'
+  - '2312.14712'
+  - '2312.15375'
+  - '2312.17667'
+  - '2401.00583'
+  - '2608.18767'
+- query: Neural architecture search
+  relevant_source_ids:
+  - '1812.09926'
+  - '1912.10729'
+  - '1912.12522'
+  - '1912.12814'
+  - '1912.12825'
+  - '1912.12860'
+  - '1912.13183'
+  - '1912.13256'
+  - '2301.01286'
+  - '2512.24793'
+- query: Knowledge distillation for model compression
+  relevant_source_ids:
+  - '1812.10924'
+  - '1912.13179'
+  - '2012.15495'
+  - '2012.15828'
+  - '2112.12650'
+  - '2112.14938'
+  - '2112.15278'
+  - '2112.15358'
+  - '2201.00007'
+  - '2212.14169'
+  - '2412.19989'
+  - '2501.00339'
+  - '2512.24971'
+  - '2608.15660'
+  - '2608.18590'
+- query: Self-supervised representation learning for images
+  relevant_source_ids:
+  - '2112.14382'
+  - '2112.15022'
+  - '2112.15421'
+  - '2212.11353'
+  - '2212.14099'
+  - '2401.00463'
+  - '2401.00873'
+  - '2401.00897'
+  - '2501.01456'
+- query: Reinforcement learning for robotic manipulation
+  relevant_source_ids:
+  - '1912.11032'
+  - '2012.14464'
+  - '2012.15436'
+  - '2112.14663'
+  - '2512.24673'
+  - '2512.24766'
+  - '2512.25072'
+  - '2601.00087'
+- query: Named entity recognition in biomedical text
+  relevant_source_ids:
+  - '1812.09449'
+  - '1912.10590'
+  - '1912.10604'
+  - '1912.10846'
+  - '1912.12380'
+  - '1912.13415'
+  - '2012.14978'
+  - '2012.15022'
+  - '2012.15419'
+  - '2012.15639'
+  - '2112.13259'
+  - '2112.15099'
+  - '2212.12799'
+  - '2212.12800'
+  - '2312.16917'
+  - '2401.00170'
+  - '2401.00579'
+- query: Concurrent lock-free data structures
+  relevant_source_ids:
+  - '1812.05727'
+  - '1812.06011'
+  - '2012.12868'
+  - '2012.14542'
+  - '2012.15438'
+  - '2012.15731'
+  - '2112.15259'
+  - '2212.09851'
+  - '2212.13557'
+  - '2512.21701'
+  - '2608.12946'
+  - '2608.17388'
+  - '2608.19167'
+- query: Transformer models for time series forecasting
+  relevant_source_ids:
+  - '1912.10858'
+  - '2012.15537'
+  - '2112.15087'
+  - '2201.00008'
+  - '2201.00437'
+  - '2301.00014'
+  - '2401.00109'
+  - '2401.00230'
+  - '2401.00423'
+  - '2401.00534'
+  - '2412.14718'
+  - '2512.24446'
+  - '2512.24898'
+  - '2608.18675'
+- query: Fairness and bias in machine learning models
+  relevant_source_ids:
+  - '1812.10352'
+  - '1912.11203'
+  - '1912.13230'
+  - '2012.14961'
+  - '2012.15259'
+  - '2012.15816'
+  - '2012.15859'
+  - '2112.14435'
+  - '2301.00719'
+  - '2401.00093'
+  - '2401.00902'
+  - '2501.00595'
+  - '2512.23235'
+  - '2512.23835'
+  - '2512.24747'
+  - '2608.18759'
+- query: 3D object detection from point clouds
+  relevant_source_ids:
+  - '1812.11284'
+  - '1912.12095'
+  - '1912.12791'
+  - '1912.13192'
+  - '2012.13846'
+  - '2012.15712'
+  - '2112.15458'
+  - '2212.13979'
+  - '2312.17655'

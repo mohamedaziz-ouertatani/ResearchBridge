@@ -125,4 +125,4 @@ def test_multiple_papers_each_become_a_query(tmp_path, session_factory) -> None:
 
     session.close()
     assert skipped == []
-    assert {j.source_id for j in judgments} == {"1111.11111", "2222.22222"}
+    assert {j.label for j in judgments} == {"1111.11111", "2222.22222"}

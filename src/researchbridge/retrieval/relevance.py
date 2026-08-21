@@ -32,7 +32,11 @@ from researchbridge.db.models import Paper
 @dataclass
 class QueryJudgment:
     query: str
-    source_id: str
+    label: str
+    """A short identifier for this query, for logging/debugging only - never
+    read by the evaluation harness itself. For self-retrieval it's the
+    source paper's arxiv id; topical_queries.py sets it to a query slug
+    instead, since a topical query has no single source paper."""
     relevant_ids: set[uuid.UUID]
 
 
@@ -65,6 +69,6 @@ def build_query_set(session: Session, benchmark_dir: Path) -> tuple[list[QueryJu
         if query is None or paper_id is None:
             skipped.append(annotation.source_id)
             continue
-        judgments.append(QueryJudgment(query=query, source_id=annotation.source_id, relevant_ids={paper_id}))
+        judgments.append(QueryJudgment(query=query, label=annotation.source_id, relevant_ids={paper_id}))
 
     return judgments, skipped
