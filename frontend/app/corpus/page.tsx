@@ -18,6 +18,7 @@ export default function Explorer() {
   const [total, setTotal] = useState(0);
   const [year, setYear] = useState<number | null>(null);
   const [category, setCategory] = useState<string | null>(null);
+  const [showExcluded, setShowExcluded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +32,12 @@ export default function Explorer() {
     setBusy(true);
     setError(null);
     try {
-      const page = await api.papers({ limit: 25, year: year ?? undefined, category: category ?? undefined });
+      const page = await api.papers({
+        limit: 25,
+        year: year ?? undefined,
+        category: category ?? undefined,
+        include_excluded: showExcluded || undefined,
+      });
       setPapers(page.items);
       setTotal(page.total);
     } catch {
@@ -39,7 +45,7 @@ export default function Explorer() {
     } finally {
       setBusy(false);
     }
-  }, [year, category]);
+  }, [year, category, showExcluded]);
 
   useEffect(() => {
     if (mode === "browse") void loadBrowse();
@@ -166,6 +172,20 @@ export default function Explorer() {
                   </button>
                 );
               })}
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => setShowExcluded((v) => !v)}
+              aria-pressed={showExcluded}
+              className={`readout rounded-[2px] border px-2 py-1 text-[0.6875rem] transition-colors ${
+                showExcluded
+                  ? "border-[var(--live)] text-[var(--live)]"
+                  : "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)]"
+              }`}
+            >
+              show excluded
+            </button>
           </div>
         </section>
       )}

@@ -38,6 +38,11 @@ export function PaperRow({
                 {paper.primary_category}
               </span>
             )}
+            {paper.excluded_at && (
+              <span className="readout rounded-[2px] border border-[var(--live)] px-1.5 py-0.5 text-[0.6875rem] text-[var(--live)]">
+                excluded
+              </span>
+            )}
             <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">{year(paper.publication_date)}</span>
           </div>
 

@@ -53,7 +53,7 @@ class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+async function get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
@@ -70,8 +70,14 @@ async function get<T>(path: string, params?: Record<string, string | number | un
 export const api = {
   stats: () => get<CorpusStats>("/api/stats"),
 
-  papers: (params: { limit?: number; offset?: number; year?: number; category?: string; q?: string }) =>
-    get<PaperPage>("/api/papers", params),
+  papers: (params: {
+    limit?: number;
+    offset?: number;
+    year?: number;
+    category?: string;
+    q?: string;
+    include_excluded?: boolean;
+  }) => get<PaperPage>("/api/papers", params),
 
   paper: (id: string) => get<PaperSummary>(`/api/papers/${id}`),
 
