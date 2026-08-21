@@ -346,3 +346,18 @@ def test_stats_reports_corpus_shape(client, session, embedder) -> None:
     assert body["embedded_papers"] == 1
     assert body["papers_by_year"] == {"2019": 2, "2024": 1}
     assert body["papers_by_category"]["cs.LG"] == 2
+
+
+def test_stats_excludes_excluded_papers_by_default(client, session, embedder) -> None:
+    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
+    excluded = _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), embed=embedder)
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    body = client.get("/api/stats").json()
+
+    assert body["total_papers"] == 1
+    assert body["total_authors"] == 1
+    assert body["embedded_papers"] == 1
+    assert body["papers_by_year"] == {"2019": 1}
+    assert body["papers_by_category"]["cs.LG"] == 1

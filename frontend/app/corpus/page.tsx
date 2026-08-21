@@ -202,7 +202,7 @@ export default function Explorer() {
           <span className="eyebrow">
             {mode === "search"
               ? `${hits.length} nearest to “${query.trim()}”`
-              : `${total.toLocaleString()} papers${year ? ` · ${year}` : ""}${category ? ` · ${category}` : ""}`}
+              : `${total.toLocaleString()} papers${year ? ` · ${year}` : ""}${category ? ` · ${category}` : ""}${showExcluded ? " · including excluded" : ""}`}
           </span>
           {mode === "search" && hits.length > 0 && <GaugeLegend />}
         </div>

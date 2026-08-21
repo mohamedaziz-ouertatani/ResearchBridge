@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit
 from researchbridge.api.serializers import to_claims, to_summaries, to_summary
-from researchbridge.db.models import Author, Embedding, Paper, PaperCategory
+from researchbridge.db.models import Author, Embedding, Paper, PaperAuthor, PaperCategory
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.embedding.search import find_similar_to_paper, search_by_text
@@ -123,20 +123,33 @@ def _to_hits(session: Session, results: list[tuple[Paper, float]]) -> list[Searc
 
 @router.get("/stats", response_model=CorpusStats)
 def corpus_stats(session: Session = Depends(get_session)) -> CorpusStats:
-    total_papers = session.execute(select(func.count(Paper.id))).scalar_one()
-    total_authors = session.execute(select(func.count(Author.id))).scalar_one()
+    """Counts here always exclude curated-out papers (Paper.excluded_at set) -
+    matching /api/papers' default so this endpoint's totals and the corpus
+    page's default listing never disagree (see corpus-curation follow-up)."""
+    not_excluded = Paper.excluded_at.is_(None)
+
+    total_papers = session.execute(select(func.count(Paper.id)).where(not_excluded)).scalar_one()
+    total_authors = session.execute(
+        select(func.count(func.distinct(PaperAuthor.author_id)))
+        .join(Paper, Paper.id == PaperAuthor.paper_id)
+        .where(not_excluded)
+    ).scalar_one()
     embedded = session.execute(
-        select(func.count(func.distinct(Embedding.paper_id))).where(Embedding.embedding_type == EMBEDDING_TYPE)
+        select(func.count(func.distinct(Embedding.paper_id)))
+        .join(Paper, Paper.id == Embedding.paper_id)
+        .where(Embedding.embedding_type == EMBEDDING_TYPE, not_excluded)
     ).scalar_one()
 
     year_rows = session.execute(
         select(func.extract("year", Paper.publication_date), func.count(Paper.id))
-        .where(Paper.publication_date.isnot(None))
+        .where(Paper.publication_date.isnot(None), not_excluded)
         .group_by(func.extract("year", Paper.publication_date))
     ).all()
 
     category_rows = session.execute(
         select(PaperCategory.category, func.count(func.distinct(PaperCategory.paper_id)))
+        .join(Paper, Paper.id == PaperCategory.paper_id)
+        .where(not_excluded)
         .group_by(PaperCategory.category)
         .order_by(func.count(func.distinct(PaperCategory.paper_id)).desc())
         .limit(20)
