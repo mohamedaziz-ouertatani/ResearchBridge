@@ -61,6 +61,7 @@ def _to_out(assessment: ResearchAssessment, research_input: ResearchInput) -> Re
         candidate_gap_id=assessment.candidate_gap_id,
         potential_applications=assessment.potential_applications,
         technical_feasibility_level=assessment.technical_feasibility_level,
+        technical_feasibility_reasoning=assessment.technical_feasibility_reasoning,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,
     )

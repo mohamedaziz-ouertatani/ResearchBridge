@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
@@ -57,6 +58,7 @@ def build_assessment(
     papers_by_distance = [(paper.id, distance) for paper, distance, _claims in papers_with_claims]
     gap = assess_research_gap(session, papers_by_distance, embedder)
     applications = assess_applications(session, papers_by_distance)
+    feasibility = assess_technical_feasibility(session, papers_by_distance)
 
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
@@ -80,6 +82,8 @@ def build_assessment(
             if applications.applications
             else None
         ),
+        technical_feasibility_level=feasibility.level,
+        technical_feasibility_reasoning=feasibility.reasoning,
         completed_at=datetime.now(UTC),
     )
     session.add(assessment)
@@ -105,6 +109,12 @@ def build_assessment(
         session.add(
             ResearchAssessmentEvidence(
                 research_assessment_id=assessment.id, evidence_id=evidence_id, role="application"
+            )
+        )
+    for evidence_id in feasibility.evidence_ids:
+        session.add(
+            ResearchAssessmentEvidence(
+                research_assessment_id=assessment.id, evidence_id=evidence_id, role="feasibility"
             )
         )
 

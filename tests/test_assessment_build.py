@@ -290,6 +290,38 @@ def test_potential_applications_stays_null_without_any_applications_claim(sessio
     assert assessment.potential_applications is None
 
 
+def test_technical_feasibility_is_set_from_the_neighborhood(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "method", "a graph attention mechanism")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.technical_feasibility_level == "medium"
+    assert paper.title in assessment.technical_feasibility_reasoning
+
+
+def test_feasibility_evidence_is_linked_with_role_feasibility(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "method", "a graph attention mechanism")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="feasibility")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in links} == {evidence_id}
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

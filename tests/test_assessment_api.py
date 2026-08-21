@@ -132,6 +132,17 @@ def test_post_assessment_potential_applications_null_without_evidence(client, se
     assert body["potential_applications"] is None
 
 
+def test_post_assessment_includes_technical_feasibility(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "method", "a graph attention mechanism")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["technical_feasibility_level"] == "medium"
+    assert paper.title in body["technical_feasibility_reasoning"]
+
+
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
 

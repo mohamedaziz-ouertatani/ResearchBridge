@@ -373,6 +373,7 @@ class ResearchAssessment(Base):
     potential_applications: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     technical_feasibility_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
+    technical_feasibility_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     risks_and_limitations: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_validation_needed: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str | None] = mapped_column(String, nullable=True)

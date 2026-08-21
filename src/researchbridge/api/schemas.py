@@ -130,11 +130,12 @@ class ResearchAssessmentOut(BaseModel):
     retrieved paper explicitly states, never a synthesized/invented one
     (see assessment/applications.py)."""
     technical_feasibility_level: str
+    technical_feasibility_reasoning: str | None
     recommendation: str | None
     confidence: str | None
-    """Feasibility/opportunities/recommendation are later enrichment passes
-    and stay NULL/"not_assessed" until actually computed (blueprint Sec 22:
-    NULL is preferable to fabricated certainty)."""
+    """Opportunities/recommendation are later enrichment passes and stay
+    NULL/"not_assessed" until actually computed (blueprint Sec 22: NULL is
+    preferable to fabricated certainty)."""
 
 
 class ResearchAssessmentCreate(BaseModel):
