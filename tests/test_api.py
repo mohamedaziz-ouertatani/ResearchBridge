@@ -180,6 +180,14 @@ def test_get_paper_returns_detail(client, session) -> None:
     assert body["url"] == "https://arxiv.org/abs/p1"
 
 
+def test_paper_summary_includes_excluded_at(client, session) -> None:
+    paper = _add_paper(session, "p1")
+
+    body = client.get(f"/api/papers/{paper.id}").json()
+
+    assert body["excluded_at"] is None
+
+
 def test_get_paper_404s_for_unknown_id(client) -> None:
     assert client.get(f"/api/papers/{uuid.uuid4()}").status_code == 404
 

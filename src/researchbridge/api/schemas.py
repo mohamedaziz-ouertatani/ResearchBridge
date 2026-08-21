@@ -29,6 +29,9 @@ class PaperSummary(BaseModel):
     primary_category: str | None
     categories: list[str]
     authors: list[str]
+    excluded_at: datetime | None
+    """Set when an operator has excluded this paper from search, retrieval,
+    and gap-detection seeding (blueprint corpus curation). NULL = included."""
 
     model_config = {"from_attributes": True}
 

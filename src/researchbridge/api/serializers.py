@@ -59,6 +59,7 @@ def to_summaries(session: Session, papers: Sequence[Paper]) -> list[PaperSummary
             primary_category=(paper.raw_metadata or {}).get("primary_category"),
             categories=categories_by_paper.get(paper.id, []),
             authors=authors_by_paper.get(paper.id, []),
+            excluded_at=paper.excluded_at,
         )
         for paper in papers
     ]
