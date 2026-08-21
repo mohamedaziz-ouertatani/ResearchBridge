@@ -20,16 +20,31 @@ Uses the Week 6 embedding model (SentenceTransformerEmbedder / all-
 MiniLM-L6-v2) - no new model, no new dependency, and it's already fast
 enough for this: one batched embed_texts() call per paper covers every
 sentence and every field description at once.
+
+Each sentence proposes only its own single best-matching field (a real
+bug this fixed: on short, jargon-dense abstracts, all-MiniLM-L6-v2 can
+rate a fluent-but-content-free sentence - e.g. "This report has been
+updated for posterity..." - higher against several field anchors than
+the sentence that actually describes the method, because it rewards
+grammatically ordinary prose over jargon-heavy technical prose almost
+independent of topical relevance. Picking each field's best sentence
+independently let that one attractive-but-wrong sentence get duplicated
+across four different fields on a real paper. Requiring each sentence to
+serve at most one field - whichever it matches best - means a field with
+no sentence that actually prefers it abstains instead of inheriting
+someone else's leftover.
 """
 
 from __future__ import annotations
+
+from collections import defaultdict
 
 from researchbridge.db.models import Paper
 from researchbridge.embedding.base import Embedder
 from researchbridge.extraction.base import ClaimCandidate
 from researchbridge.extraction.sentences import split_sentences
 
-SEMANTIC_MODEL_VERSION = "semantic-v1"
+SEMANTIC_MODEL_VERSION = "semantic-v2"
 
 # One anchor description per Sec 28 field - the sentence most similar to
 # this description (by cosine similarity, since Embedder vectors are
@@ -78,23 +93,25 @@ class SemanticExtractor:
         vectors = self.embedder.embed_texts(sentences + [_FIELD_QUERIES[f] for f in fields])
         sentence_vectors, field_vectors = vectors[: len(sentences)], vectors[len(sentences) :]
 
+        # each sentence's own best-matching field, and its score there
+        proposals: dict[str, list[tuple[str, float]]] = defaultdict(list)
+        for sentence, svec in zip(sentences, sentence_vectors, strict=True):
+            similarities = {
+                field: sum(a * b for a, b in zip(svec, fvec, strict=True))
+                for field, fvec in zip(fields, field_vectors, strict=True)
+            }
+            best_field = max(similarities, key=similarities.get)
+            proposals[best_field].append((sentence, similarities[best_field]))
+
         candidates: list[ClaimCandidate] = []
-        for field, field_vector in zip(fields, field_vectors, strict=True):
-            best_sentence, best_similarity = _best_match(sentences, sentence_vectors, field_vector)
-            if best_similarity < MIN_SIMILARITY:
+        for field in fields:
+            suitors = proposals.get(field)
+            if not suitors:
                 continue
-            confidence = "medium" if best_similarity >= MEDIUM_CONFIDENCE_SIMILARITY else "low"
-            candidates.append(ClaimCandidate(field, best_sentence, best_sentence, confidence))
+            sentence, similarity = max(suitors, key=lambda pair: pair[1])
+            if similarity < MIN_SIMILARITY:
+                continue
+            confidence = "medium" if similarity >= MEDIUM_CONFIDENCE_SIMILARITY else "low"
+            candidates.append(ClaimCandidate(field, sentence, sentence, confidence))
 
         return candidates
-
-
-def _best_match(
-    sentences: list[str], sentence_vectors: list[list[float]], field_vector: list[float]
-) -> tuple[str, float]:
-    best_sentence, best_similarity = sentences[0], -1.0
-    for sentence, vector in zip(sentences, sentence_vectors, strict=True):
-        similarity = sum(a * b for a, b in zip(vector, field_vector, strict=True))
-        if similarity > best_similarity:
-            best_sentence, best_similarity = sentence, similarity
-    return best_sentence, best_similarity

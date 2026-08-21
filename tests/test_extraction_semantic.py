@@ -121,6 +121,31 @@ def test_weak_but_above_threshold_overlap_gets_low_confidence(monkeypatch) -> No
     assert candidates[0].confidence == "low"
 
 
+def test_one_sentence_cannot_win_two_fields(monkeypatch) -> None:
+    # Reproduces a real reported bug: a generic sentence that scores
+    # decently against several field anchors used to get duplicated across
+    # all of them, crowding out a more specific sentence that was each
+    # field's true best match but nobody's *own* best match. Here "generic"
+    # is the top choice for both "problem" and "dataset", but scores higher
+    # for "problem" - so "dataset" must fall back to its only remaining
+    # suitor, "specific", rather than reuse "generic".
+    _use_controlled_field_queries(
+        monkeypatch,
+        {
+            "problem": "graph neural network approach data challenge",
+            "dataset": "graph neural network data",
+        },
+    )
+    abstract = "Generic graph neural network approach data challenge. Specific graph data only."
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+
+    by_field = {c.claim_type: c.claim_text for c in candidates}
+    assert by_field["problem"].startswith("Generic")
+    assert by_field["dataset"].startswith("Specific")
+    assert by_field["problem"] != by_field["dataset"]
+
+
 def test_fields_are_evaluated_independently(monkeypatch) -> None:
     _use_controlled_field_queries(
         monkeypatch,
