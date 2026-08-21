@@ -336,6 +336,37 @@ def test_potential_opportunities_stays_null_by_design(session_factory, embedder)
     assert assessment.potential_opportunities is None
 
 
+def test_risks_and_limitations_is_set_from_the_neighborhood(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only on offline datasets")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert "evaluated only on offline datasets" in assessment.risks_and_limitations
+
+
+def test_risks_evidence_is_linked_with_role_risk(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "limitations", "evaluated only on offline datasets")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="risk")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in links} == {evidence_id}
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

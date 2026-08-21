@@ -143,6 +143,17 @@ def test_post_assessment_includes_technical_feasibility(client, session, embedde
     assert paper.title in body["technical_feasibility_reasoning"]
 
 
+def test_post_assessment_includes_risks_and_limitations(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert "evaluated only on offline datasets" in body["risks_and_limitations"]
+    assert paper.title in body["risks_and_limitations"]
+
+
 def test_post_assessment_potential_opportunities_stays_null(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
     _add_claim(session, paper, "applications", "real-time payment fraud screening")

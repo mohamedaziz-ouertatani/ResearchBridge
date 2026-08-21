@@ -136,6 +136,10 @@ class ResearchAssessmentOut(BaseModel):
     genuine Direct/Adjacent/Speculative opportunity framing requires
     synthesis this project's deterministic toolbox can't do without either
     fabricating content or adding a generative model, neither done yet."""
+    risks_and_limitations: str | None
+    """One line per relevant retrieved paper's own explicit limitations
+    claim, grounded the same way as potential_applications (see
+    assessment/risks.py) - never a synthesized new risk."""
     recommendation: str | None
     confidence: str | None
     """Recommendation is a later enrichment pass and stays NULL until
