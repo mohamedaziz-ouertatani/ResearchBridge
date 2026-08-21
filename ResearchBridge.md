@@ -173,6 +173,39 @@ ResearchAssessment Report (§49)
 Human Review (§35)
 ```
 
+## Uploaded-Paper Path (input_type = document)
+
+An idea input's `raw_text` is already usable directly as the basis for Input
+Analysis. An uploaded document is not — a raw PDF/text dump isn't itself a
+good retrieval query, so it needs its own extraction pass first, using the
+same Extraction Engine (§28-29) already built for corpus papers:
+
+```text
+Uploaded Paper
+  ↓
+Text / section extraction
+  ↓
+Input Analysis
+  ↓
+Retrieval Query / Research Representation
+  ↓
+Related Corpus Papers
+  ↓
+Comparison
+  ↓
+ResearchAssessment
+```
+
+This runs **regardless of whether the upload matches an existing corpus
+paper**. `matched_paper_id` (below) is optional and purely an optimization:
+when the upload is identified as an already-ingested paper (e.g. by
+title/DOI/arXiv id), the pipeline may reuse that paper's existing extracted
+claims/evidence/embedding instead of re-running extraction on the upload.
+When unmatched — the default case for a genuinely new document — the system
+extracts problem/method/dataset/contribution directly from the uploaded
+text to build its own research representation and retrieval query. A
+corpus match is never required for an assessment to proceed.
+
 ## ResearchInput (first-class concept)
 
 One user-submitted item to be assessed:
@@ -184,7 +217,7 @@ id
 input_type          -- idea | document
 raw_text            -- the prompt itself, or the uploaded document's extracted text
 title               NULL   -- inferred, or user-supplied
-matched_paper_id     NULL   -- FK -> papers, if an uploaded document is already ingested
+matched_paper_id     NULL   -- FK -> papers; optional, set only when matched (see Uploaded-Paper Path above) - never required
 source_filename      NULL   -- original upload filename, if input_type = document
 submitted_by         NULL   -- reserved for later multi-user support
 created_at
@@ -1725,6 +1758,14 @@ population) and the right branch (the per-input product workflow) both call
 into the same Retrieval Engine and Extraction Engine. Neither branch owns
 them.
 
+`ResearchInput (idea/paper)` in the right branch is itself two paths: a
+free-text idea goes straight into Literature Search, while an uploaded
+document first runs through its own Text/section extraction (Extraction
+Engine) to build a research representation before Literature Search can run
+— see the Uploaded-Paper Path diagram in §2A. Both paths converge at
+"Retrieve Related Papers." A corpus match (`matched_paper_id`) is optional
+and never required for either path to proceed.
+
 ---
 
 # 40. Database Schema Summary
@@ -2230,6 +2271,25 @@ HIGH PRIORITY / REQUIRES VALIDATION
 Confidence:
 Medium
 ```
+
+## Variant: Uploaded Document Input
+
+If the user instead uploads a paper draft (`input_type = document`) rather
+than typing an idea, steps 1-2 change; steps 3-13 are identical:
+
+1. **Text/section extraction** runs on the uploaded document (Extraction
+   Engine, §28-29) to produce a research representation — problem, method,
+   dataset, contribution — the same fields already extracted from corpus
+   papers.
+2. That representation, not the raw uploaded text, becomes the retrieval
+   query for Literature Search.
+
+If the upload happens to match an already-ingested corpus paper (checked by
+title/DOI/arXiv id), `matched_paper_id` is set and the pipeline may reuse
+that paper's existing extraction instead of re-running it — a pure
+optimization. If it doesn't match, extraction runs directly on the upload
+and the assessment proceeds exactly the same way. A corpus match is never
+required to produce a ResearchAssessment.
 
 ---
 
