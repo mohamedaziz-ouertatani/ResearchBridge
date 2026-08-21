@@ -29,6 +29,7 @@ from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.assessment.opportunities import assess_opportunities
 from researchbridge.assessment.recommendation import assess_recommendation
+from researchbridge.assessment.representation import build_research_representation
 from researchbridge.assessment.risks import assess_risks
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
@@ -45,7 +46,12 @@ def build_assessment(
     if research_input is None:
         raise ValueError(f"no research input with id {research_input_id}")
 
-    results = search_by_text(session, research_input.raw_text, embedder, top_k)
+    query_text = (
+        build_research_representation(research_input.raw_text, embedder)
+        if research_input.input_type == "document"
+        else research_input.raw_text
+    )
+    results = search_by_text(session, query_text, embedder, top_k)
     papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
 
     summary_parts: list[str] = []
@@ -68,7 +74,11 @@ def build_assessment(
     risks = assess_risks(session, papers_by_distance)
     external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
     recommendation = assess_recommendation(
-        novelty_level=novelty.level, research_gap_text=gap.text, technical_feasibility_level=feasibility.level
+        novelty_level=novelty.level,
+        # only count the gap as "found" for recommendation purposes if it's
+        # closely grounded - the report field still shows gap.text regardless
+        research_gap_text=(gap.text if gap.is_closely_grounded else None),
+        technical_feasibility_level=feasibility.level,
     )
 
     assessment = ResearchAssessment(

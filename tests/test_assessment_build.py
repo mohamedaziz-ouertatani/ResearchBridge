@@ -158,6 +158,43 @@ def test_assessment_defaults_unassessed_fields_rather_than_fabricating(session_f
     assert assessment.completed_at is not None
 
 
+def test_document_input_uses_extracted_representation_as_the_query(session_factory, embedder, monkeypatch) -> None:
+    session = session_factory()
+    _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    ri = ResearchInput(
+        id=uuid.uuid4(), input_type="document", raw_text="the raw uploaded document dump",
+        source_filename="paper.pdf",
+    )
+    session.add(ri)
+    session.flush()
+    session.commit()
+
+    import researchbridge.assessment.build as build_module
+
+    monkeypatch.setattr(
+        build_module, "build_research_representation", lambda raw_text, embedder: "the extracted representation"
+    )
+
+    build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    # the query embedding call should have used the representation, not the raw dump
+    assert ["the extracted representation"] in embedder.calls
+    assert ["the raw uploaded document dump"] not in embedder.calls
+
+
+def test_idea_input_still_uses_raw_text_directly(session_factory, embedder) -> None:
+    session = session_factory()
+    _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert ["graph transformers for fraud detection"] in embedder.calls
+
+
 def test_raises_for_unknown_research_input(session_factory, embedder) -> None:
     session = session_factory()
     with pytest.raises(ValueError):
@@ -407,6 +444,40 @@ def test_recommendation_and_confidence_are_set_from_the_other_signals(session_fa
     session.close()
     assert assessment.recommendation is not None
     assert assessment.confidence is not None
+
+
+def test_recommendation_not_boosted_by_a_gap_that_is_not_closely_grounded(session_factory, embedder, monkeypatch) -> None:
+    # a gap found only via the looser relevance band (is_closely_grounded=False)
+    # must not count as a strong "gap found" signal for the recommendation,
+    # even though the report field still surfaces the text
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "method", "a graph attention mechanism")
+    _claim(session, paper, "method", "a second graph attention mechanism")  # 2 distinct method claims -> high feasibility needs 2 papers, keep simple: not required here
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    import researchbridge.assessment.build as build_module
+    from researchbridge.assessment.gap import GapAssessmentResult
+    from researchbridge.assessment.novelty import NoveltyResult
+
+    weakly_grounded_gap = GapAssessmentResult(
+        source="input_specific", text="a weakly grounded gap", candidate_gap_id=None,
+        evidence_ids=[], is_closely_grounded=False,
+    )
+    monkeypatch.setattr(build_module, "assess_research_gap", lambda *a, **k: weakly_grounded_gap)
+    monkeypatch.setattr(
+        build_module,
+        "assess_novelty",
+        lambda *a, **k: NoveltyResult(level="high", reasoning="no close match found", evidence_ids=[]),
+    )
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.novelty_level == "high"
+    assert assessment.research_gap_text == "a weakly grounded gap"  # report field still shows it
+    assert assessment.recommendation != "HIGH PRIORITY"  # but it doesn't count toward the top-line call
 
 
 def test_recommendation_is_insufficient_evidence_with_no_signal_at_all(session_factory, embedder) -> None:

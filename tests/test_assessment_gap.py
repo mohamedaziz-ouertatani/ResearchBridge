@@ -11,8 +11,9 @@ from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
 
 _WORD = re.compile(r"[a-z]+")
-NEAR = 0.1  # comfortably within the relevance gate
-FAR = 0.9  # comfortably beyond it
+NEAR = 0.1  # comfortably within the relevance gate AND the closer NEAR_DISTANCE gate
+MID = 0.5  # within RELEVANCE_DISTANCE (0.65) but beyond NEAR_DISTANCE (0.35)
+FAR = 0.9  # comfortably beyond both
 
 
 @dataclass
@@ -266,3 +267,102 @@ def test_returns_nothing_when_every_retrieved_paper_is_too_distant(session_facto
     session.close()
     assert result.source is None
     assert result.text is None
+
+
+def test_explicit_gap_is_closely_grounded_when_source_paper_is_near(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Explicit Gap Paper")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.is_closely_grounded is True
+
+
+def test_explicit_gap_is_not_closely_grounded_when_source_paper_is_only_mid_distance(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Explicit Gap Paper")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, MID)], embedder)
+
+    session.close()
+    # still surfaced as the report field (within RELEVANCE_DISTANCE), but not
+    # close enough to count as a strong signal for recommendation purposes
+    assert result.text is not None
+    assert result.is_closely_grounded is False
+
+
+def test_reused_candidate_gap_is_closely_grounded_when_seed_paper_is_near(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, "seed")
+    other = _paper(session, "other")
+    evidence_id = _claim(session, other, "limitations", "offline only")
+    _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
+    session.commit()
+
+    result = assess_research_gap(session, [(seed.id, NEAR), (other.id, NEAR)], embedder)
+
+    session.close()
+    assert result.is_closely_grounded is True
+
+
+def test_reused_candidate_gap_is_not_closely_grounded_when_seed_paper_is_only_mid_distance(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, "seed")
+    other = _paper(session, "other")
+    evidence_id = _claim(session, other, "limitations", "offline only")
+    _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
+    session.commit()
+
+    result = assess_research_gap(session, [(seed.id, MID), (other.id, MID)], embedder)
+
+    session.close()
+    assert result.text is not None
+    assert result.is_closely_grounded is False
+
+
+def test_inferred_gap_is_closely_grounded_when_at_least_one_member_paper_is_near(session_factory, embedder) -> None:
+    session = session_factory()
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+    _claim(session, a, "limitations", "tested only offline in this setup")
+    _claim(session, b, "limitations", "we test the model only offline in our setup")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(a.id, NEAR), (b.id, MID), (c.id, MID)], embedder, min_cluster_size=3, similarity_threshold=0.3
+    )
+
+    session.close()
+    assert result.is_closely_grounded is True
+
+
+def test_inferred_gap_is_not_closely_grounded_when_no_member_paper_is_near(session_factory, embedder) -> None:
+    session = session_factory()
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+    _claim(session, a, "limitations", "tested only offline in this setup")
+    _claim(session, b, "limitations", "we test the model only offline in our setup")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(a.id, MID), (b.id, MID), (c.id, MID)], embedder, min_cluster_size=3, similarity_threshold=0.3
+    )
+
+    session.close()
+    assert result.text is not None
+    assert result.is_closely_grounded is False
+
+
+def test_no_gap_found_is_not_closely_grounded(session_factory, embedder) -> None:
+    result = assess_research_gap(session_factory(), [], embedder)
+
+    assert result.is_closely_grounded is False

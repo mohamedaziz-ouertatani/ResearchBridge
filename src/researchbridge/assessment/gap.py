@@ -35,6 +35,17 @@ inference with a stated fact (Sec 34):
    own phrasing.
 4. Nothing found -> NULL/NOT_ASSESSED. Insufficient (or irrelevant)
    evidence stays insufficient; nothing here is ever fabricated.
+
+is_closely_grounded: a second, stricter signal alongside the report text,
+added after real-corpus testing showed recommendation.py crediting "a gap
+was found" as equally strong evidence whether the source paper was a
+close match or merely inside the loose RELEVANCE_DISTANCE band - the same
+kind of over-crediting that feasibility.py's threshold had to be tightened
+for. True only when at least one paper backing the result clears
+novelty.py's tighter NEAR_DISTANCE (0.35), not just RELEVANCE_DISTANCE
+(0.65). The report field (`text`) is unaffected either way - it still
+surfaces within the looser band - this only marks whether recommendation
+should treat it as a strong signal.
 """
 
 from __future__ import annotations
@@ -46,6 +57,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
+from researchbridge.assessment.novelty import NEAR_DISTANCE as CLOSE_DISTANCE
 from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
 from researchbridge.embedding.base import Embedder
 from researchbridge.gaps.cluster import (
@@ -65,6 +77,7 @@ class GapAssessmentResult:
     text: str | None
     candidate_gap_id: uuid.UUID | None
     evidence_ids: list[uuid.UUID]
+    is_closely_grounded: bool = False
 
 
 _NONE_RESULT = GapAssessmentResult(source=None, text=None, candidate_gap_id=None, evidence_ids=[])
@@ -83,15 +96,26 @@ def assess_research_gap(
     if not relevant_paper_ids:
         return _NONE_RESULT
 
-    reused = _reuse_approved_candidate_gap(session, relevant_paper_ids)
-    if reused is not None:
-        return reused
+    result = _reuse_approved_candidate_gap(session, relevant_paper_ids)
+    if result is None:
+        result = _explicit_research_gap_claim(session, relevant_paper_ids)
+    if result is None:
+        result = _inferred_cross_paper_gap(session, relevant_paper_ids, embedder, min_cluster_size, similarity_threshold)
+    if result is None:
+        return _NONE_RESULT
 
-    explicit = _explicit_research_gap_claim(session, relevant_paper_ids)
-    if explicit is not None:
-        return explicit
+    distance_by_paper = dict(papers_by_distance)
+    result.is_closely_grounded = _any_evidence_paper_is_close(session, result.evidence_ids, distance_by_paper)
+    return result
 
-    return _inferred_cross_paper_gap(session, relevant_paper_ids, embedder, min_cluster_size, similarity_threshold)
+
+def _any_evidence_paper_is_close(
+    session: Session, evidence_ids: list[uuid.UUID], distance_by_paper: dict[uuid.UUID, float]
+) -> bool:
+    if not evidence_ids:
+        return False
+    paper_ids = session.execute(select(Evidence.paper_id).where(Evidence.id.in_(evidence_ids))).scalars().all()
+    return any(distance_by_paper.get(paper_id, RELEVANCE_DISTANCE + 1) <= CLOSE_DISTANCE for paper_id in paper_ids)
 
 
 def _reuse_approved_candidate_gap(
@@ -154,7 +178,7 @@ def _inferred_cross_paper_gap(
     embedder: Embedder,
     min_cluster_size: int,
     similarity_threshold: float,
-) -> GapAssessmentResult:
+) -> GapAssessmentResult | None:
     rows = session.execute(
         select(ExtractedClaim.paper_id, ExtractedClaim.evidence_id, ExtractedClaim.text)
         .join(Evidence, Evidence.id == ExtractedClaim.evidence_id)
@@ -168,7 +192,7 @@ def _inferred_cross_paper_gap(
 
     clusters = find_recurring_patterns(claims, embedder, min_cluster_size, similarity_threshold)
     if not clusters:
-        return _NONE_RESULT
+        return None
 
     top = clusters[0]  # already sorted by contributing_paper_count, descending
     text = (

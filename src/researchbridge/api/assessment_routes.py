@@ -1,21 +1,25 @@
 """ResearchInput -> ResearchAssessment endpoints (blueprint Sec 2A).
 
-First vertical slice: idea-only input, synchronous (the whole pipeline is
-local/fast - retrieval + reading already-extracted claims, no new model
-calls). Uploaded-document input and richer report fields (novelty, gap,
-feasibility, recommendation) are later enrichment passes, not this slice.
+Two input paths, both synchronous (the whole pipeline is local/fast -
+retrieval + reading already-extracted claims, no new model calls):
+- POST /api/assessments: idea text.
+- POST /api/assessments/upload: an uploaded document (.pdf or plain text).
+  Sec 2A's "Uploaded-Paper Path" - text/section extraction happens inside
+  build_assessment() via assessment/representation.py, not here. This
+  route's only job is turning the upload into raw_text.
 """
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut
 from researchbridge.assessment.build import build_assessment
+from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchInput
 from researchbridge.embedding.base import Embedder
 
@@ -29,6 +33,30 @@ def create_assessment(
     embedder: Embedder = Depends(get_embedder),
 ) -> ResearchAssessmentOut:
     research_input = ResearchInput(input_type="idea", raw_text=payload.raw_text)
+    session.add(research_input)
+    session.flush()
+
+    assessment = build_assessment(session, research_input.id, embedder)
+
+    return _to_out(assessment, research_input)
+
+
+@router.post("/upload", response_model=ResearchAssessmentOut)
+async def create_assessment_from_upload(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    embedder: Embedder = Depends(get_embedder),
+) -> ResearchAssessmentOut:
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="uploaded file is empty")
+
+    filename = file.filename or ""
+    text = extract_text(content) if filename.lower().endswith(".pdf") else content.decode("utf-8", errors="replace")
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="no extractable text found in the uploaded file")
+
+    research_input = ResearchInput(input_type="document", raw_text=text, source_filename=filename or None)
     session.add(research_input)
     session.flush()
 

@@ -203,3 +203,49 @@ def test_get_assessment_returns_previously_created_one(client, session, embedder
 
 def test_get_assessment_404s_for_unknown_id(client) -> None:
     assert client.get(f"/api/assessments/{uuid.uuid4()}").status_code == 404
+
+
+def test_upload_creates_a_document_input_and_runs_the_pipeline(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    text = b"Detecting fraud in financial transactions remains a major challenge. We propose graph transformers."
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("paper.txt", text, "text/plain")}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["research_input"]["input_type"] == "document"
+    assert str(paper.id) in body["retrieved_paper_ids"]
+
+
+def test_upload_extracts_text_from_a_pdf_by_filename(client, session, monkeypatch) -> None:
+    import researchbridge.api.assessment_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "extract_text", lambda pdf_bytes: "extracted pdf text")
+
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("paper.pdf", b"%PDF-fake-bytes", "application/pdf")}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["research_input"]["raw_text"] == "extracted pdf text"
+
+
+def test_upload_rejects_an_empty_file(client) -> None:
+    response = client.post("/api/assessments/upload", files={"file": ("paper.txt", b"", "text/plain")})
+
+    assert response.status_code == 422
+
+
+def test_upload_rejects_a_pdf_with_no_extractable_text(client, monkeypatch) -> None:
+    import researchbridge.api.assessment_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "extract_text", lambda pdf_bytes: "   ")
+
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("paper.pdf", b"%PDF-fake-bytes", "application/pdf")}
+    )
+
+    assert response.status_code == 422
