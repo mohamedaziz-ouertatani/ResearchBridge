@@ -10,12 +10,16 @@ gaps_routes.py's detection step - this router only reads what already ran.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import uuid
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
-from researchbridge.api.schemas import PipelineRunOut, PipelineStatus
+from researchbridge.api.schemas import PaperExclude, PaperSummary, PipelineRunOut, PipelineStatus
+from researchbridge.api.serializers import to_summary
 from researchbridge.db.models import (
     Embedding,
     EmbeddingRun,
@@ -73,3 +77,17 @@ def _to_run(run, count_fields: tuple[str, ...]) -> PipelineRunOut:
         error_summary=run.error_summary,
         counts={field: getattr(run, field) for field in count_fields},
     )
+
+
+@router.put("/papers/{paper_id}/exclude", response_model=PaperSummary)
+def exclude_paper(
+    paper_id: uuid.UUID, payload: PaperExclude, session: Session = Depends(get_session)
+) -> PaperSummary:
+    paper = session.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail=f"No paper with id {paper_id}")
+
+    paper.excluded_at = datetime.now(timezone.utc) if payload.excluded else None
+    session.commit()
+
+    return to_summary(session, paper)

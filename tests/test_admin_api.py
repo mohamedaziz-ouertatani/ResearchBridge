@@ -178,6 +178,43 @@ def test_pipeline_status_surfaces_error_summary(client, session) -> None:
     assert body["ingestion_runs"][0]["error_summary"] == "connection timed out"
 
 
+def test_exclude_sets_excluded_at(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    session.commit()
+
+    response = client.put(f"/api/admin/papers/{paper.id}/exclude", json={"excluded": True})
+
+    assert response.status_code == 200
+    assert response.json()["excluded_at"] is not None
+
+
+def test_exclude_false_clears_excluded_at(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    session.commit()
+    client.put(f"/api/admin/papers/{paper.id}/exclude", json={"excluded": True})
+
+    response = client.put(f"/api/admin/papers/{paper.id}/exclude", json={"excluded": False})
+
+    assert response.json()["excluded_at"] is None
+
+
+def test_exclude_404s_for_unknown_paper(client) -> None:
+    response = client.put(f"/api/admin/papers/{uuid.uuid4()}/exclude", json={"excluded": True})
+
+    assert response.status_code == 404
+
+
+def test_get_paper_still_works_after_exclusion(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    session.commit()
+    client.put(f"/api/admin/papers/{paper.id}/exclude", json={"excluded": True})
+
+    response = client.get(f"/api/papers/{paper.id}")
+
+    assert response.status_code == 200
+    assert response.json()["excluded_at"] is not None
+
+
 def test_pipeline_status_orders_runs_most_recent_first(client, session) -> None:
     now = datetime.now(timezone.utc)
     session.add(

@@ -184,6 +184,10 @@ class ResearchAssessmentReview(BaseModel):
     human_reviewed: bool
 
 
+class PaperExclude(BaseModel):
+    excluded: bool
+
+
 class CorpusStats(BaseModel):
     total_papers: int
     total_authors: int
