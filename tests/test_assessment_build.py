@@ -244,6 +244,52 @@ def test_research_gap_stays_null_when_no_gap_evidence_exists(session_factory, em
     assert assessment.research_gap_source is None
 
 
+def test_potential_applications_is_set_from_the_neighborhood(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.potential_applications is not None
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_applications[0]["source_paper"] == "graph transformers for fraud detection"
+
+
+def test_applications_evidence_is_linked_with_role_application(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    app_links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="application")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in app_links} == {evidence_id}
+
+
+def test_potential_applications_stays_null_without_any_applications_claim(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "some unrelated limitation")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.potential_applications is None
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

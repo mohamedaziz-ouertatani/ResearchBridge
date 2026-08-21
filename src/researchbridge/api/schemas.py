@@ -125,12 +125,16 @@ class ResearchAssessmentOut(BaseModel):
     explicit, author-stated gap (never "inference" in the text) from a
     cross-paper inference (always labeled as such) - see assessment/gap.py."""
     candidate_gap_id: uuid.UUID | None
+    potential_applications: list[dict] | None
+    """Each item: {application, source_paper, paper_id} - an application a
+    retrieved paper explicitly states, never a synthesized/invented one
+    (see assessment/applications.py)."""
     technical_feasibility_level: str
     recommendation: str | None
     confidence: str | None
-    """Applications/feasibility/opportunities/recommendation are later
-    enrichment passes and stay NULL/"not_assessed" until actually computed
-    (blueprint Sec 22: NULL is preferable to fabricated certainty)."""
+    """Feasibility/opportunities/recommendation are later enrichment passes
+    and stay NULL/"not_assessed" until actually computed (blueprint Sec 22:
+    NULL is preferable to fabricated certainty)."""
 
 
 class ResearchAssessmentCreate(BaseModel):

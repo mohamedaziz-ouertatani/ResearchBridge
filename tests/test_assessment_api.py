@@ -116,6 +116,22 @@ def test_post_assessment_includes_research_gap_from_explicit_claim(client, sessi
     assert body["candidate_gap_id"] is None
 
 
+def test_post_assessment_includes_potential_applications(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["potential_applications"][0]["application"] == "real-time payment fraud screening"
+
+
+def test_post_assessment_potential_applications_null_without_evidence(client, session) -> None:
+    body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers in the corpus"}).json()
+
+    assert body["potential_applications"] is None
+
+
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
 
