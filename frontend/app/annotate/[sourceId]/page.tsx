@@ -185,7 +185,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
                   rel="noreferrer"
                   className="eyebrow underline underline-offset-4 hover:text-[var(--ink)]"
                 >
-                  on arxiv ↗
+                  view source ↗
                 </a>
               )
             )}

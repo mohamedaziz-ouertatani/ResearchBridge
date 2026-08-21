@@ -129,7 +129,7 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
                 rel="noreferrer"
                 className="eyebrow underline underline-offset-4 hover:text-[var(--ink)]"
               >
-                read on arxiv ↗
+                read online ↗
               </a>
             )}
           </div>

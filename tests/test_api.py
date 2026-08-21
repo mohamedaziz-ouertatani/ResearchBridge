@@ -137,6 +137,27 @@ def test_list_papers_includes_authors_and_categories(client, session) -> None:
     assert item["primary_category"] == "cs.LG"
 
 
+def test_list_papers_falls_back_to_first_category_when_raw_metadata_lacks_primary_category(
+    client, session
+) -> None:
+    # A connector (e.g. Springer) that never stashes "primary_category" in
+    # raw_metadata shouldn't leave primary_category permanently null - fall
+    # back to a real category from paper_categories instead.
+    paper = Paper(
+        id=uuid.uuid4(), source="springer", source_id="10.1007/abc", title="A Paper",
+        abstract="", raw_metadata={}, ingestion_metadata={},
+    )
+    session.add(paper)
+    session.flush()
+    session.add(PaperCategory(paper_id=paper.id, category="Computer Science", confidence="high", source="springer"))
+    session.add(PaperCategory(paper_id=paper.id, category="Artificial Intelligence", confidence="high", source="springer"))
+    session.commit()
+
+    item = client.get("/api/papers").json()["items"][0]
+
+    assert item["primary_category"] == "Artificial Intelligence"  # alphabetically first
+
+
 def test_list_papers_filters_by_year(client, session) -> None:
     _add_paper(session, "old", year=2019)
     _add_paper(session, "new", year=2025)

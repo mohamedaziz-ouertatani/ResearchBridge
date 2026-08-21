@@ -47,6 +47,16 @@ def to_summaries(session: Session, papers: Sequence[Paper]) -> list[PaperSummary
     authors_by_paper = _authors_by_paper(session, paper_ids)
     categories_by_paper = _categories_by_paper(session, paper_ids)
 
+    def _primary_category(paper: Paper) -> str | None:
+        from_metadata = (paper.raw_metadata or {}).get("primary_category")
+        if from_metadata:
+            return from_metadata
+        # Not every connector stashes "primary_category" in raw_metadata
+        # (e.g. Springer doesn't) - fall back to a real category rather than
+        # leaving this permanently null for sources that don't.
+        categories = categories_by_paper.get(paper.id, [])
+        return categories[0] if categories else None
+
     return [
         PaperSummary(
             id=paper.id,
@@ -56,7 +66,7 @@ def to_summaries(session: Session, papers: Sequence[Paper]) -> list[PaperSummary
             abstract=paper.abstract,
             publication_date=paper.publication_date,
             url=paper.url,
-            primary_category=(paper.raw_metadata or {}).get("primary_category"),
+            primary_category=_primary_category(paper),
             categories=categories_by_paper.get(paper.id, []),
             authors=authors_by_paper.get(paper.id, []),
             excluded_at=paper.excluded_at,
