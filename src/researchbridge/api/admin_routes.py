@@ -28,6 +28,7 @@ from researchbridge.api.schemas import (
     PipelineRunOut,
     PipelineStatus,
     PipelineTriggerOut,
+    SemanticScholarIngestionTrigger,
     SpringerIngestionTrigger,
 )
 from researchbridge.api.serializers import to_summary
@@ -43,7 +44,7 @@ from researchbridge.db.models import (
 router = APIRouter(prefix="/api/admin")
 
 RECENT_RUNS_LIMIT = 10
-PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "extraction", "embedding")
+PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar", "extraction", "embedding")
 
 
 @router.get("/pipeline", response_model=PipelineStatus)
@@ -137,6 +138,18 @@ def trigger_springer_ingestion(payload: SpringerIngestionTrigger) -> PipelineTri
     if payload.max_pages is not None:
         args += ["--max-pages", str(payload.max_pages)]
     return _trigger_or_409("ingestion_springer", "researchbridge.ingestion.cli_springer", args)
+
+
+@router.post("/ingestion/semantic-scholar/run", response_model=PipelineTriggerOut)
+def trigger_semantic_scholar_ingestion(payload: SemanticScholarIngestionTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.query is not None:
+        args += ["--query", payload.query]
+    if payload.max_pages is not None:
+        args += ["--max-pages", str(payload.max_pages)]
+    return _trigger_or_409(
+        "ingestion_semantic_scholar", "researchbridge.ingestion.cli_semantic_scholar", args
+    )
 
 
 @router.post("/extraction/run", response_model=PipelineTriggerOut)

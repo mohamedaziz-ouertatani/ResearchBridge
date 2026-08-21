@@ -1,0 +1,37 @@
+{
+  "total": 3,
+  "token": "next-page-token-abc",
+  "data": [
+    {
+      "paperId": "a1b2c3d4e5f60000000000000000000000000001",
+      "title": "A Study of Machine Learning Techniques",
+      "abstract": "This paper studies machine learning techniques for classification.",
+      "year": 2026,
+      "publicationDate": "2026-01-15",
+      "venue": "Machine Learning",
+      "publicationTypes": ["JournalArticle"],
+      "fieldsOfStudy": ["Computer Science", "Artificial Intelligence"],
+      "externalIds": {"DOI": "10.1007/s10994-026-00001-1", "ArXiv": "2601.00001"},
+      "openAccessPdf": {"url": "https://example.org/pdf/00001.pdf", "status": "GREEN"},
+      "authors": [
+        {"authorId": "1000000001", "name": "Alice Example"},
+        {"authorId": "1000000002", "name": "Bob Sample"}
+      ]
+    },
+    {
+      "paperId": "a1b2c3d4e5f60000000000000000000000000002",
+      "title": "Second Paper on Deep Learning",
+      "abstract": "A chapter about deep learning architectures.",
+      "year": 2026,
+      "publicationDate": null,
+      "venue": "Advances in Deep Learning",
+      "publicationTypes": ["Book"],
+      "fieldsOfStudy": ["Computer Science"],
+      "externalIds": {},
+      "openAccessPdf": null,
+      "authors": [
+        {"authorId": "1000000003", "name": "Carol Person"}
+      ]
+    }
+  ]
+}

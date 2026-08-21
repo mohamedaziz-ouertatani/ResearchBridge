@@ -239,6 +239,11 @@ class SpringerIngestionTrigger(BaseModel):
     max_pages: int | None = None
 
 
+class SemanticScholarIngestionTrigger(BaseModel):
+    query: str | None = None
+    max_pages: int | None = None
+
+
 class ExtractionTrigger(BaseModel):
     limit: int | None = None
     extractor: str | None = None

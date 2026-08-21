@@ -10,7 +10,12 @@ export type PipelineRun = {
   counts: Record<string, number>;
 };
 
-export type PipelineKey = "ingestion_arxiv" | "ingestion_springer" | "extraction" | "embedding";
+export type PipelineKey =
+  | "ingestion_arxiv"
+  | "ingestion_springer"
+  | "ingestion_semantic_scholar"
+  | "extraction"
+  | "embedding";
 
 export type PipelineStatus = {
   total_papers: number;
@@ -65,6 +70,9 @@ export const adminApi = {
 
   triggerSpringerIngestion: (params: { query?: string; page_size?: number; max_pages?: number }) =>
     post<PipelineTriggerResult>("/api/admin/ingestion/springer/run", params),
+
+  triggerSemanticScholarIngestion: (params: { query?: string; max_pages?: number }) =>
+    post<PipelineTriggerResult>("/api/admin/ingestion/semantic-scholar/run", params),
 
   triggerExtraction: (params: { limit?: number; extractor?: string }) =>
     post<PipelineTriggerResult>("/api/admin/extraction/run", params),

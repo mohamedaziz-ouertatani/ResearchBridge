@@ -8,11 +8,12 @@ import { adminApi, type PipelineKey, type PipelineRun, type PipelineStatus } fro
   Pipeline status + triggers. IngestionRun/ExtractionRun/EmbeddingRun existed
   since the earliest migrations but were never exposed anywhere outside
   direct SQL; this page shows run history AND lets an operator start a new
-  run of any of the four pipelines (two ingestion sources, extraction,
+  run of any of the five pipelines (three ingestion sources, extraction,
   embedding) as a background subprocess of the same CLI commands
-  (rb-ingest/rb-ingest-springer/rb-extract/rb-embed) - a button, not a new
-  execution engine. Gap detection stays a deliberate CLI-only step (see
-  gaps_routes.py) - not triggerable here, by design.
+  (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/rb-extract/
+  rb-embed) - a button, not a new execution engine. Gap detection stays a
+  deliberate CLI-only step (see gaps_routes.py) - not triggerable here, by
+  design.
 */
 
 export default function AdminPipeline() {
@@ -78,6 +79,18 @@ export default function AdminPipeline() {
                 { name: "max_pages", label: "max pages", type: "number" },
               ]}
               onRun={(values) => adminApi.triggerSpringerIngestion(values)}
+              onStarted={reload}
+            />
+
+            <RunSection
+              title="Semantic Scholar ingestion"
+              runs={status.ingestion_runs.filter((run) => run.source === "semantic_scholar")}
+              running={status.running.ingestion_semantic_scholar}
+              fields={[
+                { name: "query", label: "query", placeholder: '"machine learning" | "artificial intelligence"' },
+                { name: "max_pages", label: "max pages", type: "number" },
+              ]}
+              onRun={(values) => adminApi.triggerSemanticScholarIngestion(values)}
               onStarted={reload}
             />
 

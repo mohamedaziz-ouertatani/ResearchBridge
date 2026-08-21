@@ -1,0 +1,20 @@
+{
+  "total": 3,
+  "data": [
+    {
+      "paperId": "a1b2c3d4e5f60000000000000000000000000003",
+      "title": "The Final Paper in This Fixture Set",
+      "abstract": "The final paper in this small fixture set.",
+      "year": 2026,
+      "publicationDate": "2026-03-01",
+      "venue": "Machine Learning",
+      "publicationTypes": ["JournalArticle"],
+      "fieldsOfStudy": ["Computer Science", "Artificial Intelligence"],
+      "externalIds": {"DOI": "10.1007/s10994-026-00003-3"},
+      "openAccessPdf": {"url": "https://example.org/pdf/00003.pdf", "status": "GREEN"},
+      "authors": [
+        {"authorId": "1000000004", "name": "Dave Person"}
+      ]
+    }
+  ]
+}
