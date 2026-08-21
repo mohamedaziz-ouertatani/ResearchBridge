@@ -75,6 +75,24 @@ The university wants a system that can help researchers and decision-makers dete
 15. What evidence supports the recommendation?
 16. Which research projects should the university prioritize?
 
+## How a user actually interacts with ResearchBridge
+
+The platform's primary interaction is not "browse the corpus" — it is:
+
+> A user provides a **ResearchInput**: either a free-text research idea/prompt,
+> or an uploaded paper/document. ResearchBridge analyzes that input against the
+> literature corpus and returns a **ResearchAssessment** — a single
+> evidence-grounded report answering the questions above *for that specific
+> input*.
+
+Everything else in this document — the corpus, ingestion pipeline, retrieval
+baselines, extraction pipeline, and the research-gap engine — exists to make
+that one interaction possible and trustworthy. They are supporting
+infrastructure, not independent products. Corpus-wide, automatic gap discovery
+across every paper (§32's batch mode) is a valuable secondary capability that
+pre-populates candidate observations for reuse inside assessments, but it is
+not the user-facing product loop and must not be prioritized as if it were.
+
 ResearchBridge is therefore a:
 
 > **Research Intelligence and Research-to-Impact Decision Support Platform**
@@ -118,6 +136,131 @@ Research Prioritization
 The project should ultimately bridge:
 
 > **Research → Knowledge → Gap → Opportunity → Application → Product → Impact**
+
+---
+
+# 2A. Primary Product Workflow: ResearchInput → ResearchAssessment
+
+This is the central end-user loop the rest of the architecture exists to support.
+
+(Deliberately lettered rather than renumbering every subsequent heading for one insertion — renumber the whole document only if that becomes genuinely necessary.)
+
+```text
+User
+  ↓
+ResearchInput (idea/text prompt OR uploaded paper)
+  ↓
+Input Analysis (normalize into the same shape retrieval/extraction already use)
+  ↓
+Literature Search (Retrieval Engine, §26-27 — over the existing corpus)
+  ↓
+Retrieve Related Papers
+  ↓
+Compare Input Against Retrieved Papers (Extraction Engine + Research Similarity, §28-30)
+  ↓
+Novelty Assessment (what's already solved vs. what the input adds)
+  ↓
+Research Gap Identification (§32 — scoped to this input's neighborhood, not the whole corpus)
+  ↓
+Application Discovery (§33)
+  ↓
+Opportunity Assessment (§18-23, three-layer model)
+  ↓
+Technical Feasibility / Risk / Missing-Evidence Assessment
+  ↓
+ResearchAssessment Report (§49)
+  ↓
+Human Review (§35)
+```
+
+## ResearchInput (first-class concept)
+
+One user-submitted item to be assessed:
+
+```text
+research_inputs
+----------------
+id
+input_type          -- idea | document
+raw_text            -- the prompt itself, or the uploaded document's extracted text
+title               NULL   -- inferred, or user-supplied
+matched_paper_id     NULL   -- FK -> papers, if an uploaded document is already ingested
+source_filename      NULL   -- original upload filename, if input_type = document
+submitted_by         NULL   -- reserved for later multi-user support
+created_at
+```
+
+## ResearchAssessment (first-class concept)
+
+One analysis session over one ResearchInput — the object the UI is actually
+built around, the same way one `candidate_gaps` row already represents one
+detected pattern:
+
+```text
+research_assessments
+---------------------
+id
+research_input_id            FK -> research_inputs
+status                       -- pending | running | completed | failed
+retrieved_paper_ids          -- ordered list/JSONB: the related-papers set used
+comparison_summary           TEXT NULL   -- existing solutions, grounded in retrieved_paper_ids
+novelty_level                 -- categorical: high | medium | low | not_assessed
+novelty_reasoning            TEXT NULL
+research_gap_text            TEXT NULL
+research_gap_source           -- 'input_specific' | 'reused_candidate_gap'
+candidate_gap_id              NULL FK -> candidate_gaps  -- set when reused
+potential_applications        JSONB NULL
+potential_opportunities       JSONB NULL
+technical_feasibility_level   -- categorical: high | medium | low | not_assessed
+risks_and_limitations         TEXT NULL
+external_validation_needed    TEXT NULL
+recommendation                 -- HIGH PRIORITY | MEDIUM PRIORITY | LOW PRIORITY | INSUFFICIENT EVIDENCE | REQUIRES HUMAN REVIEW
+confidence                    -- categorical: high | medium | low
+human_reviewed                 BOOLEAN default false
+created_at
+completed_at                  NULL
+```
+
+`research_gap_source` matters: an assessment should reuse an already-detected,
+already-reviewed `candidate_gaps` row when the input's neighborhood overlaps
+one (cheap, benefits from prior human review), but must be able to run
+`detect_candidate_gaps` scoped to just this input's own neighborhood when
+nothing existing applies — same machinery as §32, invoked per-assessment
+rather than only via the corpus-wide batch job.
+
+This is additive to `opportunity_assessments` (§41), not a replacement for
+it — §41's three-layer scoring fields are the detailed backing store the
+flat fields above summarize. Reconcile exact overlap during implementation,
+not in this document.
+
+## Evidence linkage — keep the assessment lightweight, not the source of truth
+
+A `research_assessments` row must stay a lightweight MVP summary — the fields
+above are what render in the UI/report, but they are never the ground truth.
+The ground truth is real `evidence` rows already grounded in retrieved papers
+(§15), linked explicitly:
+
+```text
+research_assessment_evidence
+------------------------------
+id
+research_assessment_id        FK -> research_assessments
+evidence_id                   FK -> evidence
+role                           -- comparison | novelty | research_gap | application | feasibility | risk
+created_at
+```
+
+Every populated text/categorical field in `research_assessments`
+(`comparison_summary`, `novelty_reasoning`, `research_gap_text`,
+`potential_applications`, `risks_and_limitations`, etc.) must be traceable to
+at least one row here. This mirrors `candidate_gap_evidence`'s existing
+pattern (§32) exactly — the same "never invent, always ground in a real
+quoted passage" rule that already governs claims extraction (§15) and
+candidate gaps (§32) applies to assessments too. If a ResearchAssessment
+field cannot point to real evidence, it must be left `NULL`/`NOT_ASSESSED`
+rather than filled with unsupported prose. `research_gap_text` additionally
+inherits grounding from `candidate_gap_evidence` whenever
+`research_gap_source = 'reused_candidate_gap'`.
 
 ---
 
@@ -1238,6 +1381,17 @@ Citation count is only contextual evidence.
 
 Only implement advanced gap detection after Phases 1 and 2 are measurable.
 
+**Note on primary use:** the pipeline below runs two ways:
+1. **Per-assessment (primary, product-facing):** scoped to one ResearchInput's
+   neighborhood, invoked as part of a single ResearchAssessment (§2A). This is
+   the common case the product depends on.
+2. **Corpus-wide batch (supporting/background capability):** run independently
+   across every embedded paper to pre-populate `candidate_gaps` with
+   reviewable candidates, so future assessments can reuse an already-vetted
+   pattern instead of recomputing it. Valuable infrastructure — not itself the
+   user-facing workflow, and not to be prioritized over per-assessment
+   integration.
+
 Pipeline:
 
 ```text
@@ -1295,9 +1449,12 @@ The latter must be labeled as an inference, not presented as an author-stated fa
 
 ---
 
-# 33. Phase 4 — Opportunity Engine
+# 33. Phase 4 — Opportunity Engine (produces the ResearchAssessment report body)
 
-After gap detection is validated:
+After gap detection is validated, this stage runs as the final steps of a
+ResearchAssessment (§2A) — turning that assessment's `research_gap_text`,
+`retrieved_paper_ids`, and `comparison_summary` into the report fields shown
+in §49.
 
 ```text
 Research Gap
@@ -1521,49 +1678,52 @@ unless each one is justified by measurable requirements.
           │               │                │
           └───────────────┼────────────────┘
                           ▼
-                 Ingestion Layer
-                          │
-                 Normalization
-                          │
-                 Deduplication
-                          │
-                 Provenance
+                 Ingestion → Normalization → Dedup → Provenance
                           ▼
                  PostgreSQL + pgvector
-                 │
-                 ├── Papers
-                 ├── Authors
-                 ├── Categories
-                 ├── Citations
-                 ├── Research entities
-                 ├── Evidence
-                 ├── Claims
-                 ├── Benchmark
-                 └── Embeddings
+                 (Papers, Authors, Categories, Citations,
+                  Evidence, Claims, Embeddings, Benchmark,
+                  candidate_gaps)
                           │
               ┌───────────┴────────────┐
               ▼                        ▼
        Retrieval Engine         Extraction Engine
+        (shared by both consumers below)
               │                        │
-       BM25 / TF-IDF /         Structured knowledge
-       Embeddings / Hybrid              │
-              │                         │
-              └───────────┬─────────────┘
-                          ▼
-                   Evaluation Layer
+              └───────────┬────────────┘
                           │
-                          ▼
-                  Research Gap Engine
-                          │
-                          ▼
-                 Opportunity Engine
-                          │
-                          ▼
-                    Human Review
-                          │
-                          ▼
-                    Decision UI
+        ┌─────────────────┴──────────────────────┐
+        ▼                                          ▼
+Corpus-wide batch jobs                    PRODUCT WORKFLOW:
+(evaluation, background                   ResearchInput (idea/paper)
+ candidate_gaps population)                       │
+        │                                          ▼
+        ▼                                 Literature Search + Retrieve
+   Human Review (bulk)                             │
+                                                     ▼
+                                          Compare vs. Existing Research
+                                                     │
+                                                     ▼
+                                          Novelty / Gap / Feasibility
+                                                     │
+                                                     ▼
+                                          Opportunity Reasoning
+                                                     │
+                                                     ▼
+                                          ResearchAssessment Report
+                                                     │
+                                                     ▼
+                                          Human Review (per-assessment)
+                                                     │
+                                                     ▼
+                                              Decision UI
 ```
+
+Retrieval and Extraction are genuinely shared infrastructure: the left branch
+(corpus-wide batch jobs — evaluation runs, background `candidate_gaps`
+population) and the right branch (the per-input product workflow) both call
+into the same Retrieval Engine and Extraction Engine. Neither branch owns
+them.
 
 ---
 
@@ -1586,6 +1746,17 @@ embeddings
 
 benchmark_papers
 benchmark_annotations
+```
+
+**Product-facing schema** (needed once retrieval + extraction exist — not a
+Phase 1 starting table, but not deferred to "Phase 3+ once justified" either,
+since the product's core loop needs it as soon as there's a corpus to compare
+against — see §2A):
+
+```text
+research_inputs
+research_assessments
+research_assessment_evidence
 ```
 
 **Phase 3+ schema (deferred until extraction quality is proven):**
@@ -1673,6 +1844,10 @@ A trustworthy system does not always force a recommendation.
 ---
 
 # 43. Academic Research Questions
+
+RQ1–RQ5 below are exercised through the ResearchAssessment workflow (§2A),
+not as abstract corpus-level benchmarks — e.g. RQ2 is tested by how well
+retrieval finds related work for a real user-submitted ResearchInput.
 
 Potential research questions:
 
@@ -1771,6 +1946,11 @@ Evaluate:
 
 # 45. Revised Roadmap
 
+**Product framing:** every phase below is infrastructure in service of one
+end-user loop — ResearchInput → ResearchAssessment (§2A). Treat "does a
+user's idea or paper produce a real ResearchAssessment report?" as the
+standing acceptance test across phases, not just corpus-level metrics.
+
 ## Phase 1 — Corpus & Data Foundation (Solo, ~6–12 weeks — the only phase with committed weekly milestones)
 
 | Weeks | Deliverable |
@@ -1830,6 +2010,11 @@ Deliver:
 - candidate research gaps,
 - evidence validation.
 
+Note: the corpus-wide candidate-gap batch job (`rb-gaps-detect --all`) is a
+supporting capability that pre-populates reviewable patterns; it is not the
+primary way research gaps get identified — that happens per-assessment,
+scoped to one ResearchInput's neighborhood (§2A).
+
 Success condition:
 
 > The system can identify defensible candidate research gaps with supporting evidence.
@@ -1847,9 +2032,15 @@ Deliver:
 - confidence levels,
 - human validation.
 
+This phase is where the ResearchAssessment report (§2A, §49) becomes fully
+populated for a real user-submitted input — the primary product-completion
+milestone, not merely "opportunity scoring exists in the abstract."
+
 Success condition:
 
 > The system can help researchers move from validated research gaps toward practical opportunities.
+>
+> A user can submit an idea or paper and receive a complete, evidence-grounded ResearchAssessment report (§49).
 
 ---
 
@@ -1955,71 +2146,89 @@ Do not use scientific papers alone to claim market demand.
 
 ---
 
-# 49. End-to-End Example
+# 49. End-to-End Example (ResearchAssessment Report)
 
-Suppose the user asks:
+Suppose a user submits a ResearchInput:
 
-> "Should we work on real-time fraud detection using graph transformers?"
+> **Input:** "Should we work on real-time fraud detection using graph transformers?" (idea)
 
-The platform should:
+The platform creates a `research_assessments` row (§2A) and runs the workflow:
 
-1. Search the CS/AI corpus.
+1. Search the CS/AI corpus (Retrieval Engine).
 2. Retrieve related papers.
-3. Extract problems, methods, datasets, results, and limitations.
-4. Compare related studies.
-5. Identify what is already solved.
-6. Identify recurring limitations.
-7. Detect candidate research gaps.
-8. Attach supporting evidence.
+3. Extract problems, methods, datasets, results, and limitations from each.
+4. Compare the input against retrieved studies.
+5. Identify what is already solved (Existing Solutions).
+6. Identify recurring limitations across the neighborhood.
+7. Detect a candidate research gap scoped to this input (reusing an existing
+   `candidate_gaps` row if the neighborhood already has one, else running
+   detection fresh).
+8. Attach supporting evidence (`research_assessment_evidence`, §2A).
 9. Assess scientific novelty.
 10. Assess technical feasibility.
-11. Identify plausible applications.
-12. Clearly mark market/commercialization assessment as `Not Evaluated` unless external data is available.
-13. Generate a recommendation.
+11. Identify plausible applications and product/technology opportunities.
+12. Mark market/commercialization assessment `NOT ASSESSED` unless external
+    data is available.
+13. Generate a recommendation with confidence.
 
-Example:
+The resulting ResearchAssessment report:
 
 ```text
-Recommendation:
-HIGH PRIORITY / REQUIRES VALIDATION
+Input:
+"Should we work on real-time fraud detection using graph transformers?"
 
-Scientific Novelty:
-Moderate to High
+Related Research:
+Paper A - Graph Transformers for Fraud Detection (offline benchmark)
+Paper B - Real-Time Graph Neural Networks for Payment Risk
+Paper C - Scalable GNN Inference on Streaming Data
+
+Existing Solutions:
+Batch/offline graph-transformer fraud models with strong benchmark accuracy;
+no evaluated system meets sub-100ms real-time constraints.
+
+Novelty Assessment:
+Moderate to High - most existing work targets offline evaluation.
 
 Research Gap:
-Existing studies predominantly focus on offline
-or static evaluation. Limited evidence was found
-for real-time graph-based deployment under strict
-latency constraints.
+Existing studies predominantly focus on offline or static evaluation.
+Limited evidence was found for real-time graph-based deployment under
+strict latency constraints. (inference across Papers A/B/C - see Evidence)
 
-Technical Feasibility:
-Moderate
+Evidence:
+Paper A, §5.2 (offline-only evaluation setup)
+Paper B, §4 (reports 250ms+ inference latency)
+Paper C, limitations section (no production deployment reported)
 
 Potential Applications:
-- Banking
-- Payment processing
-- E-commerce
-- Insurance
+- Banking fraud detection
+- Payment processing risk scoring
+- E-commerce transaction screening
+- Insurance claim anomaly detection
 
-Market Potential:
-NOT ASSESSED
+Potential Product/Technology Opportunities:
+Direct: Real-time fraud-scoring API for a payment processor
+Adjacent: Streaming risk-monitoring platform for multiple transaction types
+Speculative: Cross-bank real-time fraud intelligence network
 
-Reason:
-No external market evidence is currently integrated.
+Technical Feasibility:
+Moderate - requires low-latency graph inference, which is measured but
+not yet demonstrated at production scale in the retrieved papers.
 
-Risks:
+Risks / Limitations:
 - data privacy
-- latency
+- inference latency under load
 - concept drift
 - compute requirements
 
+External Validation Needed:
+Market demand, cost sensitivity, and regulatory constraints - no external
+market evidence is currently integrated (see §21).
+
+Recommendation:
+HIGH PRIORITY / REQUIRES VALIDATION
+
 Confidence:
 Medium
-
-Supporting Evidence:
-Paper A
-Paper B
-Paper C
 ```
 
 ---
