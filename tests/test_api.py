@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -169,6 +169,31 @@ def test_list_papers_title_filter_is_case_insensitive(client, session) -> None:
 
 def test_list_papers_rejects_oversized_limit(client) -> None:
     assert client.get("/api/papers", params={"limit": 5000}).status_code == 422
+
+
+def test_list_papers_hides_excluded_papers_by_default(client, session) -> None:
+    included = _add_paper(session, "included")
+    excluded = _add_paper(session, "excluded")
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    body = client.get("/api/papers").json()
+
+    ids = {item["id"] for item in body["items"]}
+    assert str(included.id) in ids
+    assert str(excluded.id) not in ids
+    assert body["total"] == 1
+
+
+def test_list_papers_include_excluded_shows_them(client, session) -> None:
+    excluded = _add_paper(session, "excluded")
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    body = client.get("/api/papers?include_excluded=true").json()
+
+    ids = {item["id"] for item in body["items"]}
+    assert str(excluded.id) in ids
 
 
 def test_get_paper_returns_detail(client, session) -> None:

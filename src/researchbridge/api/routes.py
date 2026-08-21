@@ -30,10 +30,15 @@ def list_papers(
     year: int | None = Query(None, description="Filter by publication year"),
     category: str | None = Query(None, description="Filter by an arXiv category, e.g. cs.LG"),
     q: str | None = Query(None, description="Case-insensitive substring match on title"),
+    include_excluded: bool = Query(False, description="Include papers excluded from curation"),
 ) -> PaperPage:
     """Browse the corpus. `q` is a plain title filter - for meaning-based search use /api/search."""
     query = select(Paper)
     count_query = select(func.count(Paper.id))
+
+    if not include_excluded:
+        query = query.where(Paper.excluded_at.is_(None))
+        count_query = count_query.where(Paper.excluded_at.is_(None))
 
     for condition in _filters(year=year, category=category, q=q):
         query = query.where(condition)
