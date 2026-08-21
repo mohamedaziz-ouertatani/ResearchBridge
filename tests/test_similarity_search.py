@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import pytest
 
@@ -132,3 +133,34 @@ def test_search_by_text_embeds_query_and_finds_nearest(session_factory) -> None:
         assert ordered_ids.index(close.id) < ordered_ids.index(far.id)
     finally:
         session.close()
+
+
+def test_search_by_text_excludes_papers_marked_excluded(session_factory) -> None:
+    session = session_factory()
+    target = _unit_vector(0)
+    included = _make_paper_with_embedding(session, "included", target)
+    excluded = _make_paper_with_embedding(session, "excluded", target)
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    results = search_by_text(session, "query", FixedVectorEmbedder(target), top_k=10)
+
+    result_ids = {paper.id for paper, _distance in results}
+    assert included.id in result_ids
+    assert excluded.id not in result_ids
+    session.close()
+
+
+def test_find_similar_to_paper_excludes_papers_marked_excluded(session_factory) -> None:
+    session = session_factory()
+    target = _unit_vector(0)
+    seed = _make_paper_with_embedding(session, "seed", target)
+    excluded = _make_paper_with_embedding(session, "excluded", target)
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    results = find_similar_to_paper(session, seed.id, MODEL, top_k=10)
+
+    result_ids = {paper.id for paper, _distance in results}
+    assert excluded.id not in result_ids
+    session.close()

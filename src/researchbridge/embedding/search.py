@@ -49,7 +49,11 @@ def _nearest(
     query = (
         select(Paper, distance)
         .join(Embedding, Embedding.paper_id == Paper.id)
-        .where(Embedding.embedding_type == EMBEDDING_TYPE, Embedding.model_name == model_name)
+        .where(
+            Embedding.embedding_type == EMBEDDING_TYPE,
+            Embedding.model_name == model_name,
+            Paper.excluded_at.is_(None),
+        )
     )
     if exclude_paper_id is not None:
         query = query.where(Paper.id != exclude_paper_id)
