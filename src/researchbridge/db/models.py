@@ -38,6 +38,7 @@ class Paper(Base):
     ingestion_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    excluded_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class IngestionRun(Base):
