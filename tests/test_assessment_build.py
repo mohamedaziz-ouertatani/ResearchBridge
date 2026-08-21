@@ -153,7 +153,8 @@ def test_assessment_defaults_unassessed_fields_rather_than_fabricating(session_f
     assert assessment.novelty_level == "not_assessed"
     assert assessment.technical_feasibility_level == "not_assessed"
     assert assessment.research_gap_text is None
-    assert assessment.recommendation is None
+    assert assessment.recommendation == "INSUFFICIENT EVIDENCE"  # honest non-recommendation, not silently None
+    assert assessment.confidence == "low"
     assert assessment.completed_at is not None
 
 
@@ -391,6 +392,33 @@ def test_external_validation_needed_mentions_applications_when_present(session_f
 
     session.close()
     assert "application" in assessment.external_validation_needed.lower()
+
+
+def test_recommendation_and_confidence_are_set_from_the_other_signals(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "method", "a graph attention mechanism")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.recommendation is not None
+    assert assessment.confidence is not None
+
+
+def test_recommendation_is_insufficient_evidence_with_no_signal_at_all(session_factory, embedder) -> None:
+    session = session_factory()
+    ri = _research_input(session, "an idea with no related papers in the corpus")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.recommendation == "INSUFFICIENT EVIDENCE"
+    assert assessment.confidence == "low"
 
 
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:

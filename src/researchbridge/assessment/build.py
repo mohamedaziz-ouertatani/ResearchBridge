@@ -1,16 +1,17 @@
-"""First vertical slice of ResearchInput -> ResearchAssessment (blueprint Sec 2A).
+"""ResearchInput -> ResearchAssessment orchestration (blueprint Sec 2A).
 
-ResearchInput -> Retrieve Related Papers -> Compare/Extract -> Basic
-Evidence-Grounded Assessment Report.
+ResearchInput -> Retrieve Related Papers -> Compare/Extract -> Novelty ->
+Research Gap -> Applications -> Feasibility -> Opportunities (always NULL
+by design, see assessment/opportunities.py) -> Risks -> External
+Validation -> Recommendation/Confidence.
 
-Deliberately minimal, per the roadmap's build-order guidance (Sec 45):
+Idea-only input, per the roadmap's build-order guidance (Sec 45):
 retrieval reuses search_by_text() unchanged (no input-side extraction yet -
-that's the uploaded-paper path, not this idea-only slice), and comparison
-reuses each retrieved paper's already-extracted claims rather than running
-any new extraction. Every field this doesn't compute (novelty, research
-gap, feasibility, recommendation, ...) stays NULL/"not_assessed" - NULL is
-preferable to fabricated certainty (Sec 22), and those are later
-enrichment passes, not this slice's job.
+that's the uploaded-paper path, not yet built), and every downstream
+assess_* function reuses each retrieved paper's already-extracted claims
+rather than running any new extraction or calling an LLM. Any field a
+sub-assessment can't ground in real evidence stays NULL/"not_assessed" -
+NULL is preferable to fabricated certainty (Sec 22).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.assessment.opportunities import assess_opportunities
+from researchbridge.assessment.recommendation import assess_recommendation
 from researchbridge.assessment.risks import assess_risks
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
@@ -65,6 +67,9 @@ def build_assessment(
     opportunities = assess_opportunities(session, papers_by_distance)
     risks = assess_risks(session, papers_by_distance)
     external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
+    recommendation = assess_recommendation(
+        novelty_level=novelty.level, research_gap_text=gap.text, technical_feasibility_level=feasibility.level
+    )
 
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
@@ -93,6 +98,8 @@ def build_assessment(
         potential_opportunities=opportunities.opportunities,
         risks_and_limitations=risks.text,
         external_validation_needed=external_validation_needed,
+        recommendation=recommendation.recommendation,
+        confidence=recommendation.confidence,
         completed_at=datetime.now(UTC),
     )
     session.add(assessment)

@@ -163,6 +163,18 @@ def test_post_assessment_includes_external_validation_needed(client, session, em
     assert "not assessed" in body["external_validation_needed"].lower()
 
 
+def test_post_assessment_includes_recommendation_and_confidence(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _add_claim(session, paper, "method", "a graph attention mechanism")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["recommendation"] is not None
+    assert body["confidence"] is not None
+
+
 def test_post_assessment_potential_opportunities_stays_null(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
     _add_claim(session, paper, "applications", "real-time payment fraud screening")
