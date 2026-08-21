@@ -33,6 +33,7 @@ rb-search = "researchbridge.embedding.cli_search:main"
 rb-benchmark-sample = "researchbridge.benchmark.cli_sample:main"
 rb-benchmark-fetch = "researchbridge.benchmark.cli_fetch:main"
 rb-retrieval-compare = "researchbridge.retrieval.cli_compare:main"
+rb-retrieval-evaluate = "researchbridge.retrieval.cli_evaluate:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
