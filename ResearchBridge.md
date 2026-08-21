@@ -261,10 +261,13 @@ one (cheap, benefits from prior human review), but must be able to run
 nothing existing applies — same machinery as §32, invoked per-assessment
 rather than only via the corpus-wide batch job.
 
-This is additive to `opportunity_assessments` (§41), not a replacement for
-it — §41's three-layer scoring fields are the detailed backing store the
-flat fields above summarize. Reconcile exact overlap during implementation,
-not in this document.
+`research_assessments` is the single primary assessment object for the
+MVP — not a summary layer sitting on top of a separate `opportunity_assessments`
+persistence table. §41 describes a normalized three-layer breakdown
+(scientific / technical / external), which is a plausible future refactor
+once the MVP's flat categorical fields (`novelty_level`,
+`technical_feasibility_level`, etc.) prove insufficient — it is not a
+parallel model to build now, and nothing in the MVP should write to both.
 
 ## Evidence linkage — keep the assessment lightweight, not the source of truth
 
@@ -1812,16 +1815,35 @@ applications / paper_applications
 
 analysis_claims
 claim_evidence
+```
 
+**Deferred normalization, not a parallel model (§41):**
+
+```text
 opportunity_assessments
 assessment_evidence
 ```
+
+`research_assessments` is the one assessment table the MVP writes to. The
+two tables above describe what a future normalized three-layer breakdown
+could look like if the flat categorical fields on `research_assessments`
+ever prove insufficient — build them only if and when that need is
+demonstrated, not alongside `research_assessments` from the start.
 
 Use JSONB for source-specific metadata and flexible extracted metadata, but keep core entities relational.
 
 ---
 
-# 41. Opportunity Assessment Schema
+# 41. Opportunity Assessment Schema (future normalization, not an MVP table)
+
+**Do not build this alongside `research_assessments` (§2A).** For the MVP,
+`research_assessments` is the single primary assessment object — its flat
+`novelty_level`, `technical_feasibility_level`, and related categorical
+fields already cover the three-layer distinction (§18-23) at MVP fidelity.
+This section sketches what a dedicated normalized breakdown could look like
+*if* those flat fields later prove insufficient (e.g. once a research
+cluster needs to aggregate across many assessments) — a future refactor to
+consider, not a parallel persistence layer to implement now.
 
 Potential table:
 
