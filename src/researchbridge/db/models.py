@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Date, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -251,3 +251,59 @@ class EmbeddingRun(Base):
     papers_processed: Mapped[int] = mapped_column(Integer, default=0)
     papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class CandidateGap(Base):
+    """Phase 3 (Sec 32): an inferred recurring pattern across a paper's neighborhood.
+
+    NOT an ExtractedClaim: a claim is one statement about one paper, grounded
+    by one Evidence row in that same paper. A candidate gap is structurally
+    different - an observation synthesized ACROSS several papers' limitation/
+    research_gap claims, grounded by evidence spread across all of them (see
+    CandidateGapEvidence). That cross-paper shape doesn't fit the claims
+    model, which is why this is a new table rather than a new claim_type.
+
+    gap_type is "inference", always - never "fact". Sec 34 requires the UI
+    and data model to distinguish evidence/fact from inference from
+    hypothesis; this table only ever produces the middle one. Turning a
+    recurring pattern into an actual proposed opportunity (a hypothesis) is
+    a further, even-less-grounded step this table does not attempt - see
+    gaps/cluster.py.
+
+    status starts "pending" and stays there until a human reviews it (Sec 35,
+    Sec 44: gap detection is evaluated by a person - correctness, relevance,
+    novelty, evidence support, usefulness - never by a formula). Nothing
+    here should be presented to an end user as validated until reviewed.
+    """
+
+    __tablename__ = "candidate_gaps"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seed_paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    observation: Mapped[str] = mapped_column(Text, nullable=False)
+    gap_type: Mapped[str] = mapped_column(String, nullable=False, default="inference")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    contributing_paper_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    similarity_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    detection_method: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class CandidateGapEvidence(Base):
+    """Links one CandidateGap to one contributing paper's Evidence row.
+
+    One row per contributing paper (typically 3+, per gaps/cluster.py's
+    minimum cluster size) - this is what makes a candidate gap's support
+    inspectable: which papers, which exact quoted passages.
+    """
+
+    __tablename__ = "candidate_gap_evidence"
+    __table_args__ = (
+        UniqueConstraint("candidate_gap_id", "evidence_id", name="uq_candidate_gap_evidence_gap_evidence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_gap_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("candidate_gaps.id"), nullable=False
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
