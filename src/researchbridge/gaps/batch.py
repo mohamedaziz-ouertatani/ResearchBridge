@@ -88,6 +88,7 @@ def _select_seed_papers(session: Session, force: bool) -> list[uuid.UUID]:
 
 def _count_embedded(session: Session) -> int:
     query = select(Paper.id).where(
-        exists().where(Embedding.paper_id == Paper.id, Embedding.embedding_type == EMBEDDING_TYPE)
+        exists().where(Embedding.paper_id == Paper.id, Embedding.embedding_type == EMBEDDING_TYPE),
+        Paper.excluded_at.is_(None),
     )
     return len(list(session.execute(query).scalars()))

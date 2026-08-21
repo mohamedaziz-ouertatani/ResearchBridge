@@ -106,6 +106,19 @@ def test_skips_excluded_papers_as_seeds(session_factory, embedder) -> None:
     assert summary.papers_seen == 0
 
 
+def test_count_embedded_excludes_excluded_papers(session_factory, embedder) -> None:
+    session = session_factory()
+    included = _paper(session, embedder, "included")
+    excluded = _paper(session, embedder, "excluded")
+    excluded.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    summary = run_all(session, embedder, min_cluster_size=3, similarity_threshold=0.3, save=False)
+
+    session.close()
+    assert summary.papers_skipped == 0  # excluded paper isn't counted as "skipped", it's just not eligible
+
+
 def test_finds_and_reports_gaps_without_persisting_when_save_is_false(session_factory, embedder) -> None:
     session = session_factory()
     seed, a, b = _recurring_pattern(session, embedder, ("seed", "a", "b"))

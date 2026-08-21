@@ -343,6 +343,24 @@ def test_review_404s_for_unknown_assessment(client) -> None:
     assert response.status_code == 404
 
 
+def test_exclusion_does_not_affect_an_existing_assessments_evidence(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    assert created["evidence"]  # sanity check: the assessment has real evidence before exclusion
+
+    exclude_response = client.put(f"/api/admin/papers/{paper.id}/exclude", json={"excluded": True})
+    assert exclude_response.status_code == 200
+
+    fetched = client.get(f"/api/assessments/{created['id']}").json()
+
+    assert fetched["evidence"] == created["evidence"]
+    assert fetched["comparison_summary"] == created["comparison_summary"]
+    assert paper.title in fetched["comparison_summary"]
+
+
 def test_review_persists_across_a_fresh_fetch(client) -> None:
     created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
     client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})

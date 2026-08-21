@@ -67,7 +67,9 @@ def main() -> None:
 
 def _run_single(session, embedder, args: argparse.Namespace) -> None:
     paper = session.execute(
-        select(Paper).where(Paper.source == "arxiv", Paper.source_id == args.source_id)
+        select(Paper).where(
+            Paper.source == "arxiv", Paper.source_id == args.source_id, Paper.excluded_at.is_(None)
+        )
     ).scalar_one_or_none()
     if paper is None:
         print(f"No paper with arxiv id {args.source_id} in the corpus.")
