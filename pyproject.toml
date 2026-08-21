@@ -28,6 +28,7 @@ dependencies = [
 [project.scripts]
 rb-ingest = "researchbridge.ingestion.cli:main"
 rb-extract = "researchbridge.extraction.cli:main"
+rb-extract-evaluate = "researchbridge.extraction.cli_evaluate:main"
 rb-embed = "researchbridge.embedding.cli_embed:main"
 rb-search = "researchbridge.embedding.cli_search:main"
 rb-benchmark-sample = "researchbridge.benchmark.cli_sample:main"
