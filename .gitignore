@@ -11,3 +11,6 @@ graphify-out/
 
 # benchmark full text is derived data, refetchable via rb-benchmark-fetch
 benchmark/fulltext/
+
+# subagent-driven-development scratch workspaces (ledgers, briefs, review packages)
+.superpowers/
