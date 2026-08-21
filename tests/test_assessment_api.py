@@ -104,6 +104,18 @@ def test_post_assessment_novelty_not_assessed_without_any_evidence(client, sessi
     assert body["novelty_reasoning"] is not None
 
 
+def test_post_assessment_includes_research_gap_from_explicit_claim(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "research_gap", "no real-time evaluation exists")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["research_gap_source"] == "input_specific"
+    assert "no real-time evaluation exists" in body["research_gap_text"]
+    assert body["candidate_gap_id"] is None
+
+
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
 

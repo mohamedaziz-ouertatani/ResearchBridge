@@ -120,13 +120,17 @@ class ResearchAssessmentOut(BaseModel):
     novelty_level: str
     novelty_reasoning: str | None
     research_gap_text: str | None
+    research_gap_source: str | None
+    """"reused_candidate_gap" | "input_specific" | None. Distinguishes an
+    explicit, author-stated gap (never "inference" in the text) from a
+    cross-paper inference (always labeled as such) - see assessment/gap.py."""
+    candidate_gap_id: uuid.UUID | None
     technical_feasibility_level: str
     recommendation: str | None
     confidence: str | None
-    """This first vertical slice only populates status/retrieved_paper_ids/
-    comparison_summary - every other field is a later enrichment pass and
-    stays NULL/"not_assessed" until actually computed (blueprint Sec 22:
-    NULL is preferable to fabricated certainty)."""
+    """Applications/feasibility/opportunities/recommendation are later
+    enrichment passes and stay NULL/"not_assessed" until actually computed
+    (blueprint Sec 22: NULL is preferable to fabricated certainty)."""
 
 
 class ResearchAssessmentCreate(BaseModel):

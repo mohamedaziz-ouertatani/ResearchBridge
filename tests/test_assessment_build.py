@@ -197,6 +197,53 @@ def test_novelty_evidence_is_linked_with_role_novelty(session_factory, embedder)
     assert {link.evidence_id for link in novelty_links} == {evidence_id}
 
 
+def test_research_gap_is_set_from_an_explicit_claim_in_the_neighborhood(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.research_gap_source == "input_specific"
+    assert "no real-time evaluation exists" in assessment.research_gap_text
+    assert assessment.candidate_gap_id is None
+
+
+def test_research_gap_evidence_is_linked_with_role_research_gap(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    gap_links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="research_gap")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in gap_links} == {evidence_id}
+
+
+def test_research_gap_stays_null_when_no_gap_evidence_exists(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "some unrelated limitation")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.research_gap_text is None
+    assert assessment.research_gap_source is None
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
@@ -51,13 +52,20 @@ def build_assessment(
 
     novelty = assess_novelty([(paper.title, distance, claims) for paper, distance, claims in papers_with_claims])
 
+    retrieved_paper_uuids = [paper.id for paper, _distance, _claims in papers_with_claims]
+    papers_by_distance = [(paper.id, distance) for paper, distance, _claims in papers_with_claims]
+    gap = assess_research_gap(session, papers_by_distance, embedder)
+
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
         status="completed",
-        retrieved_paper_ids=[str(paper.id) for paper, _distance, _claims in papers_with_claims],
+        retrieved_paper_ids=[str(paper_id) for paper_id in retrieved_paper_uuids],
         comparison_summary="\n\n".join(summary_parts) if summary_parts else None,
         novelty_level=novelty.level,
         novelty_reasoning=novelty.reasoning,
+        research_gap_text=gap.text,
+        research_gap_source=gap.source,
+        candidate_gap_id=gap.candidate_gap_id,
         completed_at=datetime.now(UTC),
     )
     session.add(assessment)
@@ -72,6 +80,12 @@ def build_assessment(
     for evidence_id in novelty.evidence_ids:
         session.add(
             ResearchAssessmentEvidence(research_assessment_id=assessment.id, evidence_id=evidence_id, role="novelty")
+        )
+    for evidence_id in gap.evidence_ids:
+        session.add(
+            ResearchAssessmentEvidence(
+                research_assessment_id=assessment.id, evidence_id=evidence_id, role="research_gap"
+            )
         )
 
     session.commit()
