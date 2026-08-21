@@ -25,11 +25,13 @@ uv run rb-ingest --search-query "cat:cs.LG OR cat:cs.AI" --page-size 100
 ```
 
 Springer Nature (requires `SPRINGER_META_API_KEY` in `.env` — register at
-https://dev.springernature.com; field-scoped queries like `subject:"..."`
-require a premium key, so the default query uses plain free-text terms):
+https://dev.springernature.com; on the free tier, field-scoped queries like
+`subject:"..."` and page sizes above 25 both 403 as "premium feature" —
+verified live, so the default query is free-text and the default page
+size is 25):
 
 ```bash
-uv run rb-ingest-springer --query '"artificial intelligence" OR "machine learning" OR "computer science"' --page-size 100
+uv run rb-ingest-springer --query '"artificial intelligence" OR "machine learning" OR "computer science"' --page-size 25
 ```
 
 ## Tests

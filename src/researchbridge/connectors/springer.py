@@ -10,6 +10,10 @@ Intelligence"` are gated behind a premium API tier (verified live - a
 free-tier key gets a 403 "premium feature" response). Plain free-text/
 phrase queries (e.g. `"machine learning"`) work on the free tier and are
 what this connector's default query uses.
+
+Page size note: also verified live - this tier 403s on p=50 and above,
+but accepts p<=25. DEFAULT_PAGE_SIZE reflects that free-tier ceiling; a
+premium key could raise it.
 """
 
 from __future__ import annotations
@@ -37,7 +41,7 @@ from researchbridge.connectors.base import (
 logger = logging.getLogger(__name__)
 
 SPRINGER_META_API_URL = "https://api.springernature.com/meta/v2/json"
-DEFAULT_PAGE_SIZE = 100
+DEFAULT_PAGE_SIZE = 25
 
 # No documented per-second rate limit was reachable from this session's docs
 # fetch - default to a conservative gap between requests, same politeness

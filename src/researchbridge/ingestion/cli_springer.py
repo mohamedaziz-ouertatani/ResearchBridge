@@ -18,7 +18,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Run a Springer Nature ingestion pass.")
     parser.add_argument("--query", default=DEFAULT_QUERY, help="Springer Nature Meta API free-text query")
-    parser.add_argument("--page-size", type=int, default=100)
+    parser.add_argument("--page-size", type=int, default=25)  # free-tier ceiling, verified live
     parser.add_argument("--max-pages", type=int, default=None, help="Stop after N pages (default: run to exhaustion)")
     args = parser.parse_args()
 
