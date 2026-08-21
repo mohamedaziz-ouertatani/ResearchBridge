@@ -270,6 +270,31 @@ def test_upload_extracts_text_from_a_pdf_by_filename(client, session, monkeypatc
     assert response.json()["research_input"]["raw_text"] == "extracted pdf text"
 
 
+def test_upload_sets_matched_paper_id_when_filename_matches_a_corpus_arxiv_paper(client, session, embedder) -> None:
+    paper = Paper(
+        id=uuid.uuid4(), source="arxiv", source_id="2501.00348", title="graph transformers for fraud detection",
+        abstract="", raw_metadata={}, ingestion_metadata={},
+    )
+    session.add(paper)
+    session.commit()
+
+    text = b"Detecting fraud in financial transactions remains a major challenge."
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("2501.00348.txt", text, "text/plain")}
+    )
+
+    assert response.json()["research_input"]["matched_paper_id"] == str(paper.id)
+
+
+def test_upload_matched_paper_id_is_null_without_a_filename_match(client, session, embedder) -> None:
+    text = b"Detecting fraud in financial transactions remains a major challenge."
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("my_notes.txt", text, "text/plain")}
+    )
+
+    assert response.json()["research_input"]["matched_paper_id"] is None
+
+
 def test_upload_rejects_an_empty_file(client) -> None:
     response = client.post("/api/assessments/upload", files={"file": ("paper.txt", b"", "text/plain")})
 

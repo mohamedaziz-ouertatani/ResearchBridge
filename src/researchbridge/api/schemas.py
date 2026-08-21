@@ -107,6 +107,11 @@ class ResearchInputOut(BaseModel):
     input_type: str
     raw_text: str
     title: str | None
+    matched_paper_id: uuid.UUID | None
+    """Set only for input_type = document, when the upload could be
+    identified as an already-ingested corpus paper (Sec 2A). An
+    optimization signal only - never required for the assessment to
+    proceed, and never set for idea-text input."""
 
     model_config = {"from_attributes": True}
 

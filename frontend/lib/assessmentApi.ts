@@ -23,6 +23,7 @@ export type ResearchInput = {
   input_type: "idea" | "document";
   raw_text: string;
   title: string | null;
+  matched_paper_id: string | null;
 };
 
 export type PotentialApplication = {

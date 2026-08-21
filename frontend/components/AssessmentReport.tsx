@@ -74,6 +74,17 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
         <p className="eyebrow mt-3">
           {assessment.research_input.input_type === "document" ? "uploaded document" : "research idea"}
         </p>
+        {assessment.research_input.matched_paper_id && (
+          <p className="mt-2 text-[0.8125rem] text-[var(--ink-soft)]">
+            matched to an existing corpus paper —{" "}
+            <Link
+              href={`/papers/${assessment.research_input.matched_paper_id}`}
+              className="underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+            >
+              view it
+            </Link>
+          </p>
+        )}
       </Field>
 
       <Field label="related research" gradeable={false}>

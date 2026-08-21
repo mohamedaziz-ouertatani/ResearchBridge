@@ -20,6 +20,7 @@ from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut, ResearchAssessmentReview
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
+from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchInput
 from researchbridge.embedding.base import Embedder
@@ -57,7 +58,12 @@ async def create_assessment_from_upload(
     if not text.strip():
         raise HTTPException(status_code=422, detail="no extractable text found in the uploaded file")
 
-    research_input = ResearchInput(input_type="document", raw_text=text, source_filename=filename or None)
+    research_input = ResearchInput(
+        input_type="document",
+        raw_text=text,
+        source_filename=filename or None,
+        matched_paper_id=match_uploaded_paper(session, filename or None, text),
+    )
     session.add(research_input)
     session.flush()
 
