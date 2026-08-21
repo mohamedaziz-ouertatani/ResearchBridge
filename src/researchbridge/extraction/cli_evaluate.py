@@ -36,9 +36,10 @@ from researchbridge.embedding.model import SentenceTransformerEmbedder
 from researchbridge.extraction.base import Extractor
 from researchbridge.extraction.evaluation import DEFAULT_SIMILARITY_THRESHOLD, FieldScore, evaluate
 from researchbridge.extraction.heuristic import HeuristicExtractor
+from researchbridge.extraction.hybrid import HybridExtractor
 from researchbridge.extraction.semantic import SemanticExtractor
 
-EXTRACTORS = ("heuristic", "semantic")
+EXTRACTORS = ("heuristic", "semantic", "hybrid")
 
 
 def main() -> None:
@@ -91,6 +92,8 @@ def _make_extractor(name: str, embedder: Embedder) -> Extractor:
         return HeuristicExtractor()
     if name == "semantic":
         return SemanticExtractor(embedder)
+    if name == "hybrid":
+        return HybridExtractor(embedder)
     raise ValueError(f"unknown extractor {name!r}")
 
 

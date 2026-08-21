@@ -2,8 +2,12 @@
 
 Deliberately exposes only ingested corpus data (papers, authors,
 categories, embedding similarity). Extracted claims and evidence are NOT
-exposed: the only extractor wired up so far is the stub, whose rows are
-synthetic placeholders - see the Evidence docstring in db/models.py.
+exposed here: real (non-stub) extraction now exists and has been run over
+the full corpus (extraction/hybrid.py), but nothing has designed how
+imperfect, per-field-confidence extracted claims should be surfaced in
+this API yet - that's a UI/API design task of its own, not a data
+availability problem. See the Evidence docstring in db/models.py for the
+stub-vs-real distinction extraction_method still carries.
 """
 
 from __future__ import annotations
