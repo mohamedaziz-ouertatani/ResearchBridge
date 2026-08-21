@@ -2014,6 +2014,32 @@ end-user loop — ResearchInput → ResearchAssessment (§2A). Treat "does a
 user's idea or paper produce a real ResearchAssessment report?" as the
 standing acceptance test across phases, not just corpus-level metrics.
 
+**Build order — do not wait for all of Phase 4 to ship the first end-to-end
+ResearchAssessment.** As soon as retrieval and extraction are sufficient
+(i.e. once Phase 2's baselines exist and are measurable), build a minimal
+vertical slice of the assessment workflow rather than deferring it behind
+full Phase 3/4 completion:
+
+```text
+ResearchInput
+      ↓
+Retrieve Related Papers
+      ↓
+Compare / Extract
+      ↓
+Basic Evidence-Grounded Assessment Report
+```
+
+This thin slice should populate a real `research_assessments` row (§2A) end
+to end — `retrieved_paper_ids`, `comparison_summary`, and evidence links via
+`research_assessment_evidence` — even before research-gap detection,
+feasibility scoring, applications, opportunities, or external-validation
+framing exist. Then progressively enrich the same report with each of those
+capabilities as Phase 3 and Phase 4 land, rather than building all of them
+in isolation and wiring the end-to-end flow only at the very end. A thin,
+working ResearchAssessment early is worth more than a complete Phase 4 with
+no assessment flow to plug it into.
+
 ## Phase 1 — Corpus & Data Foundation (Solo, ~6–12 weeks — the only phase with committed weekly milestones)
 
 | Weeks | Deliverable |
