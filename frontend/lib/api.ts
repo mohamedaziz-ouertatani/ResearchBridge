@@ -11,6 +11,7 @@ export type PaperSummary = {
   primary_category: string | null;
   categories: string[];
   authors: string[];
+  excluded_at: string | null;
 };
 
 export type ExtractedClaim = {

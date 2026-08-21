@@ -3,9 +3,45 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { api, type ExtractedClaim, type PaperSummary, type SearchHit } from "@/lib/api";
+import { adminApi } from "@/lib/adminApi";
 import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
+
+function ExcludeToggle({ paper, onChange }: { paper: PaperSummary; onChange: (p: PaperSummary) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const excluded = paper.excluded_at !== null;
+
+  async function toggle() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      onChange(await adminApi.excludePaper(paper.id, !excluded));
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        onClick={toggle}
+        disabled={busy}
+        className={`eyebrow rounded-[2px] border px-2 py-1 text-[0.6875rem] disabled:opacity-50 ${
+          excluded
+            ? "border-[var(--live)] text-[var(--live)] hover:opacity-80"
+            : "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+        }`}
+      >
+        {busy ? "saving…" : excluded ? "excluded — include again" : "exclude this paper"}
+      </button>
+      {failed && <span className="text-[0.6875rem] text-[var(--live)]">save failed</span>}
+    </span>
+  );
+}
 
 export default function PaperDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -71,6 +107,7 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
                 {category}
               </span>
             ))}
+            <ExcludeToggle paper={paper} onChange={setPaper} />
           </div>
 
           <h1 className="max-w-[34ch] font-[family-name:var(--type-text)] text-[clamp(1.75rem,3.6vw,2.5rem)] leading-[1.15] font-semibold">
