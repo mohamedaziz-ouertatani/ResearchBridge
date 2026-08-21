@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { AssessmentEvidence, EvidenceRole, ResearchAssessment } from "@/lib/assessmentApi";
+import { useState } from "react";
+import { assessmentApi, type AssessmentEvidence, type EvidenceRole, type ResearchAssessment } from "@/lib/assessmentApi";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -191,12 +192,47 @@ function Verdict({
   grounded: number;
   total: number;
 }) {
+  const [reviewed, setReviewed] = useState(assessment.human_reviewed);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function toggleReviewed() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const updated = await assessmentApi.review(assessment.id, !reviewed);
+      setReviewed(updated.human_reviewed);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <header className="border-b border-[var(--rule)] pb-8">
-      <span className="eyebrow">recommendation</span>
-      <p className="display mt-3 text-[clamp(1.75rem,4.5vw,2.75rem)]">
-        {assessment.recommendation ?? "Not assessed"}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <span className="eyebrow">recommendation</span>
+          <p className="display mt-3 text-[clamp(1.75rem,4.5vw,2.75rem)]">
+            {assessment.recommendation ?? "Not assessed"}
+          </p>
+        </div>
+
+        <button
+          onClick={toggleReviewed}
+          disabled={busy}
+          className={`eyebrow shrink-0 rounded-[2px] border px-3 py-1.5 disabled:opacity-50 ${
+            reviewed
+              ? "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+              : "border-[var(--rule)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+          }`}
+        >
+          {busy ? "saving…" : reviewed ? "✓ reviewed · un-mark" : "mark reviewed"}
+        </button>
+      </div>
+
+      {failed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">save failed — try again</p>}
 
       <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
         <div>

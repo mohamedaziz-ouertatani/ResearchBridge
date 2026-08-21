@@ -286,3 +286,42 @@ def test_upload_rejects_a_pdf_with_no_extractable_text(client, monkeypatch) -> N
     )
 
     assert response.status_code == 422
+
+
+def test_new_assessment_is_not_human_reviewed_by_default(client) -> None:
+    body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+
+    assert body["human_reviewed"] is False
+
+
+def test_review_marks_assessment_as_human_reviewed(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+
+    response = client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
+
+    assert response.status_code == 200
+    assert response.json()["human_reviewed"] is True
+
+
+def test_review_can_toggle_back_to_unreviewed(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+    client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
+
+    response = client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": False})
+
+    assert response.json()["human_reviewed"] is False
+
+
+def test_review_404s_for_unknown_assessment(client) -> None:
+    response = client.put(f"/api/assessments/{uuid.uuid4()}/review", json={"human_reviewed": True})
+
+    assert response.status_code == 404
+
+
+def test_review_persists_across_a_fresh_fetch(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+    client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
+
+    fetched = client.get(f"/api/assessments/{created['id']}").json()
+
+    assert fetched["human_reviewed"] is True

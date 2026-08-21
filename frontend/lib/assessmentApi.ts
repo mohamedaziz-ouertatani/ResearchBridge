@@ -50,6 +50,7 @@ export type ResearchAssessment = {
   external_validation_needed: string;
   recommendation: string | null;
   confidence: string | null;
+  human_reviewed: boolean;
   /** Every populated field above traces back to real quoted passages here. */
   evidence: AssessmentEvidence[];
 };
@@ -79,4 +80,11 @@ export const assessmentApi = {
   },
 
   get: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}`),
+
+  review: (id: string, humanReviewed: boolean) =>
+    request<ResearchAssessment>(`/api/assessments/${id}/review`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ human_reviewed: humanReviewed }),
+    }),
 };

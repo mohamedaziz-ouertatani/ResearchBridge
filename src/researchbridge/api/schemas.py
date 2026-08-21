@@ -158,6 +158,10 @@ class ResearchAssessmentOut(BaseModel):
     literature alone - see assessment/external_validation.py."""
     recommendation: str | None
     confidence: str | None
+    human_reviewed: bool
+    """Set only via PUT /api/assessments/{id}/review (Sec 35) - never by the
+    pipeline itself. A boolean, not a status enum: unlike candidate_gaps,
+    an assessment isn't accepted/rejected as a unit, just marked looked-at."""
     evidence: list[AssessmentEvidenceOut]
     """Every populated field above traces back to real quoted passages here
     (Sec 15/17). An assessment is a lightweight summary, never its own
@@ -166,6 +170,10 @@ class ResearchAssessmentOut(BaseModel):
 
 class ResearchAssessmentCreate(BaseModel):
     raw_text: str = Field(min_length=1)
+
+
+class ResearchAssessmentReview(BaseModel):
+    human_reviewed: bool
 
 
 class CorpusStats(BaseModel):

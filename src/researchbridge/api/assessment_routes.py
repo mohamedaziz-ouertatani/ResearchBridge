@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut
+from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut, ResearchAssessmentReview
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.benchmark.fulltext import extract_text
@@ -76,6 +76,21 @@ def get_assessment(assessment_id: uuid.UUID, session: Session = Depends(get_sess
     return _to_out(session, assessment, research_input)
 
 
+@router.put("/{assessment_id}/review", response_model=ResearchAssessmentOut)
+def review_assessment(
+    assessment_id: uuid.UUID, payload: ResearchAssessmentReview, session: Session = Depends(get_session)
+) -> ResearchAssessmentOut:
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    assessment.human_reviewed = payload.human_reviewed
+    session.commit()
+
+    research_input = session.get(ResearchInput, assessment.research_input_id)
+    return _to_out(session, assessment, research_input)
+
+
 def _to_out(
     session: Session, assessment: ResearchAssessment, research_input: ResearchInput
 ) -> ResearchAssessmentOut:
@@ -98,5 +113,6 @@ def _to_out(
         external_validation_needed=assessment.external_validation_needed,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,
+        human_reviewed=assessment.human_reviewed,
         evidence=to_assessment_evidence(session, assessment.id),
     )
