@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { api, type ExtractedClaim, type PaperSummary, type SearchHit } from "@/lib/api";
+import {
+  api,
+  type ExtractedClaim,
+  type PaperSummary,
+  type SearchHit,
+} from "@/lib/api";
 import { adminApi } from "@/lib/adminApi";
 import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
 
-function ExcludeToggle({ paper, onChange }: { paper: PaperSummary; onChange: (p: PaperSummary) => void }) {
+function ExcludeToggle({
+  paper,
+  onChange,
+}: {
+  paper: PaperSummary;
+  onChange: (p: PaperSummary) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const excluded = paper.excluded_at !== null;
@@ -36,14 +47,24 @@ function ExcludeToggle({ paper, onChange }: { paper: PaperSummary; onChange: (p:
             : "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
         }`}
       >
-        {busy ? "saving…" : excluded ? "excluded — include again" : "exclude this paper"}
+        {busy
+          ? "saving…"
+          : excluded
+            ? "excluded — include again"
+            : "exclude this paper"}
       </button>
-      {failed && <span className="text-[0.6875rem] text-[var(--live)]">save failed</span>}
+      {failed && (
+        <span className="text-[0.6875rem] text-[var(--live)]">save failed</span>
+      )}
     </span>
   );
 }
 
-export default function PaperDetail({ params }: { params: Promise<{ id: string }> }) {
+export default function PaperDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
 
   const [paper, setPaper] = useState<PaperSummary | null>(null);
@@ -59,9 +80,15 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
     setNotEmbedded(false);
     setError(null);
 
-    api.paper(id).then(setPaper).catch(() => setError("That paper isn't in the corpus."));
+    api
+      .paper(id)
+      .then(setPaper)
+      .catch(() => setError("That paper isn't in the corpus."));
 
-    api.claims(id).then(setClaims).catch(() => {});
+    api
+      .claims(id)
+      .then(setClaims)
+      .catch(() => {});
 
     api
       .similar(id, 8)
@@ -76,7 +103,10 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
     return (
       <main className="mx-auto max-w-[62rem] px-6 py-24 sm:px-8">
         <p className="text-[1.0625rem] text-[var(--ink-soft)]">{error}</p>
-        <Link href="/corpus" className="eyebrow mt-4 inline-block hover:text-[var(--ink)]">
+        <Link
+          href="/corpus"
+          className="eyebrow mt-4 inline-block hover:text-[var(--ink)]"
+        >
           ← back to the corpus
         </Link>
       </main>
@@ -115,7 +145,9 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
           </h1>
 
           <p className="mt-5 max-w-[60ch] font-[family-name:var(--type-display)] text-[0.9375rem] text-[var(--ink-soft)]">
-            {paper.authors.length > 0 ? paper.authors.join(" · ") : "Unattributed"}
+            {paper.authors.length > 0
+              ? paper.authors.join(" · ")
+              : "Unattributed"}
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-4">
@@ -153,13 +185,20 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
 
             {notEmbedded ? (
               <p className="py-8 text-[0.9375rem] text-[var(--ink-soft)]">
-                This paper hasn&apos;t been embedded yet, so there&apos;s nothing to compare it against.
-                Run <code className="readout text-[0.875rem]">rb-embed</code> to include it.
+                This paper hasn&apos;t been embedded yet, so there&apos;s
+                nothing to compare it against. Run{" "}
+                <code className="readout text-[0.875rem]">rb-embed</code> to
+                include it.
               </p>
             ) : (
               <ul>
                 {similar.map((hit, i) => (
-                  <PaperRow key={hit.paper.id} paper={hit.paper} distance={hit.distance} index={i} />
+                  <PaperRow
+                    key={hit.paper.id}
+                    paper={hit.paper}
+                    distance={hit.distance}
+                    index={i}
+                  />
                 ))}
               </ul>
             )}

@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -234,3 +235,162 @@ def test_pipeline_status_orders_runs_most_recent_first(client, session) -> None:
     body = client.get("/api/admin/pipeline").json()
 
     assert [run["counts"]["records_fetched"] for run in body["ingestion_runs"]] == [2, 1]
+
+
+def test_pipeline_status_ingestion_runs_include_source(client, session) -> None:
+    session.add(
+        IngestionRun(
+            source="springer", status="completed", started_at=datetime.now(timezone.utc),
+            records_fetched=5, records_inserted=5, records_duplicate=0, records_failed=0,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["ingestion_runs"][0]["source"] == "springer"
+
+
+def test_pipeline_status_extraction_and_embedding_runs_have_no_source(client, session) -> None:
+    session.add(
+        ExtractionRun(
+            extractor_name="hybrid", status="completed", started_at=datetime.now(timezone.utc),
+            papers_processed=1, claims_created=1, candidates_rejected=0,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["extraction_runs"][0]["source"] is None
+
+
+def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"] == {
+        "ingestion_arxiv": False,
+        "ingestion_springer": False,
+        "extraction": False,
+        "embedding": False,
+    }
+
+
+def test_trigger_arxiv_ingestion_calls_trigger_with_no_extra_flags_by_default(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    response = client.post("/api/admin/ingestion/arxiv/run", json={})
+
+    assert response.status_code == 200
+    assert response.json() == {"started": True, "pipeline": "ingestion_arxiv", "log_file": "x.log"}
+    assert calls == [("ingestion_arxiv", "researchbridge.ingestion.cli", [])]
+
+
+def test_trigger_arxiv_ingestion_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post(
+        "/api/admin/ingestion/arxiv/run",
+        json={"search_query": "cat:cs.CL", "page_size": 50, "max_pages": 2},
+    )
+
+    assert calls == [
+        (
+            "ingestion_arxiv",
+            "researchbridge.ingestion.cli",
+            ["--search-query", "cat:cs.CL", "--page-size", "50", "--max-pages", "2"],
+        )
+    ]
+
+
+def test_trigger_springer_ingestion_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post(
+        "/api/admin/ingestion/springer/run",
+        json={"query": '"deep learning"', "page_size": 25, "max_pages": 4},
+    )
+
+    assert calls == [
+        (
+            "ingestion_springer",
+            "researchbridge.ingestion.cli_springer",
+            ["--query", '"deep learning"', "--page-size", "25", "--max-pages", "4"],
+        )
+    ]
+
+
+def test_trigger_extraction_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/extraction/run", json={"limit": 10, "extractor": "heuristic"})
+
+    assert calls == [
+        (
+            "extraction",
+            "researchbridge.extraction.cli",
+            ["--limit", "10", "--extractor", "heuristic"],
+        )
+    ]
+
+
+def test_trigger_embedding_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/embedding/run", json={"limit": 25})
+
+    assert calls == [("embedding", "researchbridge.embedding.cli_embed", ["--limit", "25"])]
+
+
+def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+    from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning
+
+    def _raise(key, module, args):
+        raise PipelineAlreadyRunning(key)
+
+    monkeypatch.setattr(routes_module, "trigger", _raise)
+
+    response = client.post("/api/admin/embedding/run", json={})
+
+    assert response.status_code == 409
+
+
+def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "is_running", lambda key: key == "extraction")
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"] == {
+        "ingestion_arxiv": False,
+        "ingestion_springer": False,
+        "extraction": True,
+        "embedding": False,
+    }

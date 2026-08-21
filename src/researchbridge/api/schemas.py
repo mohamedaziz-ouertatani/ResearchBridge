@@ -202,6 +202,10 @@ class PipelineRunOut(BaseModel):
     started_at: datetime
     finished_at: datetime | None
     error_summary: str | None
+    source: str | None
+    """Set only for ingestion runs (e.g. "arxiv"/"springer") - lets the UI
+    split one combined history into per-source sections. Always None for
+    extraction/embedding runs, which have no equivalent notion of source."""
     counts: dict[str, int]
     """Run-type-specific numeric fields, e.g. records_fetched/inserted/
     duplicate/failed for an ingestion run - kept as a dict rather than a
@@ -215,3 +219,36 @@ class PipelineStatus(BaseModel):
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]
+    running: dict[str, bool]
+    """Whether an admin-triggered subprocess is currently alive per pipeline
+    key ("ingestion_arxiv", "ingestion_springer", "extraction", "embedding") -
+    see pipeline_triggers.py. Independent of the *_runs history above: a run
+    row can say "running" from a crashed/killed process, this reflects only
+    what this server process itself is still tracking."""
+
+
+class ArxivIngestionTrigger(BaseModel):
+    search_query: str | None = None
+    page_size: int | None = None
+    max_pages: int | None = None
+
+
+class SpringerIngestionTrigger(BaseModel):
+    query: str | None = None
+    page_size: int | None = None
+    max_pages: int | None = None
+
+
+class ExtractionTrigger(BaseModel):
+    limit: int | None = None
+    extractor: str | None = None
+
+
+class EmbeddingTrigger(BaseModel):
+    limit: int | None = None
+
+
+class PipelineTriggerOut(BaseModel):
+    started: bool
+    pipeline: str
+    log_file: str

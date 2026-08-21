@@ -14,3 +14,6 @@ benchmark/fulltext/
 
 # subagent-driven-development scratch workspaces (ledgers, briefs, review packages)
 .superpowers/
+
+# per-run stdout/stderr logs from admin-triggered pipeline subprocesses
+logs/

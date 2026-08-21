@@ -18,7 +18,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
-from researchbridge.api.schemas import PaperExclude, PaperSummary, PipelineRunOut, PipelineStatus
+from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, trigger
+from researchbridge.api.schemas import (
+    ArxivIngestionTrigger,
+    EmbeddingTrigger,
+    ExtractionTrigger,
+    PaperExclude,
+    PaperSummary,
+    PipelineRunOut,
+    PipelineStatus,
+    PipelineTriggerOut,
+    SpringerIngestionTrigger,
+)
 from researchbridge.api.serializers import to_summary
 from researchbridge.db.models import (
     Embedding,
@@ -32,6 +43,7 @@ from researchbridge.db.models import (
 router = APIRouter(prefix="/api/admin")
 
 RECENT_RUNS_LIMIT = 10
+PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "extraction", "embedding")
 
 
 @router.get("/pipeline", response_model=PipelineStatus)
@@ -59,6 +71,7 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         embedding_runs=[
             _to_run(run, ("papers_processed", "papers_skipped")) for run in _recent(session, EmbeddingRun)
         ],
+        running={key: is_running(key) for key in PIPELINE_KEYS},
     )
 
 
@@ -75,6 +88,7 @@ def _to_run(run, count_fields: tuple[str, ...]) -> PipelineRunOut:
         started_at=run.started_at,
         finished_at=run.finished_at,
         error_summary=run.error_summary,
+        source=getattr(run, "source", None),
         counts={field: getattr(run, field) for field in count_fields},
     )
 
@@ -91,3 +105,53 @@ def exclude_paper(
     session.commit()
 
     return to_summary(session, paper)
+
+
+def _trigger_or_409(key: str, module: str, args: list[str]) -> PipelineTriggerOut:
+    try:
+        log_path = trigger(key, module, args)
+    except PipelineAlreadyRunning as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return PipelineTriggerOut(started=True, pipeline=key, log_file=str(log_path))
+
+
+@router.post("/ingestion/arxiv/run", response_model=PipelineTriggerOut)
+def trigger_arxiv_ingestion(payload: ArxivIngestionTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.search_query is not None:
+        args += ["--search-query", payload.search_query]
+    if payload.page_size is not None:
+        args += ["--page-size", str(payload.page_size)]
+    if payload.max_pages is not None:
+        args += ["--max-pages", str(payload.max_pages)]
+    return _trigger_or_409("ingestion_arxiv", "researchbridge.ingestion.cli", args)
+
+
+@router.post("/ingestion/springer/run", response_model=PipelineTriggerOut)
+def trigger_springer_ingestion(payload: SpringerIngestionTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.query is not None:
+        args += ["--query", payload.query]
+    if payload.page_size is not None:
+        args += ["--page-size", str(payload.page_size)]
+    if payload.max_pages is not None:
+        args += ["--max-pages", str(payload.max_pages)]
+    return _trigger_or_409("ingestion_springer", "researchbridge.ingestion.cli_springer", args)
+
+
+@router.post("/extraction/run", response_model=PipelineTriggerOut)
+def trigger_extraction(payload: ExtractionTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.limit is not None:
+        args += ["--limit", str(payload.limit)]
+    if payload.extractor is not None:
+        args += ["--extractor", payload.extractor]
+    return _trigger_or_409("extraction", "researchbridge.extraction.cli", args)
+
+
+@router.post("/embedding/run", response_model=PipelineTriggerOut)
+def trigger_embedding(payload: EmbeddingTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.limit is not None:
+        args += ["--limit", str(payload.limit)]
+    return _trigger_or_409("embedding", "researchbridge.embedding.cli_embed", args)
