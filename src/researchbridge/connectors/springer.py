@@ -14,6 +14,15 @@ what this connector's default query uses.
 Page size note: also verified live - this tier 403s on p=50 and above,
 but accepts p<=25. DEFAULT_PAGE_SIZE reflects that free-tier ceiling; a
 premium key could raise it.
+
+Date note: `publicationDate` is often a nominal issue/volume cover date
+shared identically across many otherwise-unrelated records (e.g. every
+article in a December 2026 journal issue reporting "2026-12-01"
+regardless of when it actually went online), not a meaningful per-paper
+date - verified live, an entire batch came back with one shared value.
+`onlineDate` is the real per-record availability date and is what this
+connector uses for publication_date, falling back to publicationDate
+only when onlineDate is absent.
 """
 
 from __future__ import annotations
@@ -161,7 +170,7 @@ class SpringerConnector:
             source_id=doi,
             title=record.get("title", ""),
             abstract=record.get("abstract") or None,
-            publication_date=_parse_date(record.get("publicationDate")),
+            publication_date=_parse_date(record.get("onlineDate") or record.get("publicationDate")),
             authors=authors,
             categories=list(record.get("subjects", [])),
             doi=doi,
@@ -176,6 +185,7 @@ class SpringerConnector:
                 "genre": record.get("genre"),
                 "publisher": record.get("publisher"),
                 "publisherName": record.get("publisherName"),
+                "publicationDate": record.get("publicationDate"),  # nominal cover date, not used as publication_date - see module docstring
             },
         )
 

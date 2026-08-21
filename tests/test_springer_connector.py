@@ -55,6 +55,11 @@ def test_normalized_paper_fields() -> None:
     assert paper.authors[1].orcid is None
     assert set(paper.categories) == {"Computer Science", "Artificial Intelligence"}
     assert paper.venue == "Machine Learning"
+    # onlineDate (2026-01-15), not publicationDate (2026-12-01): publicationDate
+    # is often a nominal issue/volume cover date shared by many articles, while
+    # onlineDate is the real per-article availability date - verified live
+    # against the real API, where publicationDate was identical across an
+    # entire batch of otherwise-unrelated articles.
     assert paper.publication_date.isoformat() == "2026-01-15"
     assert paper.document_type == "Journal"
     assert paper.language == "en"
@@ -73,6 +78,17 @@ def test_second_record_open_access_false_and_no_orcid() -> None:
 
     assert paper.open_access is False
     assert paper.authors[0].orcid is None
+
+
+@responses.activate
+def test_publication_date_falls_back_to_publicationDate_without_onlineDate() -> None:
+    responses.add(responses.GET, SPRINGER_META_API_URL, body=_load("springer_page1.json"), status=200)
+
+    connector = SpringerConnector(query='"machine learning"', api_key="fake-key")
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[1]  # has publicationDate but no onlineDate in the fixture
+
+    assert paper.publication_date.isoformat() == "2026-02-01"
 
 
 @responses.activate
