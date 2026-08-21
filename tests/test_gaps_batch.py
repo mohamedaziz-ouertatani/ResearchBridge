@@ -4,6 +4,7 @@ import math
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import pytest
 
@@ -85,6 +86,18 @@ def _recurring_pattern(session, embedder, names: tuple[str, str, str]) -> list[P
 def test_skips_papers_without_an_embedding(session_factory, embedder) -> None:
     session = session_factory()
     unembedded = _paper(session, embedder, "no-embedding", embed=False)
+    session.commit()
+
+    summary = run_all(session, embedder, min_cluster_size=3, similarity_threshold=0.3, save=False)
+
+    session.close()
+    assert summary.papers_seen == 0
+
+
+def test_skips_excluded_papers_as_seeds(session_factory, embedder) -> None:
+    session = session_factory()
+    excluded = _paper(session, embedder, "excluded")
+    excluded.excluded_at = datetime.now(timezone.utc)
     session.commit()
 
     summary = run_all(session, embedder, min_cluster_size=3, similarity_threshold=0.3, save=False)

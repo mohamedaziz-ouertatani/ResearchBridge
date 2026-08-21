@@ -77,7 +77,8 @@ def run_all(
 
 def _select_seed_papers(session: Session, force: bool) -> list[uuid.UUID]:
     query = select(Paper.id).where(
-        exists().where(Embedding.paper_id == Paper.id, Embedding.embedding_type == EMBEDDING_TYPE)
+        exists().where(Embedding.paper_id == Paper.id, Embedding.embedding_type == EMBEDDING_TYPE),
+        Paper.excluded_at.is_(None),
     )
     if not force:
         already_done = exists().where(CandidateGap.seed_paper_id == Paper.id)
