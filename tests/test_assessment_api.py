@@ -143,6 +143,16 @@ def test_post_assessment_includes_technical_feasibility(client, session, embedde
     assert paper.title in body["technical_feasibility_reasoning"]
 
 
+def test_post_assessment_potential_opportunities_stays_null(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["potential_opportunities"] is None
+
+
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
 

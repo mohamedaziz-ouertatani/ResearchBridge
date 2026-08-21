@@ -322,6 +322,20 @@ def test_feasibility_evidence_is_linked_with_role_feasibility(session_factory, e
     assert {link.evidence_id for link in links} == {evidence_id}
 
 
+def test_potential_opportunities_stays_null_by_design(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    # deliberately NULL even with a strong application present - see assessment/opportunities.py
+    assert assessment.potential_opportunities is None
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

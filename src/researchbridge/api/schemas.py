@@ -131,11 +131,16 @@ class ResearchAssessmentOut(BaseModel):
     (see assessment/applications.py)."""
     technical_feasibility_level: str
     technical_feasibility_reasoning: str | None
+    potential_opportunities: list[dict] | None
+    """Deliberately always NULL for now - see assessment/opportunities.py:
+    genuine Direct/Adjacent/Speculative opportunity framing requires
+    synthesis this project's deterministic toolbox can't do without either
+    fabricating content or adding a generative model, neither done yet."""
     recommendation: str | None
     confidence: str | None
-    """Opportunities/recommendation are later enrichment passes and stay
-    NULL/"not_assessed" until actually computed (blueprint Sec 22: NULL is
-    preferable to fabricated certainty)."""
+    """Recommendation is a later enrichment pass and stays NULL until
+    actually computed (blueprint Sec 22: NULL is preferable to fabricated
+    certainty)."""
 
 
 class ResearchAssessmentCreate(BaseModel):
