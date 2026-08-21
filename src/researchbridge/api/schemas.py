@@ -13,7 +13,7 @@ stub-vs-real distinction extraction_method still carries.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -187,3 +187,24 @@ class CorpusStats(BaseModel):
     embedded_papers: int
     papers_by_year: dict[int, int]
     papers_by_category: dict[str, int]
+
+
+class PipelineRunOut(BaseModel):
+    id: uuid.UUID
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    error_summary: str | None
+    counts: dict[str, int]
+    """Run-type-specific numeric fields, e.g. records_fetched/inserted/
+    duplicate/failed for an ingestion run - kept as a dict rather than a
+    field per run type so one schema covers all three pipeline stages."""
+
+
+class PipelineStatus(BaseModel):
+    total_papers: int
+    papers_with_claims: int
+    papers_with_embeddings: int
+    ingestion_runs: list[PipelineRunOut]
+    extraction_runs: list[PipelineRunOut]
+    embedding_runs: list[PipelineRunOut]

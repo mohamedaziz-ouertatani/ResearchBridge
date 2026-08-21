@@ -61,6 +61,9 @@ export default function Console() {
           <Link href="/annotate" className="eyebrow hover:text-[var(--ink)]">
             annotation workbench →
           </Link>
+          <Link href="/admin" className="eyebrow hover:text-[var(--ink)]">
+            pipeline status →
+          </Link>
         </div>
       </header>
 
