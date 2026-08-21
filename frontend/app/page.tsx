@@ -77,6 +77,9 @@ export default function Explorer() {
           <Link href="/annotate" className="eyebrow hover:text-[var(--ink)]">
             annotation workbench →
           </Link>
+          <Link href="/gaps" className="eyebrow hover:text-[var(--ink)]">
+            gap review →
+          </Link>
           <span className="eyebrow">
             {stats ? `${stats.total_papers.toLocaleString()} papers · ${stats.total_authors.toLocaleString()} authors` : "connecting"}
           </span>

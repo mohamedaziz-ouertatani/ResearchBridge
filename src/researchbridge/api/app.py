@@ -10,7 +10,9 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from researchbridge.api.assessment_routes import router as assessment_router
 from researchbridge.api.benchmark_routes import router as benchmark_router
+from researchbridge.api.gaps_routes import router as gaps_router
 from researchbridge.api.routes import router
 from researchbridge.config import load_config
 
@@ -28,11 +30,13 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=DEV_FRONTEND_ORIGINS,
-        allow_methods=["GET", "PUT"],  # PUT: the annotation workbench saves back to the YAML files
+        allow_methods=["GET", "PUT", "POST"],  # PUT: annotation/gap review saves; POST: creating a ResearchAssessment
         allow_headers=["*"],
     )
     app.include_router(router)
     app.include_router(benchmark_router)
+    app.include_router(gaps_router)
+    app.include_router(assessment_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

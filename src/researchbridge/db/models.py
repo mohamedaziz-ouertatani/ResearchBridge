@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -274,9 +274,15 @@ class CandidateGap(Base):
     Sec 44: gap detection is evaluated by a person - correctness, relevance,
     novelty, evidence support, usefulness - never by a formula). Nothing
     here should be presented to an end user as validated until reviewed.
+    Valid values: "pending", "approved", "rejected" - enforced both by a DB
+    CHECK constraint (see __table_args__) and at the API layer
+    (api/gaps_routes.py), so a bad status can't reach the table via any path.
     """
 
     __tablename__ = "candidate_gaps"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="ck_candidate_gaps_status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seed_paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
@@ -287,6 +293,8 @@ class CandidateGap(Base):
     similarity_threshold: Mapped[float] = mapped_column(Float, nullable=False)
     detection_method: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class CandidateGapEvidence(Base):
@@ -307,3 +315,92 @@ class CandidateGapEvidence(Base):
         UUID(as_uuid=True), ForeignKey("candidate_gaps.id"), nullable=False
     )
     evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+
+
+class ResearchInput(Base):
+    """One user-submitted item to be assessed (blueprint Sec 2A).
+
+    input_type is "idea" (free-text prompt, no attached document) for the
+    first vertical slice - "document" (uploaded paper) is deliberately not
+    yet supported, per the roadmap's build-order guidance (Sec 45): ship
+    idea-only end-to-end before adding upload/PDF-parsing surface area.
+    """
+
+    __tablename__ = "research_inputs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    input_type: Mapped[str] = mapped_column(String, nullable=False, default="idea")
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    matched_paper_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("papers.id"), nullable=True
+    )
+    source_filename: Mapped[str | None] = mapped_column(String, nullable=True)
+    submitted_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ResearchAssessment(Base):
+    """One analysis session over one ResearchInput (blueprint Sec 2A).
+
+    Deliberately lightweight: a summary snapshot, never the source of
+    truth. That's ResearchAssessmentEvidence, which grounds every
+    populated field in a real Evidence row - same "never invent" rule as
+    CandidateGapEvidence/Sec 15.
+
+    This first vertical slice only ever populates retrieved_paper_ids,
+    comparison_summary, status, and completed_at. Every other field stays
+    NULL/"not_assessed" until a later enrichment pass computes it for
+    real - NULL is preferable to fabricated certainty (Sec 22).
+    """
+
+    __tablename__ = "research_assessments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    research_input_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("research_inputs.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    retrieved_paper_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    comparison_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    novelty_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
+    novelty_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    research_gap_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    research_gap_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    candidate_gap_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("candidate_gaps.id"), nullable=True
+    )
+    potential_applications: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    technical_feasibility_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
+    risks_and_limitations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_validation_needed: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommendation: Mapped[str | None] = mapped_column(String, nullable=True)
+    confidence: Mapped[str | None] = mapped_column(String, nullable=True)
+    human_reviewed: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class ResearchAssessmentEvidence(Base):
+    """Grounds one ResearchAssessment field in a real Evidence row (Sec 2A).
+
+    Mirrors CandidateGapEvidence exactly: this is what makes an
+    assessment's comparison_summary inspectable rather than assessment
+    text being trusted as its own source of truth.
+    """
+
+    __tablename__ = "research_assessment_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "research_assessment_id", "evidence_id", "role", name="uq_research_assessment_evidence_assessment_evidence_role"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    research_assessment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("research_assessments.id"), nullable=False
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())

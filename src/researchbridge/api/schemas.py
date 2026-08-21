@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PaperSummary(BaseModel):
@@ -61,6 +61,75 @@ class PaperPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class GapEvidenceOut(BaseModel):
+    paper_id: uuid.UUID
+    paper_title: str
+    text: str
+    section: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class CandidateGapOut(BaseModel):
+    id: uuid.UUID
+    seed_paper_id: uuid.UUID
+    seed_paper_title: str
+    observation: str
+    gap_type: str
+    status: str
+    contributing_paper_count: int
+    similarity_threshold: float
+    detection_method: str
+    review_note: str | None
+    evidence: list[GapEvidenceOut]
+    """Never presented as validated: gap_type is always "inference" (Sec 34),
+    and status stays "pending" until a human reviews it here (Sec 35/44)."""
+
+    model_config = {"from_attributes": True}
+
+
+class CandidateGapReview(BaseModel):
+    status: str
+    review_note: str | None = None
+
+
+class CandidateGapPage(BaseModel):
+    items: list[CandidateGapOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class ResearchInputOut(BaseModel):
+    id: uuid.UUID
+    input_type: str
+    raw_text: str
+    title: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class ResearchAssessmentOut(BaseModel):
+    id: uuid.UUID
+    research_input: ResearchInputOut
+    status: str
+    retrieved_paper_ids: list[str]
+    comparison_summary: str | None
+    novelty_level: str
+    research_gap_text: str | None
+    technical_feasibility_level: str
+    recommendation: str | None
+    confidence: str | None
+    """This first vertical slice only populates status/retrieved_paper_ids/
+    comparison_summary - every other field is a later enrichment pass and
+    stays NULL/"not_assessed" until actually computed (blueprint Sec 22:
+    NULL is preferable to fabricated certainty)."""
+
+
+class ResearchAssessmentCreate(BaseModel):
+    raw_text: str = Field(min_length=1)
 
 
 class CorpusStats(BaseModel):
