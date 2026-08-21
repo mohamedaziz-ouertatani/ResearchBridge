@@ -23,6 +23,7 @@ CLAIM_TYPE_ORDER = (
     "main_contribution",
     "results",
     "limitations",
+    "research_gap",
     "applications",
 )
 

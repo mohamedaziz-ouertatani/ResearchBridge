@@ -20,6 +20,7 @@ const FIELD_LABELS: Record<string, string> = {
   main_contribution: "Main contribution",
   results: "Results",
   limitations: "Limitations",
+  research_gap: "Research gap",
   applications: "Applications",
 };
 

@@ -76,6 +76,27 @@ def test_problem_not_added_when_a_real_cue_phrase_already_covers_it() -> None:
     assert problems == []
 
 
+def test_research_gap_cue_phrase_is_matched() -> None:
+    abstract = "We propose a new caching layer. Extending this to distributed settings remains future work."
+    candidates = HeuristicExtractor().extract(_paper(abstract))
+
+    gap = next(c for c in candidates if c.claim_type == "research_gap")
+    assert gap.claim_text == "Extending this to distributed settings remains future work."
+    assert gap.confidence == "medium"
+
+
+def test_future_work_no_longer_counted_as_a_limitation() -> None:
+    # "future work" used to sit in the limitations cue list, conflating "a
+    # weakness of this work" with "what's left for next time" - Sec 32
+    # treats them as distinct explicit-gap categories.
+    abstract = "We propose a new caching layer. Extending this to distributed settings remains future work."
+    candidates = HeuristicExtractor().extract(_paper(abstract))
+
+    types = {c.claim_type for c in candidates}
+    assert "limitations" not in types
+    assert "research_gap" in types
+
+
 def test_more_specific_phrase_takes_priority_over_vaguer_one() -> None:
     # "our contribution" (main_contribution) should win over a later, vaguer
     # "we show that" sentence also present in the same abstract

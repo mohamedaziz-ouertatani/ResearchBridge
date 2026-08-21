@@ -55,11 +55,20 @@ _CUE_PHRASES: dict[str, list[str]] = {
     ],
     "limitations": [
         "however,", "a limitation", "does not", "fails to", "remains challenging",
-        "is limited to", "future work",
+        "is limited to",
     ],
     "applications": [
         "can be applied to", "is applicable to", "useful for", "in applications such as",
         "real-world applications",
+    ],
+    # Sec 32's "explicit gaps": a gap the paper states remains open, distinct
+    # from limitations (a weakness of the current work) - "future work" used
+    # to sit under limitations, which conflated "what's wrong with this"
+    # with "what's left to do next".
+    "research_gap": [
+        "future work", "in future work", "we leave", "remains an open",
+        "remains open", "an open question", "open problem", "yet to be explored",
+        "we plan to", "future research", "further exploration",
     ],
 }
 

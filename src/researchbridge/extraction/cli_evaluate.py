@@ -12,10 +12,11 @@ through the persistence pipeline - this is measuring the extractor, not
 exercising storage) and compares each field's extracted text to the
 matching ground-truth field via embedding similarity (evaluation.py).
 
-Scope: research_gap is not evaluated here - it's a nested {addressed,
-remaining} pair in the benchmark schema, not a flat text field like the
-other eight, and forcing it into the same comparison would be misleading
-rather than useful. A fair evaluation for it needs its own design.
+research_gap is evaluated against the benchmark's research_gap.remaining
+specifically (Sec 32's "explicit gap": what the paper says is still open),
+not .addressed - .addressed overlaps heavily with problem/main_contribution,
+which are already evaluated separately, and Phase 3's actual use for this
+field is finding what's NOT yet solved.
 """
 
 from __future__ import annotations
@@ -99,8 +100,11 @@ def _make_extractor(name: str, embedder: Embedder) -> Extractor:
 
 def _evaluate_one(extractor, annotations, papers_by_source_id, embedder: Embedder, threshold: float) -> dict[str, FieldScore]:
     predictions = {a.source_id: extractor.extract(papers_by_source_id[a.source_id]) for a in annotations}
-    ground_truth = {a.source_id: a.fields for a in annotations}
-    return evaluate(predictions, ground_truth, list(ANNOTATION_FIELDS), embedder, threshold)
+    ground_truth = {
+        a.source_id: {**a.fields, "research_gap": a.research_gap.get("remaining", "")} for a in annotations
+    }
+    fields = [*ANNOTATION_FIELDS, "research_gap"]
+    return evaluate(predictions, ground_truth, fields, embedder, threshold)
 
 
 def _print_table(scores: dict[str, FieldScore]) -> None:

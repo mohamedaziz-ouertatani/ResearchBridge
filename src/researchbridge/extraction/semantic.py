@@ -44,7 +44,7 @@ from researchbridge.embedding.base import Embedder
 from researchbridge.extraction.base import ClaimCandidate
 from researchbridge.extraction.sentences import split_sentences
 
-SEMANTIC_MODEL_VERSION = "semantic-v2"
+SEMANTIC_MODEL_VERSION = "semantic-v3"
 
 # One anchor description per Sec 28 field - the sentence most similar to
 # this description (by cosine similarity, since Embedder vectors are
@@ -58,6 +58,7 @@ _FIELD_QUERIES: dict[str, str] = {
     "results": "The results or findings reported in this paper.",
     "limitations": "A limitation or weakness acknowledged in this paper.",
     "applications": "A real-world application this work supports.",
+    "research_gap": "A gap or open question the paper says remains for future work.",
 }
 
 # Calibrated against this model's actual score distribution, not guessed:
