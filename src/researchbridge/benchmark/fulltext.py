@@ -65,13 +65,38 @@ def extract_text(pdf_bytes: bytes) -> str:
     return _tidy("\n\n".join(pages))
 
 
+# Math-heavy PDFs often set equations in fonts with custom glyph-to-code
+# mappings (e.g. a symbol font where code point 0x11 is drawn as an
+# operator glyph). A text extractor has no way to recover the intended
+# Unicode for those, so it emits raw control characters or Private Use
+# Area code points instead - not a rendering bug, the correct character
+# genuinely isn't recoverable this way. Stripping them turns garbled runs
+# like "x(tensor)k<PUA>" into "x(tensor)k": the surrounding prose reads
+# cleanly, and the lost symbol becomes a gap rather than a broken glyph.
+# Recovering the equation itself would need math-aware OCR (e.g. Mathpix,
+# Nougat), well beyond what plain text extraction can do.
+_UNRENDERABLE_RANGES = [
+    (0x00, 0x08),  # C0 controls, excluding \t (0x09) \n (0x0A)
+    (0x0B, 0x0C),
+    (0x0E, 0x1F),
+    (0x7F, 0x9F),  # DEL and C1 controls
+    (0xE000, 0xF8FF),  # Private Use Area
+    (0xF0000, 0xFFFFD),  # Supplementary Private Use Area-A
+    (0x100000, 0x10FFFD),  # Supplementary Private Use Area-B
+    (0xFFFD, 0xFFFD),  # replacement character
+]
+_UNRENDERABLE = re.compile("[" + "".join(f"{chr(lo)}-{chr(hi)}" for lo, hi in _UNRENDERABLE_RANGES) + "]")
+
+
 def _tidy(text: str) -> str:
-    """Collapse the ragged whitespace PDF extraction leaves behind.
+    """Collapse the ragged whitespace PDF extraction leaves behind, and drop
+    characters a text extractor cannot have gotten right (see _UNRENDERABLE_RANGES).
 
     Line structure is kept (annotators read this, and section headings
     depend on line breaks); only runs of blank lines and trailing spaces
     on each line are normalized.
     """
+    text = _UNRENDERABLE.sub("", text)
     text = text.replace("\r\n", "\n").replace("\xa0", " ")
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
