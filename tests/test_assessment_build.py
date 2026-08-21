@@ -367,6 +367,32 @@ def test_risks_evidence_is_linked_with_role_risk(session_factory, embedder) -> N
     assert {link.evidence_id for link in links} == {evidence_id}
 
 
+def test_external_validation_needed_is_always_set(session_factory, embedder) -> None:
+    session = session_factory()
+    _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims at all
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.external_validation_needed is not None
+    assert "not assessed" in assessment.external_validation_needed.lower()
+
+
+def test_external_validation_needed_mentions_applications_when_present(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert "application" in assessment.external_validation_needed.lower()
+
+
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims

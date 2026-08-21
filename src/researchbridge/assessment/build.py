@@ -22,11 +22,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.external_validation import assess_external_validation
 from researchbridge.assessment.feasibility import assess_technical_feasibility
-from researchbridge.assessment.opportunities import assess_opportunities
-from researchbridge.assessment.risks import assess_risks
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
+from researchbridge.assessment.opportunities import assess_opportunities
+from researchbridge.assessment.risks import assess_risks
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.search import search_by_text
@@ -63,6 +64,7 @@ def build_assessment(
     feasibility = assess_technical_feasibility(session, papers_by_distance)
     opportunities = assess_opportunities(session, papers_by_distance)
     risks = assess_risks(session, papers_by_distance)
+    external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
 
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
@@ -90,6 +92,7 @@ def build_assessment(
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=opportunities.opportunities,
         risks_and_limitations=risks.text,
+        external_validation_needed=external_validation_needed,
         completed_at=datetime.now(UTC),
     )
     session.add(assessment)

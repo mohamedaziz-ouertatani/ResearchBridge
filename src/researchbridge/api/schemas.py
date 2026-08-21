@@ -140,6 +140,10 @@ class ResearchAssessmentOut(BaseModel):
     """One line per relevant retrieved paper's own explicit limitations
     claim, grounded the same way as potential_applications (see
     assessment/risks.py) - never a synthesized new risk."""
+    external_validation_needed: str
+    """Always the same structural disclaimer (blueprint Sec 21): market/
+    economic/commercialization judgments are never inferred from
+    literature alone - see assessment/external_validation.py."""
     recommendation: str | None
     confidence: str | None
     """Recommendation is a later enrichment pass and stays NULL until

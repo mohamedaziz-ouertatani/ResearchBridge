@@ -154,6 +154,15 @@ def test_post_assessment_includes_risks_and_limitations(client, session, embedde
     assert paper.title in body["risks_and_limitations"]
 
 
+def test_post_assessment_includes_external_validation_needed(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert "not assessed" in body["external_validation_needed"].lower()
+
+
 def test_post_assessment_potential_opportunities_stays_null(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
     _add_claim(session, paper, "applications", "real-time payment fraud screening")

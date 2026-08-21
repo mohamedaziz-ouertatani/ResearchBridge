@@ -64,6 +64,7 @@ def _to_out(assessment: ResearchAssessment, research_input: ResearchInput) -> Re
         technical_feasibility_reasoning=assessment.technical_feasibility_reasoning,
         potential_opportunities=assessment.potential_opportunities,
         risks_and_limitations=assessment.risks_and_limitations,
+        external_validation_needed=assessment.external_validation_needed,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,
     )
