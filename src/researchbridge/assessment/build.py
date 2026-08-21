@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.search import search_by_text
@@ -37,33 +38,40 @@ def build_assessment(
         raise ValueError(f"no research input with id {research_input_id}")
 
     results = search_by_text(session, research_input.raw_text, embedder, top_k)
-    papers = [paper for paper, _distance in results]
+    papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
 
     summary_parts: list[str] = []
-    evidence_ids: list[uuid.UUID] = []
-    for paper in papers:
-        claims = _claims_for_paper(session, paper.id)
+    comparison_evidence_ids: list[uuid.UUID] = []
+    for paper, _distance, claims in papers_with_claims:
         if not claims:
             continue
         lines = [f"- {claim_type}: {text}" for claim_type, text, _evidence_id in claims]
         summary_parts.append(f"{paper.title}\n" + "\n".join(lines))
-        evidence_ids.extend(evidence_id for _, _, evidence_id in claims)
+        comparison_evidence_ids.extend(evidence_id for _, _, evidence_id in claims)
+
+    novelty = assess_novelty([(paper.title, distance, claims) for paper, distance, claims in papers_with_claims])
 
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
         status="completed",
-        retrieved_paper_ids=[str(paper.id) for paper in papers],
+        retrieved_paper_ids=[str(paper.id) for paper, _distance, _claims in papers_with_claims],
         comparison_summary="\n\n".join(summary_parts) if summary_parts else None,
+        novelty_level=novelty.level,
+        novelty_reasoning=novelty.reasoning,
         completed_at=datetime.now(UTC),
     )
     session.add(assessment)
     session.flush()
 
-    for evidence_id in evidence_ids:
+    for evidence_id in comparison_evidence_ids:
         session.add(
             ResearchAssessmentEvidence(
                 research_assessment_id=assessment.id, evidence_id=evidence_id, role="comparison"
             )
+        )
+    for evidence_id in novelty.evidence_ids:
+        session.add(
+            ResearchAssessmentEvidence(research_assessment_id=assessment.id, evidence_id=evidence_id, role="novelty")
         )
 
     session.commit()

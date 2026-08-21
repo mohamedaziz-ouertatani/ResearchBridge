@@ -118,6 +118,7 @@ class ResearchAssessmentOut(BaseModel):
     retrieved_paper_ids: list[str]
     comparison_summary: str | None
     novelty_level: str
+    novelty_reasoning: str | None
     research_gap_text: str | None
     technical_feasibility_level: str
     recommendation: str | None

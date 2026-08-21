@@ -93,7 +93,15 @@ def test_post_assessment_creates_input_and_runs_the_pipeline(client, session, em
     assert body["status"] == "completed"
     assert str(paper.id) in body["retrieved_paper_ids"]
     assert "evaluated only in offline settings" in body["comparison_summary"]
+    assert body["novelty_level"] == "low"  # identical text to the paper title -> distance 0.0
+    assert paper.title in body["novelty_reasoning"]
+
+
+def test_post_assessment_novelty_not_assessed_without_any_evidence(client, session) -> None:
+    body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers in the corpus"}).json()
+
     assert body["novelty_level"] == "not_assessed"
+    assert body["novelty_reasoning"] is not None
 
 
 def test_post_assessment_requires_raw_text(client) -> None:

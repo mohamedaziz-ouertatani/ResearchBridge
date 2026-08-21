@@ -55,6 +55,7 @@ def _to_out(assessment: ResearchAssessment, research_input: ResearchInput) -> Re
         retrieved_paper_ids=assessment.retrieved_paper_ids,
         comparison_summary=assessment.comparison_summary,
         novelty_level=assessment.novelty_level,
+        novelty_reasoning=assessment.novelty_reasoning,
         research_gap_text=assessment.research_gap_text,
         technical_feasibility_level=assessment.technical_feasibility_level,
         recommendation=assessment.recommendation,

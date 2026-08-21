@@ -120,12 +120,11 @@ def test_comparison_evidence_is_linked_for_every_claim_used(session_factory, emb
 
     links = (
         session.query(ResearchAssessmentEvidence)
-        .filter_by(research_assessment_id=assessment.id)
+        .filter_by(research_assessment_id=assessment.id, role="comparison")
         .all()
     )
     session.close()
     assert {link.evidence_id for link in links} == {evidence_id}
-    assert all(link.role == "comparison" for link in links)
 
 
 def test_excludes_stub_claims_from_comparison(session_factory, embedder) -> None:
@@ -163,3 +162,54 @@ def test_raises_for_unknown_research_input(session_factory, embedder) -> None:
     with pytest.raises(ValueError):
         build_assessment(session, uuid.uuid4(), embedder)
     session.close()
+
+
+def test_novelty_is_set_when_a_close_match_is_retrieved(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    # identical text to the paper's title -> distance 0.0 -> "low" novelty
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.novelty_level == "low"
+    assert paper.title in assessment.novelty_reasoning
+
+
+def test_novelty_evidence_is_linked_with_role_novelty(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    novelty_links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="novelty")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in novelty_links} == {evidence_id}
+
+
+def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:
+    session = session_factory()
+    _paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    novelty_links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="novelty")
+        .all()
+    )
+    session.close()
+    assert novelty_links == []
+    assert assessment.novelty_level == "not_assessed"
