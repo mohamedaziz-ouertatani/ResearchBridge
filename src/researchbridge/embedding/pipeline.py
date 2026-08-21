@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbridge.db.models import Embedding, EmbeddingRun, Paper
 from researchbridge.embedding.base import Embedder
+from researchbridge.retrieval.text import document_text
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class EmbeddingPipeline:
                 texts: list[str] = []
                 embeddable: list[Paper] = []
                 for paper in batch:
-                    text = _build_input_text(paper)
+                    text = document_text(paper)
                     if text is None:
                         run.papers_skipped += 1  # defensive: title is required by ingestion validation,
                         continue  # so this should be ~0 in practice
@@ -89,13 +90,6 @@ class EmbeddingPipeline:
         if limit is not None:
             query = query.limit(limit)
         return list(session.execute(query).scalars())
-
-
-def _build_input_text(paper: Paper) -> str | None:
-    title = (paper.title or "").strip()
-    abstract = (paper.abstract or "").strip()
-    text = f"{title}\n\n{abstract}".strip()
-    return text or None
 
 
 def _chunks(items: list[Paper], size: int) -> Iterator[list[Paper]]:

@@ -16,7 +16,9 @@ dependencies = [
     "pymupdf>=1.28.2",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
+    "rank-bm25>=0.2.2",
     "requests>=2.34.2",
+    "scikit-learn>=1.9.0",
     "sentence-transformers>=6.0.0",
     "sqlalchemy>=2.0",
     "tenacity>=9.1.4",
@@ -30,6 +32,7 @@ rb-embed = "researchbridge.embedding.cli_embed:main"
 rb-search = "researchbridge.embedding.cli_search:main"
 rb-benchmark-sample = "researchbridge.benchmark.cli_sample:main"
 rb-benchmark-fetch = "researchbridge.benchmark.cli_fetch:main"
+rb-retrieval-compare = "researchbridge.retrieval.cli_compare:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
