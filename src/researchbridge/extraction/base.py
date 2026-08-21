@@ -12,6 +12,20 @@ from typing import Protocol
 
 from researchbridge.db.models import Paper
 
+# The Sec 25/28 field set, in reading order - reused wherever claims need a
+# sensible display order (the API) rather than whatever order they happen
+# to be stored/queried in.
+CLAIM_TYPE_ORDER = (
+    "problem",
+    "research_question",
+    "method",
+    "dataset",
+    "main_contribution",
+    "results",
+    "limitations",
+    "applications",
+)
+
 
 @dataclass
 class ClaimCandidate:

@@ -13,6 +13,15 @@ export type PaperSummary = {
   authors: string[];
 };
 
+export type ExtractedClaim = {
+  claim_type: string;
+  text: string;
+  /** The extractor's own self-reported confidence ("medium" | "low") - not a validated accuracy score. */
+  confidence: string;
+  section: string | null;
+  extraction_method: string;
+};
+
 export type SearchHit = {
   paper: PaperSummary;
   /** pgvector cosine distance: 0 is identical, larger is further apart in meaning. */
@@ -66,6 +75,8 @@ export const api = {
   paper: (id: string) => get<PaperSummary>(`/api/papers/${id}`),
 
   similar: (id: string, topK = 8) => get<SearchHit[]>(`/api/papers/${id}/similar`, { top_k: topK }),
+
+  claims: (id: string) => get<ExtractedClaim[]>(`/api/papers/${id}/claims`),
 
   search: (q: string, topK = 12) => get<SearchHit[]>("/api/search", { q, top_k: topK }),
 };

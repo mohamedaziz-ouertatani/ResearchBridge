@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { api, type PaperSummary, type SearchHit } from "@/lib/api";
+import { api, type ExtractedClaim, type PaperSummary, type SearchHit } from "@/lib/api";
+import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
 
@@ -10,17 +11,21 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
   const { id } = use(params);
 
   const [paper, setPaper] = useState<PaperSummary | null>(null);
+  const [claims, setClaims] = useState<ExtractedClaim[]>([]);
   const [similar, setSimilar] = useState<SearchHit[]>([]);
   const [notEmbedded, setNotEmbedded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setPaper(null);
+    setClaims([]);
     setSimilar([]);
     setNotEmbedded(false);
     setError(null);
 
     api.paper(id).then(setPaper).catch(() => setError("That paper isn't in the corpus."));
+
+    api.claims(id).then(setClaims).catch(() => {});
 
     api
       .similar(id, 8)
@@ -100,6 +105,8 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
               </p>
             </div>
           )}
+
+          <ExtractedClaims claims={claims} />
 
           <section className="mt-16">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] pb-3">

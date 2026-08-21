@@ -33,6 +33,23 @@ class PaperSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExtractedClaimOut(BaseModel):
+    claim_type: str
+    text: str
+    confidence: str
+    """"medium" or "low" - the extractor's own self-reported confidence,
+    not a validated accuracy signal. Measured per-field precision varies
+    widely (0.10-0.88 F1 depending on the field) and does not track this
+    label cleanly: "problem" claims are labeled "low" whenever the
+    extractor falls back to an abstract's opening sentence, yet that field
+    measures as the single most reliable one. Treat this as provenance,
+    not as a trustworthiness score."""
+    section: str | None
+    extraction_method: str
+
+    model_config = {"from_attributes": True}
+
+
 class SearchHit(BaseModel):
     paper: PaperSummary
     distance: float

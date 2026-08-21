@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.db.models import EMBEDDING_DIM, Author, Embedding, Paper, PaperAuthor, PaperCategory
+from researchbridge.db.models import EMBEDDING_DIM, Author, Embedding, Evidence, ExtractedClaim, Paper, PaperAuthor, PaperCategory
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
 
@@ -182,6 +182,65 @@ def test_get_paper_returns_detail(client, session) -> None:
 
 def test_get_paper_404s_for_unknown_id(client) -> None:
     assert client.get(f"/api/papers/{uuid.uuid4()}").status_code == 404
+
+
+def _add_claim(
+    session,
+    paper: Paper,
+    claim_type: str,
+    text: str,
+    confidence: str = "medium",
+    section: str | None = None,
+    extraction_method: str = "hybrid",
+) -> None:
+    evidence = Evidence(
+        paper_id=paper.id, evidence_type=claim_type, section=section, text=text,
+        extraction_method=extraction_method, model_version="test-v1", confidence=confidence,
+    )
+    session.add(evidence)
+    session.flush()
+    session.add(ExtractedClaim(paper_id=paper.id, claim_type=claim_type, text=text, evidence_id=evidence.id, confidence=confidence))
+    session.commit()
+
+
+def test_claims_returns_extracted_claims_in_field_order(client, session) -> None:
+    paper = _add_paper(session, "p1")
+    _add_claim(session, paper, "results", "We achieve 90% accuracy.")
+    _add_claim(session, paper, "problem", "Latency is too high under load.")
+
+    body = client.get(f"/api/papers/{paper.id}/claims").json()
+
+    assert [c["claim_type"] for c in body] == ["problem", "results"]  # Sec 25/28 order, not insertion order
+
+
+def test_claims_includes_confidence_and_section(client, session) -> None:
+    paper = _add_paper(session, "p1")
+    _add_claim(session, paper, "problem", "Latency is too high.", confidence="low", section="Abstract")
+
+    body = client.get(f"/api/papers/{paper.id}/claims").json()
+
+    assert body[0]["confidence"] == "low"
+    assert body[0]["section"] == "Abstract"
+    assert body[0]["extraction_method"] == "hybrid"
+
+
+def test_claims_excludes_stub_rows(client, session) -> None:
+    paper = _add_paper(session, "p1")
+    _add_claim(session, paper, "problem", "Synthetic placeholder text.", extraction_method="stub")
+
+    body = client.get(f"/api/papers/{paper.id}/claims").json()
+
+    assert body == []
+
+
+def test_claims_empty_list_for_paper_with_no_extraction(client, session) -> None:
+    paper = _add_paper(session, "p1")
+
+    assert client.get(f"/api/papers/{paper.id}/claims").json() == []
+
+
+def test_claims_404s_for_unknown_paper(client) -> None:
+    assert client.get(f"/api/papers/{uuid.uuid4()}/claims").status_code == 404
 
 
 def test_search_returns_hits_ordered_by_distance(client, session, embedder) -> None:

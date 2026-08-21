@@ -9,8 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.api.schemas import CorpusStats, PaperPage, PaperSummary, SearchHit
-from researchbridge.api.serializers import to_summaries, to_summary
+from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit
+from researchbridge.api.serializers import to_claims, to_summaries, to_summary
 from researchbridge.db.models import Author, Embedding, Paper, PaperCategory
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
@@ -67,6 +67,19 @@ def get_paper(paper_id: uuid.UUID, session: Session = Depends(get_session)) -> P
     if paper is None:
         raise HTTPException(status_code=404, detail=f"No paper with id {paper_id}")
     return to_summary(session, paper)
+
+
+@router.get("/papers/{paper_id}/claims", response_model=list[ExtractedClaimOut])
+def paper_claims(paper_id: uuid.UUID, session: Session = Depends(get_session)) -> list[ExtractedClaimOut]:
+    """Automatically extracted claims for a paper - not human-verified.
+
+    Empty is a normal response (no abstract, or extraction hasn't run for
+    this paper yet), not an error - unlike a 404, which means the paper
+    itself doesn't exist.
+    """
+    if session.get(Paper, paper_id) is None:
+        raise HTTPException(status_code=404, detail=f"No paper with id {paper_id}")
+    return to_claims(session, paper_id)
 
 
 @router.get("/papers/{paper_id}/similar", response_model=list[SearchHit])
