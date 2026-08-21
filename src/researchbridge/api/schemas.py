@@ -111,6 +111,18 @@ class ResearchInputOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AssessmentEvidenceOut(BaseModel):
+    role: str
+    """Which report field this passage backs: comparison | novelty |
+    research_gap | application | feasibility | risk | opportunity."""
+    paper_id: uuid.UUID
+    paper_title: str
+    text: str
+    section: str | None
+
+    model_config = {"from_attributes": True}
+
+
 class ResearchAssessmentOut(BaseModel):
     id: uuid.UUID
     research_input: ResearchInputOut
@@ -146,9 +158,10 @@ class ResearchAssessmentOut(BaseModel):
     literature alone - see assessment/external_validation.py."""
     recommendation: str | None
     confidence: str | None
-    """Recommendation is a later enrichment pass and stays NULL until
-    actually computed (blueprint Sec 22: NULL is preferable to fabricated
-    certainty)."""
+    evidence: list[AssessmentEvidenceOut]
+    """Every populated field above traces back to real quoted passages here
+    (Sec 15/17). An assessment is a lightweight summary, never its own
+    source of truth - if a field can't point at evidence, it is NULL."""
 
 
 class ResearchAssessmentCreate(BaseModel):

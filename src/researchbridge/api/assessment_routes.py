@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut
+from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchInput
@@ -38,7 +39,7 @@ def create_assessment(
 
     assessment = build_assessment(session, research_input.id, embedder)
 
-    return _to_out(assessment, research_input)
+    return _to_out(session, assessment, research_input)
 
 
 @router.post("/upload", response_model=ResearchAssessmentOut)
@@ -62,7 +63,7 @@ async def create_assessment_from_upload(
 
     assessment = build_assessment(session, research_input.id, embedder)
 
-    return _to_out(assessment, research_input)
+    return _to_out(session, assessment, research_input)
 
 
 @router.get("/{assessment_id}", response_model=ResearchAssessmentOut)
@@ -72,10 +73,12 @@ def get_assessment(assessment_id: uuid.UUID, session: Session = Depends(get_sess
         raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
-    return _to_out(assessment, research_input)
+    return _to_out(session, assessment, research_input)
 
 
-def _to_out(assessment: ResearchAssessment, research_input: ResearchInput) -> ResearchAssessmentOut:
+def _to_out(
+    session: Session, assessment: ResearchAssessment, research_input: ResearchInput
+) -> ResearchAssessmentOut:
     return ResearchAssessmentOut(
         id=assessment.id,
         research_input=research_input,
@@ -95,4 +98,5 @@ def _to_out(assessment: ResearchAssessment, research_input: ResearchInput) -> Re
         external_validation_needed=assessment.external_validation_needed,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,
+        evidence=to_assessment_evidence(session, assessment.id),
     )

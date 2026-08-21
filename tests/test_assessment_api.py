@@ -205,6 +205,43 @@ def test_get_assessment_404s_for_unknown_id(client) -> None:
     assert client.get(f"/api/assessments/{uuid.uuid4()}").status_code == 404
 
 
+def test_assessment_returns_the_evidence_backing_each_field(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    roles = {item["role"] for item in body["evidence"]}
+    assert "comparison" in roles
+    assert "risk" in roles
+    backing = next(item for item in body["evidence"] if item["role"] == "risk")
+    assert backing["text"] == "evaluated only on offline datasets"
+    assert backing["paper_title"] == "graph transformers for fraud detection"
+    assert backing["paper_id"] == str(paper.id)
+
+
+def test_assessment_evidence_is_empty_when_nothing_was_grounded(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")  # no claims
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["evidence"] == []
+
+
+def test_fetched_assessment_also_carries_its_evidence(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    fetched = client.get(f"/api/assessments/{created['id']}").json()
+
+    assert len(fetched["evidence"]) == len(created["evidence"])
+    assert {i["role"] for i in fetched["evidence"]} == {i["role"] for i in created["evidence"]}
+
+
 def test_upload_creates_a_document_input_and_runs_the_pipeline(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
     session.commit()

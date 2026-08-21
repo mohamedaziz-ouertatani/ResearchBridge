@@ -31,8 +31,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ResearchBridge — corpus explorer",
-  description: "Search an arXiv corpus by meaning, and see how close each result actually is.",
+  title: "ResearchBridge — research assessment",
+  description:
+    "Check a research idea or paper against the literature: what is already solved, what gap remains, and what the evidence actually supports.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -18,7 +18,13 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from researchbridge.api.schemas import CandidateGapOut, ExtractedClaimOut, GapEvidenceOut, PaperSummary
+from researchbridge.api.schemas import (
+    AssessmentEvidenceOut,
+    CandidateGapOut,
+    ExtractedClaimOut,
+    GapEvidenceOut,
+    PaperSummary,
+)
 from researchbridge.db.models import (
     Author,
     CandidateGap,
@@ -28,6 +34,7 @@ from researchbridge.db.models import (
     Paper,
     PaperAuthor,
     PaperCategory,
+    ResearchAssessmentEvidence,
 )
 from researchbridge.extraction.base import CLAIM_TYPE_ORDER
 
@@ -120,6 +127,30 @@ def to_gaps(session: Session, gaps: Sequence[CandidateGap]) -> list[CandidateGap
             evidence=evidence_by_gap.get(gap.id, []),
         )
         for gap in gaps
+    ]
+
+
+def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[AssessmentEvidenceOut]:
+    """The real quoted passages backing one assessment's report fields.
+
+    Same shape and reasoning as _evidence_by_gap: an assessment field is a
+    lightweight summary, and this is what makes it inspectable - which
+    paper, which exact passage, backing which part of the report (Sec 15/17).
+    Ordered by role so the report can group without re-sorting.
+    """
+    rows = session.execute(
+        select(ResearchAssessmentEvidence.role, Evidence, Paper.title)
+        .join(Evidence, Evidence.id == ResearchAssessmentEvidence.evidence_id)
+        .join(Paper, Paper.id == Evidence.paper_id)
+        .where(ResearchAssessmentEvidence.research_assessment_id == assessment_id)
+        .order_by(ResearchAssessmentEvidence.role)
+    ).all()
+
+    return [
+        AssessmentEvidenceOut(
+            role=role, paper_id=evidence.paper_id, paper_title=title, text=evidence.text, section=evidence.section
+        )
+        for role, evidence, title in rows
     ]
 
 

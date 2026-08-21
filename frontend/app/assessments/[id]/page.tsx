@@ -1,0 +1,43 @@
+"use client";
+
+import Link from "next/link";
+import { use, useEffect, useState } from "react";
+import { assessmentApi, type ResearchAssessment } from "@/lib/assessmentApi";
+import { AssessmentReport } from "@/components/AssessmentReport";
+
+export default function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+
+  const [assessment, setAssessment] = useState<ResearchAssessment | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAssessment(null);
+    setError(null);
+    assessmentApi
+      .get(id)
+      .then(setAssessment)
+      .catch(() => setError("That assessment isn't available."));
+  }, [id]);
+
+  return (
+    <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
+      <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
+        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
+          ← ResearchBridge
+        </Link>
+        <span className="eyebrow">research assessment</span>
+      </header>
+
+      {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
+
+      {!assessment && !error && <p className="eyebrow py-16">loading…</p>}
+
+      {assessment && (
+        <div className="pt-12">
+          <AssessmentReport assessment={assessment} />
+        </div>
+      )}
+    </main>
+  );
+}

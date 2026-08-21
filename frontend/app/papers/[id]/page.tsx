@@ -40,7 +40,7 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
     return (
       <main className="mx-auto max-w-[62rem] px-6 py-24 sm:px-8">
         <p className="text-[1.0625rem] text-[var(--ink-soft)]">{error}</p>
-        <Link href="/" className="eyebrow mt-4 inline-block hover:text-[var(--ink)]">
+        <Link href="/corpus" className="eyebrow mt-4 inline-block hover:text-[var(--ink)]">
           ← back to the corpus
         </Link>
       </main>
@@ -50,8 +50,8 @@ export default function PaperDetail({ params }: { params: Promise<{ id: string }
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
       <header className="border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
+        <Link href="/corpus" className="eyebrow hover:text-[var(--ink)]">
+          ← corpus
         </Link>
       </header>
 
