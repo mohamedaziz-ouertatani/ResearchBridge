@@ -1,8 +1,13 @@
-"""Evaluates an Extractor against the Sec 25 benchmark, per Sec 28's rules:
+"""Evaluates Extractors against the Sec 25 benchmark, per Sec 28's rules:
 report each field's Precision/Recall/F1 independently, never one overall
 number.
 
-Runs the extractor directly against each benchmark paper's abstract (not
+Runs both baselines by default (heuristic, then the semantic improvement)
+so the two tables sit side by side - the point of an Improvement step is
+showing whether it actually improved things, field by field, not just
+that a new method exists.
+
+Each extractor runs directly against the benchmark papers' abstracts (not
 through the persistence pipeline - this is measuring the extractor, not
 exercising storage) and compares each field's extracted text to the
 matching ground-truth field via embedding similarity (evaluation.py).
@@ -26,19 +31,24 @@ from researchbridge.benchmark.store import ANNOTATION_FIELDS, load_all
 from researchbridge.config import load_config
 from researchbridge.db.models import Paper
 from researchbridge.db.session import make_engine, make_session_factory
+from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.model import SentenceTransformerEmbedder
 from researchbridge.extraction.base import Extractor
-from researchbridge.extraction.evaluation import DEFAULT_SIMILARITY_THRESHOLD, evaluate
+from researchbridge.extraction.evaluation import DEFAULT_SIMILARITY_THRESHOLD, FieldScore, evaluate
 from researchbridge.extraction.heuristic import HeuristicExtractor
+from researchbridge.extraction.semantic import SemanticExtractor
+
+EXTRACTORS = ("heuristic", "semantic")
 
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
     load_config()
 
-    parser = argparse.ArgumentParser(description="Evaluate an extractor against the Sec 25 benchmark.")
+    parser = argparse.ArgumentParser(description="Evaluate one or both extractors against the Sec 25 benchmark.")
     parser.add_argument("--benchmark-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--threshold", type=float, default=DEFAULT_SIMILARITY_THRESHOLD)
+    parser.add_argument("--extractor", choices=[*EXTRACTORS, "all"], default="all")
     args = parser.parse_args()
 
     session = make_session_factory(make_engine())()
@@ -57,28 +67,40 @@ def main() -> None:
             ).scalars()
         }
 
-        extractor: Extractor = HeuristicExtractor()
-        predictions, ground_truth, skipped = {}, {}, []
-        for annotation in annotations:
-            paper = papers_by_source_id.get(annotation.source_id)
-            if paper is None:
-                skipped.append(annotation.source_id)
-                continue
-            predictions[annotation.source_id] = extractor.extract(paper)
-            ground_truth[annotation.source_id] = annotation.fields
-
+        skipped = [a.source_id for a in annotations if a.source_id not in papers_by_source_id]
+        usable = [a for a in annotations if a.source_id in papers_by_source_id]
         if skipped:
             print(f"Skipped {len(skipped)} benchmark paper(s) missing from the corpus: {skipped}")
-        print(f"Evaluating {extractor.extraction_method!r} on {len(ground_truth)} papers, threshold={args.threshold}\n")
+        if not usable:
+            print("No usable benchmark papers - nothing to evaluate.")
+            return
 
         embedder = SentenceTransformerEmbedder()
-        scores = evaluate(predictions, ground_truth, list(ANNOTATION_FIELDS), embedder, args.threshold)
-        _print_table(scores)
+        names = EXTRACTORS if args.extractor == "all" else (args.extractor,)
+        for name in names:
+            extractor = _make_extractor(name, embedder)
+            scores = _evaluate_one(extractor, usable, papers_by_source_id, embedder, args.threshold)
+            print(f"\n=== {extractor.extraction_method} ({len(usable)} papers, threshold={args.threshold}) ===")
+            _print_table(scores)
     finally:
         session.close()
 
 
-def _print_table(scores) -> None:
+def _make_extractor(name: str, embedder: Embedder) -> Extractor:
+    if name == "heuristic":
+        return HeuristicExtractor()
+    if name == "semantic":
+        return SemanticExtractor(embedder)
+    raise ValueError(f"unknown extractor {name!r}")
+
+
+def _evaluate_one(extractor, annotations, papers_by_source_id, embedder: Embedder, threshold: float) -> dict[str, FieldScore]:
+    predictions = {a.source_id: extractor.extract(papers_by_source_id[a.source_id]) for a in annotations}
+    ground_truth = {a.source_id: a.fields for a in annotations}
+    return evaluate(predictions, ground_truth, list(ANNOTATION_FIELDS), embedder, threshold)
+
+
+def _print_table(scores: dict[str, FieldScore]) -> None:
     header = f"{'field':<20}{'precision':>12}{'recall':>10}{'f1':>10}"
     print(header)
     print("-" * len(header))

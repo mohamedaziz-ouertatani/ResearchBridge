@@ -23,10 +23,9 @@ check (extraction/pipeline.py::_quote_is_grounded) will always pass.
 
 from __future__ import annotations
 
-import re
-
 from researchbridge.db.models import Paper
 from researchbridge.extraction.base import ClaimCandidate
+from researchbridge.extraction.sentences import split_sentences
 
 HEURISTIC_MODEL_VERSION = "cue-phrase-v1"
 
@@ -63,13 +62,6 @@ _CUE_PHRASES: dict[str, list[str]] = {
         "real-world applications",
     ],
 }
-
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
-
-
-def split_sentences(text: str) -> list[str]:
-    return [s.strip() for s in _SENTENCE_SPLIT.split(text.strip()) if s.strip()]
-
 
 class HeuristicExtractor:
     extraction_method = "heuristic"
