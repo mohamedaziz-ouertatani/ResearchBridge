@@ -82,3 +82,28 @@ def test_fulltext_path_nougat_extractor_uses_markdown_filename(tmp_path) -> None
 def test_fulltext_path_rejects_unknown_extractor(tmp_path) -> None:
     with pytest.raises(ValueError, match="extractor"):
         fulltext_path(tmp_path, "1234.5678", extractor="bogus")
+
+
+def test_extract_text_dispatches_to_pymupdf_by_default(monkeypatch) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    monkeypatch.setattr(ft, "_extract_pymupdf", lambda pdf_bytes: "pymupdf output")
+
+    assert ft.extract_text(b"fake-pdf-bytes") == "pymupdf output"
+
+
+def test_extract_text_dispatches_to_nougat_when_selected(monkeypatch) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    monkeypatch.setattr(ft, "_extract_nougat", lambda pdf_bytes: "nougat output")
+
+    assert ft.extract_text(b"fake-pdf-bytes", extractor="nougat") == "nougat output"
+
+
+def test_extract_text_rejects_unknown_extractor() -> None:
+    import pytest
+
+    from researchbridge.benchmark.fulltext import extract_text
+
+    with pytest.raises(ValueError, match="extractor"):
+        extract_text(b"fake-pdf-bytes", extractor="bogus")

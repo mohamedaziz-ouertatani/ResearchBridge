@@ -59,7 +59,21 @@ def fetch_fulltext(source_id: str, output_dir: Path, session: requests.Session |
     return text
 
 
-def extract_text(pdf_bytes: bytes) -> str:
+def extract_text(pdf_bytes: bytes, extractor: str = "pymupdf") -> str:
+    """Extract readable text from a PDF using the given extractor.
+
+    "pymupdf": fast, always available, loses math notation (see module
+    docstring). "nougat": math-aware, much slower, a real ML model - see
+    _extract_nougat's docstring for what its output actually looks like.
+    """
+    if extractor == "pymupdf":
+        return _extract_pymupdf(pdf_bytes)
+    if extractor == "nougat":
+        return _extract_nougat(pdf_bytes)
+    raise ValueError(f"extractor must be one of ['nougat', 'pymupdf'], got {extractor!r}")
+
+
+def _extract_pymupdf(pdf_bytes: bytes) -> str:
     """Extract readable text from a PDF, page by page.
 
     Imported lazily so the rest of the benchmark tooling doesn't pay for
@@ -71,6 +85,10 @@ def extract_text(pdf_bytes: bytes) -> str:
         pages = [page.get_text() for page in doc]
 
     return _tidy("\n\n".join(pages))
+
+
+def _extract_nougat(pdf_bytes: bytes) -> str:
+    raise NotImplementedError("implemented in Task 3")
 
 
 # Math-heavy PDFs often set equations in fonts with custom glyph-to-code
