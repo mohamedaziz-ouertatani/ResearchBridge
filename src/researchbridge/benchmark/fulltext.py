@@ -27,8 +27,16 @@ ARXIV_PDF_URL = "https://arxiv.org/pdf/{source_id}"
 REQUEST_TIMEOUT = 60
 
 
-def fulltext_path(output_dir: Path, source_id: str) -> Path:
-    return output_dir / f"{source_id}.txt"
+_EXTRACTOR_FILENAMES = {
+    "pymupdf": "{source_id}.txt",
+    "nougat": "{source_id}.nougat.md",
+}
+
+
+def fulltext_path(output_dir: Path, source_id: str, extractor: str = "pymupdf") -> Path:
+    if extractor not in _EXTRACTOR_FILENAMES:
+        raise ValueError(f"extractor must be one of {sorted(_EXTRACTOR_FILENAMES)}, got {extractor!r}")
+    return output_dir / _EXTRACTOR_FILENAMES[extractor].format(source_id=source_id)
 
 
 def fetch_fulltext(source_id: str, output_dir: Path, session: requests.Session | None = None) -> str:

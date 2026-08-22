@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from researchbridge.benchmark.fulltext import _tidy
+import pytest
+
+from researchbridge.benchmark.fulltext import _tidy, fulltext_path
 
 
 def test_control_characters_from_broken_math_fonts_are_stripped() -> None:
@@ -63,3 +65,20 @@ def test_whitespace_collapsing_still_works_alongside_stripping() -> None:
 
     assert "\n\n\n" not in tidied
     assert "\x11" not in tidied
+
+
+def test_fulltext_path_defaults_to_pymupdf_txt_filename(tmp_path) -> None:
+    assert fulltext_path(tmp_path, "1234.5678") == tmp_path / "1234.5678.txt"
+
+
+def test_fulltext_path_pymupdf_extractor_matches_default(tmp_path) -> None:
+    assert fulltext_path(tmp_path, "1234.5678", extractor="pymupdf") == tmp_path / "1234.5678.txt"
+
+
+def test_fulltext_path_nougat_extractor_uses_markdown_filename(tmp_path) -> None:
+    assert fulltext_path(tmp_path, "1234.5678", extractor="nougat") == tmp_path / "1234.5678.nougat.md"
+
+
+def test_fulltext_path_rejects_unknown_extractor(tmp_path) -> None:
+    with pytest.raises(ValueError, match="extractor"):
+        fulltext_path(tmp_path, "1234.5678", extractor="bogus")
