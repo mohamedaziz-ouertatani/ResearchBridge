@@ -239,7 +239,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
 
                 {(extractorView === "nougat" ? detail?.fulltext_nougat : detail?.fulltext) ? (
                   extractorView === "nougat" && detail?.fulltext_nougat ? (
-                    <div className="mt-5 max-w-none font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] text-[var(--ink)]">
+                    <div className="katex-html-only mt-5 max-w-none font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] text-[var(--ink)]">
                       <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                         {detail.fulltext_nougat}
                       </ReactMarkdown>

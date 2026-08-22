@@ -152,3 +152,15 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- KaTeX selection fix ----------------------------------------------
+   KaTeX renders both a visible HTML representation and a visually-hidden
+   MathML copy for accessibility. Both are real text nodes in the DOM, so a
+   mouse selection spanning rendered math picks up both, producing
+   duplicated/garbled text in window.getSelection(). Hiding the MathML copy
+   from rendering also removes it from selection, leaving only the visible
+   HTML representation selectable. */
+
+.katex-html-only .katex-mathml {
+  display: none;
+}
