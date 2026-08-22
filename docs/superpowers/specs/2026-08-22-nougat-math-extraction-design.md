@@ -1,0 +1,56 @@
+# Math-Aware Benchmark Extraction (Nougat) — Design Spec
+
+Source of truth for architecture: `ResearchBridge.md` (blueprint). This spec covers a narrow, self-contained addition to the existing benchmark/annotation workbench slice (`benchmark/fulltext.py`, `rb-benchmark-fetch`, `/api/benchmark`, `app/annotate/[sourceId]`) — never wired into the main ingestion pipeline, exactly like the PyMuPDF extraction it sits alongside.
+
+## Why
+
+`extract_text()` (PyMuPDF) reads PDF glyph positions, not semantic structure. Math-heavy papers come out visibly scrambled — verified live against a real cached benchmark paper (`1812.02641`, "Local Conditioning in Undirected Networks"): a 2×1 matrix expression and inline exponents come back as disconnected single-character lines, and `∑`/`∏` big-operator glyphs literally extract as the Latin letters `X`/`Y`. This was already a known, documented limitation (see the module's existing `_UNRENDERABLE` comment) — this spec adds a second, math-aware extractor for the same 40 papers so annotators reading proof-heavy or notation-heavy papers aren't working from scrambled text.
+
+## Scope
+
+In scope:
+- A second extractor, Nougat (`nougat-ocr`), selectable alongside PyMuPDF behind the same `extract_text()` interface — **not a replacement**. PyMuPDF's implementation is untouched.
+- Per-extractor cached output, stored under different filenames, so re-running with one extractor never overwrites the other's cached file.
+- `rb-benchmark-fetch --extractor {pymupdf,nougat} --force` — `--extractor` selects which engine runs (default stays `pymupdf`, so existing behavior is unchanged unless explicitly overridden); `--force` bypasses the existing skip-if-cached check, needed because Nougat output must land in its own file, not silently reuse a stale PyMuPDF cache-hit check.
+- The annotation workbench renders whichever extractor's output is available, preferring Nougat when both exist, with a toggle to switch and read the other — this is the "compare both methods" mechanism. Nougat's Markdown+LaTeX renders as real typeset math (`react-markdown` + `remark-math` + `rehype-katex`); PyMuPDF's plain text keeps rendering in the existing `<pre>` block.
+- Text-selection → evidence capture re-verified against the rendered Markdown DOM (not just the old plain-text `<pre>`), since `window.getSelection()` now reads over real HTML elements (headers, `<strong>`, KaTeX's own DOM) instead of one flat text node.
+
+Out of scope (deliberately deferred):
+- Any change to the main ingestion pipeline's PDF handling (arXiv/Springer/Semantic Scholar) — this touches only the 40-paper benchmark slice.
+- Mathpix or any other extractor — Nougat only, per the cost/data-locality tradeoff already decided.
+- An automated comparison/scoring tool (e.g. diffing the two outputs, a quality metric). The "evaluation" is a human reading both renders side-by-side in the workbench — consistent with this benchmark's existing principle that human annotation is the ground truth, not a computed score.
+- GPU acceleration / performance tuning. CPU-only, accepted as slow, one-time.
+
+## Backend design
+
+**`benchmark/fulltext.py`**:
+- `fulltext_path(output_dir, source_id, extractor="pymupdf") -> Path` — extractor-aware filename. `pymupdf` keeps the existing `{source_id}.txt` (the 40 already-cached files stay valid, untouched, still found by a default call); `nougat` writes to `{source_id}.nougat.md` (the extension signals Markdown, distinguishing it from the plain-text convention).
+- `extract_text(pdf_bytes, extractor="pymupdf") -> str` — dispatches to `_extract_pymupdf(pdf_bytes)` (today's implementation, moved verbatim, behavior-identical) or `_extract_nougat(pdf_bytes)` (new). Nougat's import (`torch`, the `nougat` package) is lazy, inside `_extract_nougat`, exactly like PyMuPDF's own lazy-import reasoning today ("the rest of the benchmark tooling doesn't pay for [it]") — now far more important, since `torch`+model checkpoint is a multi-GB, slow-to-import dependency the rest of the app must never pay for.
+- `_extract_nougat`: rasterizes PDF pages (Nougat's own preprocessing pipeline handles this internally) and runs the default "base" checkpoint (auto-downloaded and cached by the library on first use), returning the model's Markdown output.
+- `_tidy()` gets reviewed against real Nougat Markdown output during implementation — blank lines are structurally meaningful in Markdown (paragraph breaks) in a way they aren't in raw PDF text extraction, so the existing blank-line-collapsing regex may need a Markdown-aware adjustment. Verified live, not assumed.
+- `fetch_fulltext(source_id, output_dir, session=None, extractor="pymupdf", force=False) -> str` — same shape, two new params. Writes to the extractor-specific path; `force=True` skips the exists-check.
+
+**`ingestion/cli_fetch.py`** → `--extractor` (choices: `pymupdf`, `nougat`; default `pymupdf`) and `--force` (default `False`) CLI flags, threaded through to `fetch_fulltext`. The existing skip-if-cached log line stays accurate per-extractor.
+
+**`api/benchmark_routes.py`**: `AnnotationDetail` gains `fulltext_nougat: str | None` alongside the existing `fulltext` field (kept as-is, still PyMuPDF, for backward compatibility with anything already depending on that name). `_summary`/`AnnotationSummary` gains `has_fulltext_nougat: bool` alongside the existing `has_fulltext`, so the workbench's paper list can show which extraction(s) exist per paper without a second round-trip.
+
+## Frontend design
+
+**New dependencies**: `react-markdown`, `remark-math`, `rehype-katex`, `katex` (+ import `katex/dist/katex.min.css`).
+
+**`app/annotate/[sourceId]/page.tsx`**:
+- A small extractor toggle (only shown when both exist for the current paper) — "Nougat" / "PyMuPDF", defaulting to Nougat when `fulltext_nougat` is present, else falling back to the existing plain-text `fulltext`.
+- When showing Nougat output: `<ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{detail.fulltext_nougat}</ReactMarkdown>` replaces the `<pre>` block, styled to match the existing serif prose typography.
+- When showing PyMuPDF output: unchanged `<pre>` rendering, exactly as today.
+- `captureSelection`/`addEvidence` (the existing "select a passage, add as evidence" flow) verified live against the rendered Markdown DOM once implemented — `window.getSelection().toString()` should still work over rendered HTML text nodes, but this gets an explicit check rather than an assumption, per the "verify live, not just with unit tests" practice already established this session.
+
+## Rollout
+
+One-time batch job after implementation: `rb-benchmark-fetch --extractor nougat --force`, re-extracting all 40 benchmark papers with Nougat. Runs in the background (matches this session's pattern for slow ingestion pulls); CPU-only, accepted as potentially slow (minutes per paper × 40 papers). Existing PyMuPDF-extracted `.txt` files are never touched by this run — both outputs coexist per paper afterward, ready for the in-workbench toggle comparison.
+
+## Testing
+
+- `benchmark/fulltext.py`: unit tests for `fulltext_path`'s extractor-aware filenames, `extract_text`'s dispatch (mocking both extractor implementations so tests don't require `torch`/network), and `fetch_fulltext`'s `force`/cache-skip behavior per extractor.
+- `api/benchmark_routes.py`: tests for `fulltext_nougat`/`has_fulltext_nougat` appearing correctly when only one, both, or neither cached file exists.
+- Frontend: no test infrastructure exists in this project (established constraint) — verified live in-browser instead, including the text-selection-over-rendered-Markdown check called out above.
+- The real Nougat extraction itself (model download, actual inference quality) is verified live against at least one real benchmark PDF during implementation, not mocked — same practice as the Springer/Semantic Scholar connectors' live-verification passes this session.
