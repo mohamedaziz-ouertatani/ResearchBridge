@@ -154,7 +154,7 @@ def test_extract_nougat_raises_on_subprocess_failure(monkeypatch, tmp_path) -> N
 
     import pytest
 
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(RuntimeError, match="model crashed"):
         ft._extract_nougat(b"fake-pdf-bytes")
 
 

@@ -86,6 +86,8 @@ def extract_markdown(pdf_path: Path) -> str:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")
+
     if len(sys.argv) != 2:
         print("usage: nougat_extract.py <path-to.pdf>", file=sys.stderr)
         sys.exit(2)

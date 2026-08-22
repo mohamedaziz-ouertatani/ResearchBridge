@@ -117,10 +117,10 @@ def _extract_nougat(pdf_bytes: bytes) -> str:
     as a subprocess instead, so it never touches or fights the main
     project's dependency versions.
 
-    Raises subprocess.CalledProcessError if the isolated extraction
-    fails - never silently returns empty output on failure (a real bug
-    hit during development: rasterize_paper's own bytes-input bug
-    silently produced zero pages rather than erroring).
+    Raises RuntimeError (wrapping the subprocess's captured stderr) if the
+    isolated extraction fails - never silently returns empty output on
+    failure (a real bug hit during development: rasterize_paper's own
+    bytes-input bug silently produced zero pages rather than erroring).
     """
     if not NOUGAT_VENV_PYTHON.exists():
         raise RuntimeError(
@@ -137,9 +137,15 @@ def _extract_nougat(pdf_bytes: bytes) -> str:
             [str(NOUGAT_VENV_PYTHON), str(NOUGAT_EXTRACT_SCRIPT), str(pdf_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
             timeout=1800,  # real CPU inference is slow - see the design spec
         )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Nougat extraction failed (exit {exc.returncode}): {(exc.stderr or '')[-1000:]}"
+        ) from exc
     finally:
         pdf_path.unlink(missing_ok=True)
 
