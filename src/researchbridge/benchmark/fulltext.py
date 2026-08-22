@@ -88,7 +88,128 @@ def _extract_pymupdf(pdf_bytes: bytes) -> str:
 
 
 def _extract_nougat(pdf_bytes: bytes) -> str:
-    raise NotImplementedError("implemented in Task 3")
+    """Math-aware extraction via Nougat (nougat-ocr==0.1.17, model tag "0.1.0-small").
+
+    Verified live against the installed package's source (nougat/model.py,
+    nougat/dataset/rasterize.py, nougat/utils/checkpoint.py, and the
+    reference predict.py CLI, all under .venv/Lib/site-packages/) - do not
+    re-derive this from memory if the package is ever reinstalled/upgraded,
+    re-check the source, since nougat-ocr has not been released since 2023
+    and its pinned API has drifted from its own declared dependencies:
+
+    - PDF bytes go in directly: nougat.dataset.rasterize.rasterize_paper
+      accepts `Union[Path, bytes]` and (via pypdfium2) rasterizes each page
+      to an in-memory BMP image, one page per list entry. There is no
+      intermediate file. _rasterize_pdf_pages wraps that call and
+      PIL.Image.open on each result, mirroring what predict.py's
+      LazyDataset/ImageDataset do internally.
+    - Each page image is converted to a tensor via
+      model.encoder.prepare_input(image, random_padding=False), then all
+      pages for one PDF are stacked into a single (num_pages, C, H, W)
+      batch and passed to model.inference(image_tensors=batch,
+      early_stopping=True) - exactly the sequence predict.py's main() uses.
+      inference() returns a dict; output["predictions"] is a list of one
+      markdown string per page, in page order.
+    - Dependency conflict found and worked around here, not upstream:
+      nougat-ocr declares `transformers>=4.25.1` (unbounded above) and
+      `albumentations>=1.0.0` (unbounded above), so a fresh install pulls in
+      whatever is newest today. transformers' v5 rewrite renamed
+      PretrainedConfig -> PreTrainedConfig and dropped the old name from
+      transformers.modeling_utils (though transformers.PretrainedConfig
+      still works as a back-compat alias at the top level) - nougat/model.py
+      imports the old name from the submodule, so `import nougat` raises
+      ImportError on any transformers 5.x unless that alias is restored
+      first; _patch_transformers_for_nougat does that restoration and runs
+      before every `import nougat`-family statement in this module.
+      Separately, albumentations 2.x tightened parameter validation
+      (pydantic-backed) and rejects nougat/transforms.py's
+      `alb.ImageCompression(95, ...)` positional-int call at import time
+      (compression_type must now be 'jpeg'/'webp', not a quality int) - that
+      one has no in-code workaround, so pyproject.toml pins
+      `albumentations<2.0.0` to keep the 1.x API nougat was written against.
+    - Checkpoint: get_checkpoint(model_tag="0.1.0-small") is nougat's own
+      default (both nougat/utils/checkpoint.py's MODEL_TAG and predict.py's
+      --model default agree). It downloads ~1.3GB of checkpoint files from
+      facebookresearch/nougat's GitHub releases into the torch hub cache
+      directory on first use and reuses that cache afterward; not exercised
+      by this module's tests (see _load_nougat_model's docstring).
+    - bf16=True, cuda=torch.cuda.is_available() mirrors predict.py's default
+      (`move_to_device(model, bf16=not args.full_precision, cuda=args.batchsize > 0)`
+      with args.full_precision defaulting to False).
+
+    Real output quirks against an actual benchmark PDF have not been
+    observed yet - see Task 4, which runs this against real papers and may
+    add notes here about [MISSING_PAGE_*] markers or repetition artifacts
+    predict.py itself watches for.
+    """
+    model = _load_nougat_model()
+    pages = _rasterize_pdf_pages(pdf_bytes)
+    if not pages:
+        return ""
+
+    import torch
+
+    _patch_transformers_for_nougat()
+    from nougat.postprocessing import markdown_compatible
+
+    image_tensors = torch.stack(
+        [model.encoder.prepare_input(page, random_padding=False) for page in pages]
+    )
+    output = model.inference(image_tensors=image_tensors, early_stopping=True)
+    markdown = "\n\n".join(markdown_compatible(page) for page in output["predictions"])
+    return _tidy(markdown)
+
+
+def _patch_transformers_for_nougat() -> None:
+    """Restore transformers.modeling_utils.PretrainedConfig, the name
+    nougat/model.py imports at `import nougat` time. transformers' v5
+    rewrite renamed the class to PreTrainedConfig and moved it to
+    transformers.configuration_utils, dropping the old name from the
+    modeling_utils submodule - but transformers.PretrainedConfig (top
+    level) still works as a back-compat alias, so this just re-exposes it
+    under the submodule path nougat expects. Idempotent and cheap (no
+    torch/nougat import): safe to call before every `import nougat`-family
+    statement in this module, since any of them can be the first to trigger
+    nougat/__init__.py in a given process.
+    """
+    import transformers
+
+    transformers.modeling_utils.PretrainedConfig = transformers.PretrainedConfig
+
+
+def _rasterize_pdf_pages(pdf_bytes: bytes) -> list:
+    """Turn PDF bytes into a list of PIL page images via Nougat's own
+    rasterizer (nougat.dataset.rasterize.rasterize_paper, which accepts
+    bytes directly - verified against its source and against pypdfium2
+    accepting a bytes buffer for PdfDocument()). Kept as its own function
+    so tests can monkeypatch rasterization without needing a real PDF."""
+    _patch_transformers_for_nougat()
+    from PIL import Image
+    from nougat.dataset.rasterize import rasterize_paper
+
+    page_buffers = rasterize_paper(pdf_bytes, outpath=None)
+    return [Image.open(buf) for buf in page_buffers]
+
+
+def _load_nougat_model():
+    """Lazily imports and loads the Nougat model - kept as its own function
+    so tests can monkeypatch model loading without a real multi-GB download.
+
+    See _patch_transformers_for_nougat's docstring and _extract_nougat's
+    docstring for why the compatibility patch below is necessary.
+    """
+    _patch_transformers_for_nougat()
+
+    from nougat import NougatModel
+    from nougat.utils.checkpoint import get_checkpoint
+    from nougat.utils.device import move_to_device
+    import torch
+
+    checkpoint = get_checkpoint(model_tag="0.1.0-small")
+    model = NougatModel.from_pretrained(checkpoint)
+    model = move_to_device(model, bf16=True, cuda=torch.cuda.is_available())
+    model.eval()
+    return model
 
 
 # Math-heavy PDFs often set equations in fonts with custom glyph-to-code
