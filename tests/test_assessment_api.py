@@ -486,3 +486,68 @@ def test_export_pdf_404s_for_unknown_assessment(client) -> None:
     response = client.get(f"/api/assessments/{uuid.uuid4()}/export.pdf")
 
     assert response.status_code == 404
+
+
+def test_list_assessments_returns_newest_first(client) -> None:
+    first = client.post("/api/assessments", json={"raw_text": "idea one"}).json()
+    second = client.post("/api/assessments", json={"raw_text": "idea two"}).json()
+
+    body = client.get("/api/assessments").json()
+
+    assert [item["id"] for item in body["items"]] == [second["id"], first["id"]]
+    assert body["total"] == 2
+
+
+def test_list_assessments_collapses_rerun_history_to_latest(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea"}).json()
+    rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
+
+    body = client.get("/api/assessments").json()
+
+    assert body["total"] == 1
+    assert body["items"][0]["id"] == rerun["id"]
+
+
+def test_list_assessments_includes_input_preview(client) -> None:
+    client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    item = client.get("/api/assessments").json()["items"][0]
+
+    assert "graph transformers for fraud detection" in item["input_preview"]
+    assert item["input_type"] == "idea"
+
+
+def test_list_assessments_filters_needs_review(client) -> None:
+    unreviewed = client.post("/api/assessments", json={"raw_text": "idea one"}).json()
+    reviewed = client.post("/api/assessments", json={"raw_text": "idea two"}).json()
+    client.put(f"/api/assessments/{reviewed['id']}/review", json={"human_reviewed": True})
+
+    body = client.get("/api/assessments", params={"review": "needs_review"}).json()
+
+    assert [item["id"] for item in body["items"]] == [unreviewed["id"]]
+
+
+def test_list_assessments_filters_reviewed(client) -> None:
+    client.post("/api/assessments", json={"raw_text": "idea one"}).json()
+    reviewed = client.post("/api/assessments", json={"raw_text": "idea two"}).json()
+    client.put(f"/api/assessments/{reviewed['id']}/review", json={"human_reviewed": True})
+
+    body = client.get("/api/assessments", params={"review": "reviewed"}).json()
+
+    assert [item["id"] for item in body["items"]] == [reviewed["id"]]
+
+
+def test_list_assessments_rejects_invalid_review_filter(client) -> None:
+    assert client.get("/api/assessments", params={"review": "bogus"}).status_code == 422
+
+
+def test_list_assessments_paginates(client) -> None:
+    for i in range(3):
+        client.post("/api/assessments", json={"raw_text": f"idea {i}"})
+
+    body = client.get("/api/assessments", params={"limit": 2, "offset": 1}).json()
+
+    assert len(body["items"]) == 2
+    assert body["total"] == 3
+    assert body["limit"] == 2
+    assert body["offset"] == 1

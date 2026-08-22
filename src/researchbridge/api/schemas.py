@@ -274,3 +274,30 @@ class PipelineTriggerOut(BaseModel):
     started: bool
     pipeline: str
     log_file: str
+
+
+class ResearchAssessmentSummaryOut(BaseModel):
+    """One dashboard row (GET /api/assessments) - the latest assessment for
+    one research_input, not every re-run (see assessment_routes.py's list
+    query). A small subset of ResearchAssessmentOut's fields, same reasoning
+    as ResearchAssessmentHistoryItem: enough to tell entries apart in a list,
+    not the full evidence-backed report."""
+
+    id: uuid.UUID
+    created_at: datetime
+    status: str
+    novelty_level: str
+    recommendation: str | None
+    confidence: str | None
+    human_reviewed: bool
+    research_input_id: uuid.UUID
+    input_type: str
+    input_preview: str
+    """raw_text (or filename, for an upload) truncated to a list-friendly length."""
+
+
+class ResearchAssessmentSummaryPage(BaseModel):
+    items: list[ResearchAssessmentSummaryOut]
+    total: int
+    limit: int
+    offset: int

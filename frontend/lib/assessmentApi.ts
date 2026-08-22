@@ -64,6 +64,28 @@ export type AssessmentHistoryItem = {
   created_at: string;
 };
 
+export type AssessmentSummary = {
+  id: string;
+  created_at: string;
+  status: string;
+  novelty_level: string;
+  recommendation: string | null;
+  confidence: string | null;
+  human_reviewed: boolean;
+  research_input_id: string;
+  input_type: "idea" | "document";
+  input_preview: string;
+};
+
+export type AssessmentSummaryPage = {
+  items: AssessmentSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type ReviewFilter = "all" | "reviewed" | "needs_review";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
   if (!response.ok) {
@@ -100,4 +122,7 @@ export const assessmentApi = {
   rerun: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}/rerun`, { method: "POST" }),
 
   history: (id: string) => request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
+
+  list: (review: ReviewFilter = "all") =>
+    request<AssessmentSummaryPage>(`/api/assessments?review=${review}&limit=50`),
 };

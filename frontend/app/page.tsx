@@ -52,6 +52,9 @@ export default function Console() {
       <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
         <span className="display text-[1.0625rem]">ResearchBridge</span>
         <div className="flex items-baseline gap-5">
+          <Link href="/assessments" className="eyebrow hover:text-[var(--ink)]">
+            assessments →
+          </Link>
           <Link href="/corpus" className="eyebrow hover:text-[var(--ink)]">
             corpus →
           </Link>

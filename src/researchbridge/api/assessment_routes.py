@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
@@ -23,6 +23,8 @@ from researchbridge.api.schemas import (
     ResearchAssessmentHistoryItem,
     ResearchAssessmentOut,
     ResearchAssessmentReview,
+    ResearchAssessmentSummaryOut,
+    ResearchAssessmentSummaryPage,
 )
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
@@ -33,6 +35,83 @@ from researchbridge.db.models import ResearchAssessment, ResearchInput
 from researchbridge.embedding.base import Embedder
 
 router = APIRouter(prefix="/api/assessments")
+
+MAX_LIST_LIMIT = 100
+_REVIEW_FILTERS = {"all", "reviewed", "needs_review"}
+_INPUT_PREVIEW_LENGTH = 120
+
+
+@router.get("", response_model=ResearchAssessmentSummaryPage)
+def list_assessments(
+    session: Session = Depends(get_session),
+    review: str = Query("all", description="all, reviewed, or needs_review"),
+    limit: int = Query(20, ge=1, le=MAX_LIST_LIMIT),
+    offset: int = Query(0, ge=0),
+) -> ResearchAssessmentSummaryPage:
+    """The latest assessment per research_input, newest first - re-run history
+    collapses to one row (see the assessment's own /history for the rest)."""
+    if review not in _REVIEW_FILTERS:
+        raise HTTPException(status_code=422, detail=f"review must be one of {sorted(_REVIEW_FILTERS)}")
+
+    latest = (
+        select(
+            ResearchAssessment.research_input_id,
+            func.max(ResearchAssessment.created_at).label("max_created_at"),
+        )
+        .group_by(ResearchAssessment.research_input_id)
+        .subquery()
+    )
+
+    query = (
+        select(ResearchAssessment, ResearchInput)
+        .join(ResearchInput, ResearchInput.id == ResearchAssessment.research_input_id)
+        .join(
+            latest,
+            and_(
+                ResearchAssessment.research_input_id == latest.c.research_input_id,
+                ResearchAssessment.created_at == latest.c.max_created_at,
+            ),
+        )
+    )
+    if review == "reviewed":
+        query = query.where(ResearchAssessment.human_reviewed.is_(True))
+    elif review == "needs_review":
+        query = query.where(ResearchAssessment.human_reviewed.is_(False))
+
+    total = session.execute(select(func.count()).select_from(query.subquery())).scalar_one()
+    rows = session.execute(
+        query.order_by(ResearchAssessment.created_at.desc()).limit(limit).offset(offset)
+    ).all()
+
+    return ResearchAssessmentSummaryPage(
+        items=[_to_summary(assessment, research_input) for assessment, research_input in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _to_summary(assessment: ResearchAssessment, research_input: ResearchInput) -> ResearchAssessmentSummaryOut:
+    preview = (
+        research_input.source_filename
+        if research_input.input_type == "document" and research_input.source_filename
+        else research_input.raw_text
+    )
+    if len(preview) > _INPUT_PREVIEW_LENGTH:
+        preview = preview[:_INPUT_PREVIEW_LENGTH] + "…"
+
+    return ResearchAssessmentSummaryOut(
+        id=assessment.id,
+        created_at=assessment.created_at,
+        status=assessment.status,
+        novelty_level=assessment.novelty_level,
+        recommendation=assessment.recommendation,
+        confidence=assessment.confidence,
+        human_reviewed=assessment.human_reviewed,
+        research_input_id=research_input.id,
+        input_type=research_input.input_type,
+        input_preview=preview,
+    )
 
 
 @router.post("", response_model=ResearchAssessmentOut)
