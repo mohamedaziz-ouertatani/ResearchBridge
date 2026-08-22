@@ -11,6 +11,7 @@ export type AnnotationSummary = {
   total: number;
   is_complete: boolean;
   has_fulltext: boolean;
+  has_fulltext_nougat: boolean;
 };
 
 export type AnnotationDetail = AnnotationSummary & {
@@ -19,6 +20,7 @@ export type AnnotationDetail = AnnotationSummary & {
   research_gap: { addressed: string; remaining: string };
   key_evidence: EvidenceItem[];
   fulltext: string | null;
+  fulltext_nougat: string | null;
 };
 
 export type BenchmarkProgress = {
