@@ -27,6 +27,14 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Fetch full text for the benchmark papers.")
     parser.add_argument("--benchmark-dir", type=Path, default=DEFAULT_BENCHMARK_DIR)
+    parser.add_argument(
+        "--extractor", choices=["pymupdf", "nougat"], default="pymupdf",
+        help="Which extraction engine to use (default: pymupdf).",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Re-extract even if a cached file already exists for this extractor.",
+    )
     args = parser.parse_args()
 
     output_dir = args.benchmark_dir / "fulltext"
@@ -41,7 +49,7 @@ def main() -> None:
 
     for i, annotation in enumerate(annotations, start=1):
         source_id = annotation.source_id
-        if fulltext_path(output_dir, source_id).exists():
+        if not args.force and fulltext_path(output_dir, source_id, extractor=args.extractor).exists():
             skipped += 1
             continue
 
@@ -49,8 +57,10 @@ def main() -> None:
             throttle()
 
         try:
-            text = fetch_fulltext(source_id, output_dir, session=http)
-        except Exception as exc:  # one unavailable PDF must not end the run
+            text = fetch_fulltext(
+                source_id, output_dir, session=http, extractor=args.extractor, force=args.force
+            )
+        except Exception as exc:  # one unavailable PDF (or one failed Nougat run) must not end the run
             failures.append((source_id, str(exc)[:200]))
             print(f"[{i}/{len(annotations)}] {source_id}: FAILED {exc}", flush=True)
             continue
