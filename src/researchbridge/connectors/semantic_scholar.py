@@ -27,6 +27,10 @@ bugs:
 - `fieldsOfStudy` is null for ~42% of results (incomplete classification
   coverage on Semantic Scholar's side) - categories ends up an empty
   list for them, same handling as any paper with no categories.
+
+A later real ingestion pass (11+ consecutive pages, unauthenticated) hit a
+429 after the connector's retry budget was exhausted, at the throttle
+value that first testing considered safe - see MIN_REQUEST_INTERVAL_SECONDS.
 """
 
 from __future__ import annotations
@@ -57,10 +61,12 @@ SEMANTIC_SCHOLAR_BULK_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/pap
 
 FIELDS = "title,abstract,year,publicationDate,authors,externalIds,venue,publicationTypes,openAccessPdf,fieldsOfStudy"
 
-# Conservative default matching the unauthenticated shared-pool rate limit
-# (~100 requests/5 minutes). Kept as the default even with an API key
-# supplied - see module docstring.
-MIN_REQUEST_INTERVAL_SECONDS = 3.0
+# Verified live 2026-08-22: 3.0s (the nominal ~100 req/5min average) still
+# got a sustained unauthenticated run 429'd after 11 consecutive requests -
+# the shared pool doesn't tolerate a steady run at its average rate, only
+# bursts under it. Doubled to 6.0s. Kept as the default even with an API
+# key supplied - see module docstring.
+MIN_REQUEST_INTERVAL_SECONDS = 6.0
 
 
 def _is_retryable(exc: BaseException) -> bool:
