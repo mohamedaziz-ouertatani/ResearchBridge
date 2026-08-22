@@ -41,10 +41,22 @@ def fulltext_path(output_dir: Path, source_id: str, extractor: str = "pymupdf") 
     return output_dir / _EXTRACTOR_FILENAMES[extractor].format(source_id=source_id)
 
 
-def fetch_fulltext(source_id: str, output_dir: Path, session: requests.Session | None = None) -> str:
-    """Download one paper's PDF and cache its extracted text. Returns the text."""
-    path = fulltext_path(output_dir, source_id)
-    if path.exists():
+def fetch_fulltext(
+    source_id: str,
+    output_dir: Path,
+    session: requests.Session | None = None,
+    extractor: str = "pymupdf",
+    force: bool = False,
+) -> str:
+    """Download one paper's PDF and cache its extracted text. Returns the text.
+
+    force=True bypasses the cache-hit check and re-extracts even if a
+    cached file already exists for this (source_id, extractor) pair -
+    needed to deliberately re-run with a different/updated extractor
+    rather than silently keeping a stale cached result.
+    """
+    path = fulltext_path(output_dir, source_id, extractor=extractor)
+    if path.exists() and not force:
         return path.read_text(encoding="utf-8")
 
     http = session or requests
@@ -55,7 +67,7 @@ def fetch_fulltext(source_id: str, output_dir: Path, session: requests.Session |
     )
     response.raise_for_status()
 
-    text = extract_text(response.content)
+    text = extract_text(response.content, extractor=extractor)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return text

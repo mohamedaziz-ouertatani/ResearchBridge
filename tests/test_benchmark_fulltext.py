@@ -167,3 +167,59 @@ def test_extract_nougat_raises_when_isolated_env_missing(monkeypatch, tmp_path) 
 
     with pytest.raises(RuntimeError, match="Isolated Nougat environment not found"):
         ft._extract_nougat(b"fake-pdf-bytes")
+
+
+def test_fetch_fulltext_uses_extractor_specific_cache_path(tmp_path, monkeypatch) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    (tmp_path / "1234.5678.nougat.md").write_text("cached nougat text", encoding="utf-8")
+
+    result = ft.fetch_fulltext("1234.5678", tmp_path, extractor="nougat")
+
+    assert result == "cached nougat text"
+
+
+def test_fetch_fulltext_force_bypasses_the_cache(tmp_path, monkeypatch) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    (tmp_path / "1234.5678.txt").write_text("stale cached text", encoding="utf-8")
+
+    class FakeResponse:
+        content = b"fresh-pdf-bytes"
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(ft, "extract_text", lambda pdf_bytes, extractor="pymupdf": "freshly extracted text")
+
+    result = ft.fetch_fulltext("1234.5678", tmp_path, session=FakeSession(), force=True)
+
+    assert result == "freshly extracted text"
+    assert (tmp_path / "1234.5678.txt").read_text(encoding="utf-8") == "freshly extracted text"
+
+
+def test_fetch_fulltext_passes_extractor_through_to_extract_text(tmp_path, monkeypatch) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    class FakeResponse:
+        content = b"fresh-pdf-bytes"
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    calls = []
+    monkeypatch.setattr(
+        ft, "extract_text", lambda pdf_bytes, extractor="pymupdf": calls.append(extractor) or "text"
+    )
+
+    ft.fetch_fulltext("1234.5678", tmp_path, session=FakeSession(), extractor="nougat")
+
+    assert calls == ["nougat"]
