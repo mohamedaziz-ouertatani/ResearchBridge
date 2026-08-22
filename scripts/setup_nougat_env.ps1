@@ -78,13 +78,26 @@
 
 $ErrorActionPreference = "Stop"
 
+# $ErrorActionPreference only governs PowerShell/cmdlet terminating errors -
+# it does NOT turn a non-zero exit code from an external executable (venv
+# creation, pip) into a terminating error. Without an explicit check after
+# each `&`-invoked command below, a failed pip install (network error,
+# resolver failure, bad package name, etc.) would silently fall through to
+# the final "ready" message and report success. Check $LASTEXITCODE after
+# every external command instead.
+
 python -m venv .nougat-venv
+if ($LASTEXITCODE -ne 0) { throw "python -m venv .nougat-venv failed (exit code $LASTEXITCODE)" }
+
 & .nougat-venv\Scripts\python.exe -m pip install --upgrade pip
+if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed (exit code $LASTEXITCODE)" }
+
 & .nougat-venv\Scripts\pip.exe install `
     "nougat-ocr==0.1.17" `
     "albumentations==1.4.24" `
     "transformers==4.38.2" `
     "pypdfium2==4.24.0" `
     "datasets[vision]==2.14.5"
+if ($LASTEXITCODE -ne 0) { throw "pip install of nougat-ocr and pinned dependencies failed (exit code $LASTEXITCODE)" }
 
 Write-Host "Nougat environment ready at .nougat-venv/"
