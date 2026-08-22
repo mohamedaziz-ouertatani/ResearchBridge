@@ -53,6 +53,26 @@ One-time batch job after implementation: `rb-benchmark-fetch --extractor nougat 
 - The batch continues to the next paper. The run's final summary (`fetched X, already cached Y, failed Z`) reports Nougat failures the same way PyMuPDF failures are reported today.
 - A paper that fails Nougat extraction simply has no `{source_id}.nougat.md` file afterward — the workbench's toggle (which only shows when both extractions exist) naturally falls back to showing PyMuPDF-only for that paper, no special-case UI state needed.
 
+## Amendment (post-implementation): Nougat runs in an isolated subprocess
+
+Implementation of `_extract_nougat` as a direct in-process call (importing `nougat`/`torch` into the main app's environment, as originally specified above) was attempted and reverted. Real live testing found **six independent, unrelated version-drift incompatibilities** between `nougat-ocr==0.1.17` (unmaintained since 2023) and this project's current dependency versions, across three separate fix rounds, with zero successful end-to-end extractions:
+
+1. `transformers` renamed `PretrainedConfig` → `PreTrainedConfig` and moved its module path (transformers 5.x).
+2. `albumentations` 2.x rewrote `ImageCompression`'s constructor signature, breaking module-level code `nougat/transforms.py` runs at import time.
+3. `transformers` 5.x's `from_pretrained()` finalization now requires `post_init()` to have run; `nougat/model.py`'s `NougatModel.__init__` never calls it.
+4. `nougat/dataset/rasterize.py`'s `rasterize_paper` claims (via type hint) to accept raw PDF bytes but its installed implementation only handles `str`/`Path`.
+5. `pypdfium2` removed `PdfDocument.render()` (deprecated in 4.25.0 — its own changelog names `nougat` as the motivating example for the deprecation — removed in 5.0.0); the unpinned resolved version (5.13.0) has no such method.
+6. After pinning `pypdfium2<5.0.0`, a Windows file-lock cleanup workaround verified against 5.13.0 did not reliably work against the resolved 4.30.0.
+
+This pattern — a new, independent failure at every fix — indicates `nougat-ocr` is not compatible with this project's current dependency graph as a direct import, and patching around each new drift point is not converging. **Revised approach: isolate Nougat in its own subprocess with its own pinned, period-correct dependency environment**, so it never shares (and never fights) the main project's `transformers`/`albumentations`/`pypdfium2` versions.
+
+### Revised backend design
+
+- A separate virtual environment, git-ignored, not part of the main `uv`-managed project — e.g. `.nougat-venv/` at the repo root. Pinned to dependency versions contemporaneous with `nougat-ocr==0.1.17`'s actual 2023 release (check its real upstream `requirements.txt`/`setup.py` from PyPI or GitHub for that release rather than re-guessing versions — the six failures above are exactly the cost of guessing). A one-time, manually-run bootstrap script creates this environment; it is not created automatically on every extraction call (matching the checkpoint download's own "one-time cost" framing already in this spec).
+- A standalone extraction script (not part of the `researchbridge` package, since it must run under the isolated interpreter, not the main project's) takes a PDF file path as an argument and writes Markdown output to stdout, doing the real model-loading/rasterization/inference work using the isolated environment's `nougat-ocr`.
+- `_extract_nougat(pdf_bytes) -> str` in `fulltext.py` (main project) keeps its exact existing signature and caller contract. Internally: write `pdf_bytes` to a temp file, invoke the isolated environment's Python interpreter as a subprocess running the standalone script against that temp file, capture stdout, return `_tidy(stdout)`. A non-zero subprocess exit raises an exception in the parent — the existing per-paper failure handling in `cli_fetch.py` (a later task, unaffected by this amendment) already catches and logs any exception `extract_text`/`fetch_fulltext` raises, so no new failure-handling code is needed there.
+- Everything downstream of `extract_text()` — `fetch_fulltext`, the CLI flags, the API fields, the frontend toggle/rendering — is completely unaffected by this amendment; they only ever consumed `extract_text()`'s string return value, never its internals.
+
 ## Testing
 
 - `benchmark/fulltext.py`: unit tests for `fulltext_path`'s extractor-aware filenames, `extract_text`'s dispatch (mocking both extractor implementations so tests don't require `torch`/network), and `fetch_fulltext`'s `force`/cache-skip behavior per extractor.

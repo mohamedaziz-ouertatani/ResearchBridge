@@ -6,7 +6,9 @@
 
 **Architecture:** `benchmark/fulltext.py`'s `extract_text()` becomes a dispatcher over two implementations (`_extract_pymupdf`, unchanged behavior; `_extract_nougat`, new) selected by an `extractor` parameter. Cached output goes to per-extractor filenames (`{source_id}.txt` for PyMuPDF, `{source_id}.nougat.md` for Nougat) so re-running one never overwrites the other. The API exposes both cached texts per paper; the workbench renders Nougat's Markdown+LaTeX with `react-markdown`+KaTeX and falls back to the existing plain-text `<pre>` render for PyMuPDF or when Nougat has no cached output.
 
-**Tech Stack:** Python (FastAPI, SQLAlchemy already in use), `nougat-ocr` (new — pulls in `torch`), Next.js/React frontend, `react-markdown` + `remark-math` + `rehype-katex` + `katex` (new).
+**AMENDMENT (see spec's "Amendment" section):** `_extract_nougat` runs Nougat in an isolated subprocess with its own pinned, period-correct dependency environment, rather than importing `nougat`/`torch` directly into the main project's environment. Six independent, unrelated dependency-version incompatibilities were found attempting the direct-import approach (documented in the spec and this plan's Task 3/4 history) — the subprocess isolation avoids fighting the main project's modern `transformers`/`albumentations`/`pypdfium2` versions entirely. Tasks 1-2 (already complete) and Tasks 5-11 (unaffected — they only ever consumed `extract_text()`'s string return value) are unchanged; Tasks 3-4 below are the amended versions.
+
+**Tech Stack:** Python (FastAPI, SQLAlchemy already in use), a separate isolated venv for `nougat-ocr` (pinned to period-correct dependency versions, NOT part of the main `uv` project), Next.js/React frontend, `react-markdown` + `remark-math` + `rehype-katex` + `katex` (new).
 
 **Spec:** `docs/superpowers/specs/2026-08-22-nougat-math-extraction-design.md`
 
@@ -180,116 +182,200 @@ git commit -m "feat: extract_text dispatches by extractor, pymupdf path unchange
 
 ---
 
-## Task 3: Investigate the installed `nougat-ocr` API and implement `_extract_nougat`
+## Task 3 (AMENDED): Set up an isolated Nougat subprocess environment and implement `_extract_nougat`
 
-This task is different from the others: the exact model-loading call cannot be written from memory (per Global Constraints) — it must be discovered by installing and inspecting the real package first. Steps 1-2 are investigation; steps 3+ implement based on what's actually found.
+**This task replaces the original in-process Task 3.** The original approach (importing `nougat`/`torch` directly into the main project's environment) was attempted and reverted after six independent, unrelated dependency-version incompatibilities across three fix rounds — see the spec's "Amendment" section for the full history. This version isolates Nougat in its own subprocess with its own pinned, period-correct dependency environment, so it never shares (and never fights) the main project's `transformers`/`albumentations`/`pypdfium2` versions.
+
+This task is still genuinely investigative for one specific reason: the *correct pinned dependency versions* for the isolated environment must be discovered from `nougat-ocr==0.1.17`'s actual real-world release context (its own declared/tested requirements at release time, circa 2023), not guessed — guessing is exactly what caused the six failures being amended here.
 
 **Files:**
-- Modify: `pyproject.toml` (add dependency)
+- Create: `.nougat-venv/` (git-ignored isolated virtual environment — not tracked in git, but its *setup* is scripted and committed)
+- Create: `scripts/setup_nougat_env.sh` (or `.ps1` if more natural on this Windows machine — your call; a one-time, manually-run bootstrap, not run automatically by the app)
+- Create: `scripts/nougat_extract.py` (standalone script, runs under the isolated venv's interpreter — NOT part of the `researchbridge` package/import path, since it must be importable/runnable only by the isolated Python, not the main project's)
 - Modify: `src/researchbridge/benchmark/fulltext.py`
 - Test: `tests/test_benchmark_fulltext.py`
 
 **Interfaces:**
 - Consumes: `_tidy(text: str) -> str` (existing)
-- Produces: `_extract_nougat(pdf_bytes: bytes) -> str` — real implementation, replacing Task 2's stub
+- Produces: `_extract_nougat(pdf_bytes: bytes) -> str` — real implementation, replacing Task 2's stub. Same signature and caller contract as originally specified — this is a pure internal-implementation change.
 
-- [ ] **Step 1: Install the package**
+- [ ] **Step 1: Determine the correct pinned dependency versions**
+
+Check `nougat-ocr==0.1.17`'s actual declared dependencies at its real PyPI/GitHub release (its own `setup.py`/`requirements.txt`/`pyproject.toml` from the facebookresearch/nougat repository, or PyPI's release metadata for that exact version and its release date). Cross-reference against what's already confirmed to work from this session's investigation:
+- `albumentations<2.0.0` (confirmed working, e.g. `1.4.24`)
+- A `transformers` version old enough to predate the `post_init()`-required-in-`from_pretrained` change (the exact version that introduced this requirement was not bisected this session — check `transformers`' own changelog/git blame for `_finalize_model_loading`/`all_tied_weights_keys`, or simply use whatever `nougat-ocr==0.1.17` itself was tested against circa 2023, likely a `4.x` version)
+- A `pypdfium2` version with `PdfDocument.render()` intact — confirmed deprecated in `4.25.0`, removed in `5.0.0`; pin below `4.25.0` to avoid even the deprecation-transition period, unless nougat's own declared requirement says otherwise
+
+Record the exact versions you land on and why, in the setup script's comments.
+
+- [ ] **Step 2: Write the environment bootstrap script**
+
+`scripts/setup_nougat_env.sh`:
 
 ```bash
-uv add nougat-ocr
+#!/usr/bin/env bash
+set -euo pipefail
+# One-time setup for the isolated Nougat extraction environment. Not run
+# automatically - Nougat (nougat-ocr, last released 2023) is incompatible
+# with this project's main environment's transformers/albumentations/
+# pypdfium2 versions (see docs/superpowers/specs/2026-08-22-nougat-math-
+# extraction-design.md's Amendment section for the six failures found
+# attempting a direct in-process import). This isolated venv is pinned to
+# period-correct versions instead.
+
+python -m venv .nougat-venv
+# Activate per-platform (this repo runs on Windows - adjust activation for
+# the shell you actually test in; document both if needed)
+.nougat-venv/Scripts/pip install --upgrade pip
+.nougat-venv/Scripts/pip install \
+    "nougat-ocr==0.1.17" \
+    "albumentations<2.0.0" \
+    "transformers<VERSION_FROM_STEP_1" \
+    "pypdfium2<4.25.0"
+
+echo "Nougat environment ready at .nougat-venv/"
 ```
 
-Record the exact version installed (check `uv.lock` or `uv pip show nougat-ocr`) — write it into the module docstring in Step 4 below.
+(Replace `VERSION_FROM_STEP_1` with the real version you determined. If you're more comfortable with a `.ps1` script given this is a Windows machine, write that instead — whichever you can actually verify works by running it.)
 
-- [ ] **Step 2: Inspect the installed package's real public API**
+Add `.nougat-venv/` to `.gitignore`.
 
-Run each of these and read the output before writing any implementation code:
+- [ ] **Step 3: Run the bootstrap and verify the isolated environment actually works**
 
-```bash
-uv run python -c "import nougat; print(nougat.__file__)"
-uv run python -c "import nougat; help(nougat)"
-```
+Run your setup script. Then, using the isolated venv's own interpreter directly (e.g. `.nougat-venv/Scripts/python.exe -c "import nougat; print('ok')"` on Windows), confirm `import nougat` succeeds with NO patches/workarounds needed — this is the entire point of isolation. If it still fails, the pinned versions from Step 1 are wrong; go back and find the actually-correct ones. Do not proceed to Step 4 until a bare `import nougat` succeeds in the isolated environment.
 
-Also read the actual source under the path the first command prints (e.g. `.venv/Lib/site-packages/nougat/`), specifically looking for:
-- The model class/loading function (commonly `NougatModel` with a `.from_pretrained(...)` classmethod, but confirm against the real source — do not assume).
-- How it expects PDF input (raw bytes? a file path? pre-rasterized page images via `pypdf`/`pdf2image`?).
-- The checkpoint identifier its own default points to (e.g. via a `get_checkpoint(...)` helper or a hardcoded default in its CLI module `nougat/cli.py` if present).
-- Whether it exposes a simple importable inference function, or expects you to drive it the way `nougat/cli.py`'s `main()` does (in which case, follow that same sequence from your own code rather than re-inventing it).
+- [ ] **Step 4: Write the standalone extraction script**
 
-- [ ] **Step 3: Write a failing smoke-test-shaped test using what you found**
+`scripts/nougat_extract.py` — runs under the isolated venv, not the main project's. Takes a PDF file path as its one argument, writes Markdown to stdout. Base this on the reference `predict.py` CLI already installed inside `nougat-ocr` (found during this session's earlier investigation, reachable via `.nougat-venv/Scripts/python.exe -c "import predict; print(predict.__file__)"` once the isolated env exists) — that reference implementation's sequence (load checkpoint → `NougatModel.from_pretrained` → `move_to_device` → `model.eval()` → rasterize PDF → build image tensors → `model.inference(...)` → `nougat.postprocessing.markdown_compatible(...)` per page) is the one to follow, adapted to take a file path argument and print joined Markdown to stdout instead of writing `.mmd` files to disk. Verify this script runs standalone (directly with the isolated interpreter against a real PDF) before wiring it into `fulltext.py` — isolate that verification from the subprocess-calling code so failures are easy to attribute to one side or the other.
 
-This test mocks the actual model call you identified in Step 2 (name it precisely — replace `<ModelClass>`/`<load_method>`/`<predict_method>` below with what you actually found):
+- [ ] **Step 5: Write the failing test for the subprocess wiring**
 
 ```python
-def test_extract_nougat_returns_the_models_markdown_output(monkeypatch) -> None:
+def test_extract_nougat_invokes_the_isolated_subprocess(monkeypatch, tmp_path) -> None:
     import researchbridge.benchmark.fulltext as ft
 
-    class FakeModel:
-        def <predict_method>(self, *args, **kwargs):
-            return "# Title\n\nSome text with $\\alpha_i$ math."
+    captured_args = []
 
-    monkeypatch.setattr(ft, "_load_nougat_model", lambda: FakeModel())
+    class FakeCompletedProcess:
+        stdout = "# Title\n\nSome text with $\\alpha_i$ math."
+        returncode = 0
+
+    def fake_run(args, **kwargs):
+        captured_args.append(args)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(ft.subprocess, "run", fake_run)
 
     result = ft._extract_nougat(b"fake-pdf-bytes")
 
-    assert "alpha_i" in result or "\\alpha_i" in result
+    assert "alpha_i" in result
+    # confirm it invoked the isolated venv's interpreter, not the main one
+    assert ".nougat-venv" in captured_args[0][0] or "nougat_extract.py" in " ".join(captured_args[0])
+
+
+def test_extract_nougat_raises_on_subprocess_failure(monkeypatch) -> None:
+    import subprocess
+
+    import researchbridge.benchmark.fulltext as ft
+
+    def fake_run(args, **kwargs):
+        raise subprocess.CalledProcessError(returncode=1, cmd=args, stderr="model crashed")
+
+    monkeypatch.setattr(ft.subprocess, "run", fake_run)
+
+    import pytest
+
+    with pytest.raises(subprocess.CalledProcessError):
+        ft._extract_nougat(b"fake-pdf-bytes")
 ```
 
-Adjust the fake to match the real call shape found in Step 2 (it may need to mock a page-rasterization step too, in which case add that mock alongside `_load_nougat_model`).
+Adjust the exact assertions to match your real `_extract_nougat` implementation's argument shape once you write Step 6 — the key behaviors to test are: (a) it calls `subprocess.run` (or equivalent) targeting the isolated venv's interpreter and the extraction script, (b) it returns `_tidy()`-processed stdout on success, (c) it propagates/raises on subprocess failure rather than silently returning empty output (this is the exact failure mode — silent empty output — that one of the six original bugs exhibited; do not repeat it).
 
-- [ ] **Step 4: Run test to verify it fails**
+- [ ] **Step 6: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_benchmark_fulltext.py -k extract_nougat -v`
-Expected: FAIL — `_load_nougat_model` (or whichever helper you introduced) doesn't exist yet
+Expected: FAIL — `_extract_nougat` still has Task 2's `NotImplementedError` stub
 
-- [ ] **Step 5: Implement `_extract_nougat` using the real, verified API**
+- [ ] **Step 7: Implement `_extract_nougat`**
 
-In `src/researchbridge/benchmark/fulltext.py`, replace Task 2's stub. The shape below is a skeleton — fill in the actual model-loading and inference calls from Step 2's findings, and update the docstring with the real version/checkpoint/behavior you observed (mirroring how `springer.py`/`semantic_scholar.py` document their own live-verified gotchas elsewhere in this codebase):
+In `src/researchbridge/benchmark/fulltext.py`, replace Task 2's stub:
 
 ```python
+import subprocess
+import tempfile
+from pathlib import Path
+
+NOUGAT_VENV_PYTHON = Path(__file__).resolve().parents[3] / ".nougat-venv" / "Scripts" / "python.exe"
+NOUGAT_EXTRACT_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "nougat_extract.py"
+
+
 def _extract_nougat(pdf_bytes: bytes) -> str:
-    """Math-aware extraction via Nougat (nougat-ocr==<VERSION>).
+    """Math-aware extraction via Nougat, run in an isolated subprocess.
 
-    <Fill in during implementation: what checkpoint this loads and why,
-    how PDF bytes get turned into model input, and any real output
-    quirks observed against a real benchmark PDF in Task 4 - the same
-    way springer.py/semantic_scholar.py document their own live-
-    verified behavior.>
+    nougat-ocr (last released 2023) is incompatible with this project's
+    main environment's transformers/albumentations/pypdfium2 versions -
+    six independent, unrelated version-drift failures were found
+    attempting a direct in-process import (see the design spec's
+    Amendment section). This runs Nougat in its own pinned virtual
+    environment (.nougat-venv/, set up via scripts/setup_nougat_env.sh)
+    as a subprocess instead, so it never touches or fights the main
+    project's dependency versions.
+
+    Raises subprocess.CalledProcessError if the isolated extraction
+    fails - never silently returns empty output on failure (a real bug
+    hit during development: rasterize_paper's own bytes-input bug
+    silently produced zero pages rather than erroring).
     """
-    model = _load_nougat_model()
-    # <the real inference call, from Step 2's findings>
-    markdown = ...
-    return _tidy(markdown)
+    if not NOUGAT_VENV_PYTHON.exists():
+        raise RuntimeError(
+            f"Isolated Nougat environment not found at {NOUGAT_VENV_PYTHON}. "
+            "Run scripts/setup_nougat_env.sh first."
+        )
 
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        f.write(pdf_bytes)
+        pdf_path = Path(f.name)
 
-def _load_nougat_model():
-    """Lazily imports and loads the Nougat model - kept as its own function
-    so tests can monkeypatch model loading without a real multi-GB download."""
-    <the real import + load call from Step 2's findings>
+    try:
+        result = subprocess.run(
+            [str(NOUGAT_VENV_PYTHON), str(NOUGAT_EXTRACT_SCRIPT), str(pdf_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=1800,  # real CPU inference is slow - see the design spec
+        )
+    finally:
+        pdf_path.unlink(missing_ok=True)
+
+    return _tidy(result.stdout)
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+(Adjust the exact `subprocess.run` arguments/error handling to match what Step 5's test actually asserts, and to match Step 4's real script's real argument/output contract.)
+
+- [ ] **Step 8: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_benchmark_fulltext.py -v`
 Expected: all PASS
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add pyproject.toml uv.lock src/researchbridge/benchmark/fulltext.py tests/test_benchmark_fulltext.py
-git commit -m "feat: implement Nougat extraction (nougat-ocr)"
+git add .gitignore scripts/setup_nougat_env.sh scripts/nougat_extract.py src/researchbridge/benchmark/fulltext.py tests/test_benchmark_fulltext.py
+git commit -m "feat: implement Nougat extraction via isolated subprocess"
 ```
+
+Note: `.nougat-venv/` itself is never committed (git-ignored) — only its setup script is.
 
 ---
 
-## Task 4: Live smoke-test against a real benchmark PDF, verify `_tidy()` is Markdown-safe
+## Task 4 (AMENDED): Live smoke-test the isolated subprocess against a real benchmark PDF, verify `_tidy()` is Markdown-safe
 
 **Files:**
 - Modify: `src/researchbridge/benchmark/fulltext.py` (only if Step 3 below finds `_tidy` mangles Markdown)
 
 - [ ] **Step 1: Run a real extraction against a real cached PDF**
 
-Use the paper already referenced in the design spec (`1812.02641`, "Local Conditioning in Undirected Networks") or any other paper with a `.txt` already cached under `benchmark/fulltext/`. Since only the PyMuPDF text is cached (not the original PDF bytes), re-download the PDF first:
+Same as originally specified — use `1812.02641` ("Local Conditioning in Undirected Networks"), re-download its PDF (only the PyMuPDF text is cached, not the original PDF bytes):
 
 ```bash
 uv run python -c "
@@ -304,17 +390,15 @@ print('total length:', len(text))
 "
 ```
 
-This will trigger the model's first-run checkpoint download — expect this to take a while and print progress; let it finish.
+This triggers the model checkpoint's first-run download inside the isolated subprocess — expect this to take a while (the real time budget for CPU inference is still unknown at this point, since no attempt has yet completed end-to-end).
 
 - [ ] **Step 2: Compare against the known-garbled PyMuPDF output**
 
-Check that the math expressions that were scrambled in `benchmark/fulltext/1812.02641.txt` (the `Φi = eαi / e−αi` matrix, the `∑`/`∏` operators that came out as bare `X`/`Y`) now appear as recognizable LaTeX (e.g. `$\Phi_i$`, `\sum`, `\prod`) in the Nougat output. If the output looks wrong (garbled differently, empty, or clearly not math-aware), stop and re-check Task 3's Step 2 findings before proceeding — do not paper over a broken integration.
+Check that the math expressions scrambled in `benchmark/fulltext/1812.02641.txt` (the `Φi = eαi / e−αi` matrix, the `∑`/`∏` operators that came out as bare `X`/`Y`) now appear as recognizable LaTeX in the Nougat output. If the output looks wrong (garbled differently, empty, or clearly not math-aware) — or if the subprocess itself fails — STOP and report BLOCKED with full detail (the subprocess's stderr, the exact error). Given the history here, do not attempt more than one self-directed fix before reporting back if something new goes wrong; escalate early rather than repeating the previous pattern.
 
 - [ ] **Step 3: Check `_tidy()` against the real Markdown output**
 
-Inspect whether `_tidy()`'s blank-line-collapsing regex (`re.sub(r"\n{3,}", "\n\n", text)`) altered any Markdown structure incorrectly (e.g. collapsed a blank line that separated two list items or a heading from its paragraph in a way that changes rendered meaning). Markdown only needs a single blank line between block elements, so 3+ blank lines collapsing to 2 should be harmless — but confirm against the real output from Step 1 rather than assuming.
-
-If a real problem is found, fix `_tidy()` and re-run Task 3's tests to confirm nothing there regressed. If nothing is wrong, no code change needed for this task.
+Same as originally specified: inspect whether `_tidy()`'s blank-line-collapsing regex altered any real Markdown structure incorrectly. Fix only if a real problem is found; re-run Task 3's tests to confirm nothing regressed.
 
 - [ ] **Step 4: Commit (only if Step 3 required a fix)**
 
@@ -933,6 +1017,8 @@ No commit for this task (it produces data files under `benchmark/fulltext/`, not
 - Text-selection verified against rendered DOM → Task 10
 - Batch re-extraction rollout → Task 11
 
-**Placeholder scan:** Task 3 intentionally contains a partially-filled skeleton (`_extract_nougat`'s body, `_load_nougat_model`) rather than concrete code — this is not an oversight; the spec's approved review feedback explicitly requires the checkpoint/model-loading call to be discovered from the real installed package rather than assumed from memory, and Task 3's steps 1-2 are concrete, runnable investigation commands that produce the information Step 5 needs. Every other task has fully concrete code.
+**Placeholder scan:** Amended Task 3 still contains a few `VERSION_FROM_STEP_1`-style fill-ins in the setup script and extraction script — same deliberate exception as the original Task 3, now for a different reason: the correct pinned dependency versions and the exact `predict.py`-derived extraction sequence must be discovered from the isolated environment once it exists, not guessed (guessing the original in-process versions is exactly what produced six failures). Steps 1-4 are concrete, runnable discovery/verification actions that produce the information Steps 5-7 need. Every other task has fully concrete code.
+
+**Amendment history:** the original Task 3/4 (direct in-process `nougat`/`torch` import) were attempted, hit six independent dependency-version incompatibilities across three fix rounds with zero successful extractions, and were reverted (commit `1e29af3`, reverting `849fe41`). The amended Tasks 3-4 above (isolated subprocess with a pinned, period-correct environment) replace them. Full history preserved in the spec's "Amendment" section and this plan's git history.
 
 **Type consistency:** `extractor: str = "pymupdf"` and the two-value set `{"pymupdf", "nougat"}` are used identically across `fulltext_path` (Task 1), `extract_text` (Task 2), and `fetch_fulltext` (Task 5). `has_fulltext_nougat`/`fulltext_nougat` naming is consistent between the backend schema (Task 7) and frontend types (Task 8).
