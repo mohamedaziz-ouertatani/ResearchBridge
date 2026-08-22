@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 import re
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -87,8 +89,49 @@ def _extract_pymupdf(pdf_bytes: bytes) -> str:
     return _tidy("\n\n".join(pages))
 
 
+NOUGAT_VENV_PYTHON = Path(__file__).resolve().parents[3] / ".nougat-venv" / "Scripts" / "python.exe"
+NOUGAT_EXTRACT_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "nougat_extract.py"
+
+
 def _extract_nougat(pdf_bytes: bytes) -> str:
-    raise NotImplementedError("implemented in Task 3")
+    """Math-aware extraction via Nougat, run in an isolated subprocess.
+
+    nougat-ocr (last released 2023) is incompatible with this project's
+    main environment's transformers/albumentations/pypdfium2 versions -
+    six independent, unrelated version-drift failures were found
+    attempting a direct in-process import (see the design spec's
+    Amendment section). This runs Nougat in its own pinned virtual
+    environment (.nougat-venv/, set up via scripts/setup_nougat_env.ps1)
+    as a subprocess instead, so it never touches or fights the main
+    project's dependency versions.
+
+    Raises subprocess.CalledProcessError if the isolated extraction
+    fails - never silently returns empty output on failure (a real bug
+    hit during development: rasterize_paper's own bytes-input bug
+    silently produced zero pages rather than erroring).
+    """
+    if not NOUGAT_VENV_PYTHON.exists():
+        raise RuntimeError(
+            f"Isolated Nougat environment not found at {NOUGAT_VENV_PYTHON}. "
+            "Run scripts/setup_nougat_env.ps1 first."
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        f.write(pdf_bytes)
+        pdf_path = Path(f.name)
+
+    try:
+        result = subprocess.run(
+            [str(NOUGAT_VENV_PYTHON), str(NOUGAT_EXTRACT_SCRIPT), str(pdf_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=1800,  # real CPU inference is slow - see the design spec
+        )
+    finally:
+        pdf_path.unlink(missing_ok=True)
+
+    return _tidy(result.stdout)
 
 
 # Math-heavy PDFs often set equations in fonts with custom glyph-to-code

@@ -17,3 +17,6 @@ benchmark/fulltext/
 
 # per-run stdout/stderr logs from admin-triggered pipeline subprocesses
 logs/
+
+# isolated venv for Nougat extraction (scripts/setup_nougat_env.sh sets it up)
+.nougat-venv/

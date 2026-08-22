@@ -107,3 +107,63 @@ def test_extract_text_rejects_unknown_extractor() -> None:
 
     with pytest.raises(ValueError, match="extractor"):
         extract_text(b"fake-pdf-bytes", extractor="bogus")
+
+
+def test_extract_nougat_invokes_the_isolated_subprocess(monkeypatch, tmp_path) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    fake_venv_python = tmp_path / ".nougat-venv" / "Scripts" / "python.exe"
+    fake_venv_python.parent.mkdir(parents=True)
+    fake_venv_python.write_text("")
+    monkeypatch.setattr(ft, "NOUGAT_VENV_PYTHON", fake_venv_python)
+
+    captured_args = []
+
+    class FakeCompletedProcess:
+        stdout = "# Title\n\nSome text with $\\alpha_i$ math."
+        returncode = 0
+
+    def fake_run(args, **kwargs):
+        captured_args.append(args)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(ft.subprocess, "run", fake_run)
+
+    result = ft._extract_nougat(b"fake-pdf-bytes")
+
+    assert "alpha_i" in result
+    # confirm it invoked the isolated venv's interpreter, not the main one
+    assert ".nougat-venv" in captured_args[0][0]
+    assert "nougat_extract.py" in captured_args[0][1]
+
+
+def test_extract_nougat_raises_on_subprocess_failure(monkeypatch, tmp_path) -> None:
+    import subprocess
+
+    import researchbridge.benchmark.fulltext as ft
+
+    fake_venv_python = tmp_path / ".nougat-venv" / "Scripts" / "python.exe"
+    fake_venv_python.parent.mkdir(parents=True)
+    fake_venv_python.write_text("")
+    monkeypatch.setattr(ft, "NOUGAT_VENV_PYTHON", fake_venv_python)
+
+    def fake_run(args, **kwargs):
+        raise subprocess.CalledProcessError(returncode=1, cmd=args, stderr="model crashed")
+
+    monkeypatch.setattr(ft.subprocess, "run", fake_run)
+
+    import pytest
+
+    with pytest.raises(subprocess.CalledProcessError):
+        ft._extract_nougat(b"fake-pdf-bytes")
+
+
+def test_extract_nougat_raises_when_isolated_env_missing(monkeypatch, tmp_path) -> None:
+    import researchbridge.benchmark.fulltext as ft
+
+    monkeypatch.setattr(ft, "NOUGAT_VENV_PYTHON", tmp_path / "does-not-exist" / "python.exe")
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="Isolated Nougat environment not found"):
+        ft._extract_nougat(b"fake-pdf-bytes")
