@@ -26,7 +26,7 @@ Out of scope (deliberately deferred):
 **`benchmark/fulltext.py`**:
 - `fulltext_path(output_dir, source_id, extractor="pymupdf") -> Path` — extractor-aware filename. `pymupdf` keeps the existing `{source_id}.txt` (the 40 already-cached files stay valid, untouched, still found by a default call); `nougat` writes to `{source_id}.nougat.md` (the extension signals Markdown, distinguishing it from the plain-text convention).
 - `extract_text(pdf_bytes, extractor="pymupdf") -> str` — dispatches to `_extract_pymupdf(pdf_bytes)` (today's implementation, moved verbatim, behavior-identical) or `_extract_nougat(pdf_bytes)` (new). Nougat's import (`torch`, the `nougat` package) is lazy, inside `_extract_nougat`, exactly like PyMuPDF's own lazy-import reasoning today ("the rest of the benchmark tooling doesn't pay for [it]") — now far more important, since `torch`+model checkpoint is a multi-GB, slow-to-import dependency the rest of the app must never pay for.
-- `_extract_nougat`: rasterizes PDF pages (Nougat's own preprocessing pipeline handles this internally) and runs the default "base" checkpoint (auto-downloaded and cached by the library on first use), returning the model's Markdown output.
+- `_extract_nougat`: rasterizes PDF pages (Nougat's own preprocessing pipeline handles this internally) and runs a checkpoint, returning the model's Markdown output. The exact checkpoint name/selection, model-loading call, and download/caching behavior are **not assumed here** — verified against whatever `nougat-ocr` version actually installs during implementation (its API has changed across releases), and documented in the module docstring the same way the Springer/Semantic Scholar connectors document their live-verified gotchas. Default to whatever the installed package treats as its own default checkpoint rather than hardcoding a name that may not exist in that version.
 - `_tidy()` gets reviewed against real Nougat Markdown output during implementation — blank lines are structurally meaningful in Markdown (paragraph breaks) in a way they aren't in raw PDF text extraction, so the existing blank-line-collapsing regex may need a Markdown-aware adjustment. Verified live, not assumed.
 - `fetch_fulltext(source_id, output_dir, session=None, extractor="pymupdf", force=False) -> str` — same shape, two new params. Writes to the extractor-specific path; `force=True` skips the exists-check.
 
@@ -47,6 +47,11 @@ Out of scope (deliberately deferred):
 ## Rollout
 
 One-time batch job after implementation: `rb-benchmark-fetch --extractor nougat --force`, re-extracting all 40 benchmark papers with Nougat. Runs in the background (matches this session's pattern for slow ingestion pulls); CPU-only, accepted as potentially slow (minutes per paper × 40 papers). Existing PyMuPDF-extracted `.txt` files are never touched by this run — both outputs coexist per paper afterward, ready for the in-workbench toggle comparison.
+
+**Per-paper failure handling** (`cli_fetch.py`'s existing loop already catches and logs one paper's failure without ending the run — "one unavailable PDF must not end the run" — this extends the same contract to Nougat specifically):
+- A Nougat failure for one paper (model error, malformed/corrupt PDF for that pipeline, timeout, etc.) is caught per-paper, logged with the source_id and error detail (same `[i/n] source_id: FAILED <error>` line the loop already prints), and does **not** touch that paper's existing PyMuPDF `.txt` file — it's structurally untouched anyway since the two extractors write to different filenames, but this is now an explicit guarantee, not just a side effect of the file-naming scheme.
+- The batch continues to the next paper. The run's final summary (`fetched X, already cached Y, failed Z`) reports Nougat failures the same way PyMuPDF failures are reported today.
+- A paper that fails Nougat extraction simply has no `{source_id}.nougat.md` file afterward — the workbench's toggle (which only shows when both extractions exist) naturally falls back to showing PyMuPDF-only for that paper, no special-case UI state needed.
 
 ## Testing
 
