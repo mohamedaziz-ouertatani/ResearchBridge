@@ -56,6 +56,14 @@ export type ResearchAssessment = {
   evidence: AssessmentEvidence[];
 };
 
+export type AssessmentHistoryItem = {
+  id: string;
+  status: string;
+  novelty_level: string;
+  human_reviewed: boolean;
+  created_at: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
   if (!response.ok) {
@@ -88,4 +96,8 @@ export const assessmentApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ human_reviewed: humanReviewed }),
     }),
+
+  rerun: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}/rerun`, { method: "POST" }),
+
+  history: (id: string) => request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
 };

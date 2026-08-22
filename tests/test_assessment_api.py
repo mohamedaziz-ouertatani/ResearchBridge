@@ -368,3 +368,71 @@ def test_review_persists_across_a_fresh_fetch(client) -> None:
     fetched = client.get(f"/api/assessments/{created['id']}").json()
 
     assert fetched["human_reviewed"] is True
+
+
+def test_rerun_creates_a_new_assessment_for_the_same_input(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    rerun = client.post(f"/api/assessments/{created['id']}/rerun")
+
+    assert rerun.status_code == 200
+    body = rerun.json()
+    assert body["id"] != created["id"]
+    assert body["research_input"]["id"] == created["research_input"]["id"]
+    assert body["status"] == "completed"
+
+
+def test_rerun_picks_up_newly_ingested_evidence(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    assert created["potential_applications"] is None  # no evidence existed yet
+
+    # same title as the query text so the (hash-based) fake embedder places it
+    # at distance 0.0, well within assess_applications' relevance gate
+    paper2 = _add_paper(session, embedder, "p2", "graph transformers for fraud detection")
+    _add_claim(session, paper2, "applications", "real-time payment fraud screening")
+    session.commit()
+
+    rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
+
+    assert rerun["potential_applications"][0]["application"] == "real-time payment fraud screening"
+
+
+def test_rerun_404s_for_unknown_assessment(client) -> None:
+    response = client.post(f"/api/assessments/{uuid.uuid4()}/rerun")
+
+    assert response.status_code == 404
+
+
+def test_history_lists_all_assessments_for_the_same_input_newest_first(client, session) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+    rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
+
+    history = client.get(f"/api/assessments/{created['id']}/history").json()
+
+    assert [item["id"] for item in history] == [rerun["id"], created["id"]]
+
+
+def test_history_items_carry_enough_to_distinguish_entries(client, session) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
+
+    history = client.get(f"/api/assessments/{created['id']}/history").json()
+
+    item = history[0]
+    assert item["id"] == created["id"]
+    assert item["status"] == "completed"
+    assert item["novelty_level"] == "not_assessed"
+    assert item["human_reviewed"] is False
+    assert "created_at" in item
+
+
+def test_history_404s_for_unknown_assessment(client) -> None:
+    response = client.get(f"/api/assessments/{uuid.uuid4()}/history")
+
+    assert response.status_code == 404

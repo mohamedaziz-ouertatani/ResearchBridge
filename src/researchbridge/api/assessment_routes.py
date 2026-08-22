@@ -14,10 +14,16 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.api.schemas import ResearchAssessmentCreate, ResearchAssessmentOut, ResearchAssessmentReview
+from researchbridge.api.schemas import (
+    ResearchAssessmentCreate,
+    ResearchAssessmentHistoryItem,
+    ResearchAssessmentOut,
+    ResearchAssessmentReview,
+)
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.matching import match_uploaded_paper
@@ -95,6 +101,44 @@ def review_assessment(
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)
+
+
+@router.post("/{assessment_id}/rerun", response_model=ResearchAssessmentOut)
+def rerun_assessment(
+    assessment_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    embedder: Embedder = Depends(get_embedder),
+) -> ResearchAssessmentOut:
+    """Re-run the pipeline for an existing assessment's research_input.
+
+    Always creates a NEW ResearchAssessment row rather than overwriting the
+    original - the corpus grows over time (new ingestion, new extraction),
+    so a re-run's results can genuinely differ, and preserving both keeps
+    the assessment history honest rather than silently replacing it."""
+    original = session.get(ResearchAssessment, assessment_id)
+    if original is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    assessment = build_assessment(session, original.research_input_id, embedder)
+
+    research_input = session.get(ResearchInput, assessment.research_input_id)
+    return _to_out(session, assessment, research_input)
+
+
+@router.get("/{assessment_id}/history", response_model=list[ResearchAssessmentHistoryItem])
+def assessment_history(assessment_id: uuid.UUID, session: Session = Depends(get_session)) -> list[ResearchAssessment]:
+    """All assessments (including this one) for the same research_input, newest first."""
+    original = session.get(ResearchAssessment, assessment_id)
+    if original is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    return list(
+        session.execute(
+            select(ResearchAssessment)
+            .where(ResearchAssessment.research_input_id == original.research_input_id)
+            .order_by(ResearchAssessment.created_at.desc())
+        ).scalars()
+    )
 
 
 def _to_out(

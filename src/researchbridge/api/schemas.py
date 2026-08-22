@@ -180,6 +180,23 @@ class ResearchAssessmentCreate(BaseModel):
     raw_text: str = Field(min_length=1)
 
 
+class ResearchAssessmentHistoryItem(BaseModel):
+    """One entry in a research_input's assessment history (re-runs, Sec 2A).
+
+    Deliberately a small subset of ResearchAssessmentOut's fields - a
+    history list is for telling sibling assessments apart at a glance
+    (when, what novelty/status, reviewed or not), not for shipping every
+    field's full evidence payload for every entry."""
+
+    id: uuid.UUID
+    status: str
+    novelty_level: str
+    human_reviewed: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ResearchAssessmentReview(BaseModel):
     human_reviewed: bool
 

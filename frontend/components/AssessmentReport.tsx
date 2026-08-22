@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { useState } from "react";
-import { assessmentApi, type AssessmentEvidence, type EvidenceRole, type ResearchAssessment } from "@/lib/assessmentApi";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  assessmentApi,
+  type AssessmentEvidence,
+  type AssessmentHistoryItem,
+  type EvidenceRole,
+  type ResearchAssessment,
+} from "@/lib/assessmentApi";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -64,6 +71,8 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
   return (
     <article className="resolve">
       <Verdict assessment={assessment} grounded={groundedCount} total={GRADEABLE_ROLES.length} />
+
+      <AssessmentHistory assessmentId={assessment.id} />
 
       <Field label="input" gradeable={false}>
         <p className="font-[family-name:var(--type-text)] text-[1.0625rem] leading-[1.7]">
@@ -203,9 +212,12 @@ function Verdict({
   grounded: number;
   total: number;
 }) {
+  const router = useRouter();
   const [reviewed, setReviewed] = useState(assessment.human_reviewed);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunFailed, setRerunFailed] = useState(false);
 
   async function toggleReviewed() {
     setBusy(true);
@@ -220,6 +232,18 @@ function Verdict({
     }
   }
 
+  async function rerun() {
+    setRerunning(true);
+    setRerunFailed(false);
+    try {
+      const next = await assessmentApi.rerun(assessment.id);
+      router.push(`/assessments/${next.id}`);
+    } catch {
+      setRerunFailed(true);
+      setRerunning(false);
+    }
+  }
+
   return (
     <header className="border-b border-[var(--rule)] pb-8">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -230,20 +254,31 @@ function Verdict({
           </p>
         </div>
 
-        <button
-          onClick={toggleReviewed}
-          disabled={busy}
-          className={`eyebrow shrink-0 rounded-[2px] border px-3 py-1.5 disabled:opacity-50 ${
-            reviewed
-              ? "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
-              : "border-[var(--rule)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
-          }`}
-        >
-          {busy ? "saving…" : reviewed ? "✓ reviewed · un-mark" : "mark reviewed"}
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <button
+            onClick={rerun}
+            disabled={rerunning}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
+          >
+            {rerunning ? "re-running…" : "re-run assessment"}
+          </button>
+
+          <button
+            onClick={toggleReviewed}
+            disabled={busy}
+            className={`eyebrow rounded-[2px] border px-3 py-1.5 disabled:opacity-50 ${
+              reviewed
+                ? "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+                : "border-[var(--rule)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+            }`}
+          >
+            {busy ? "saving…" : reviewed ? "✓ reviewed · un-mark" : "mark reviewed"}
+          </button>
+        </div>
       </div>
 
       {failed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">save failed — try again</p>}
+      {rerunFailed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">re-run failed — try again</p>}
 
       <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
         <div>
@@ -263,6 +298,47 @@ function Verdict({
         right. Fields with no supporting passage are left unassessed rather than filled in.
       </p>
     </header>
+  );
+}
+
+/** Sibling assessments for the same research_input (re-runs) - hidden entirely
+    when there's only one, since a history of one isn't a history. */
+function AssessmentHistory({ assessmentId }: { assessmentId: string }) {
+  const [history, setHistory] = useState<AssessmentHistoryItem[] | null>(null);
+
+  useEffect(() => {
+    assessmentApi
+      .history(assessmentId)
+      .then(setHistory)
+      .catch(() => setHistory(null));
+  }, [assessmentId]);
+
+  if (!history || history.length <= 1) return null;
+
+  return (
+    <section className="border-b border-[var(--rule-soft)] py-6">
+      <span className="eyebrow">assessment history</span>
+      <ul className="mt-3 space-y-2">
+        {history.map((item) => (
+          <li key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {item.id === assessmentId ? (
+              <span className="readout text-[0.8125rem]">viewing this one</span>
+            ) : (
+              <Link
+                href={`/assessments/${item.id}`}
+                className="readout text-[0.8125rem] underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+              >
+                view
+              </Link>
+            )}
+            <span className="text-[0.8125rem] text-[var(--ink-soft)]">
+              {new Date(item.created_at).toLocaleString()} · {item.novelty_level.replace("_", " ")}
+              {item.human_reviewed ? " · reviewed" : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
