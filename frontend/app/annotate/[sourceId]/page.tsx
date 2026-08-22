@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
   ANNOTATION_FIELDS,
   benchmarkApi,
@@ -26,6 +30,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [selection, setSelection] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [extractorView, setExtractorView] = useState<"nougat" | "pymupdf">("nougat");
 
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,6 +43,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
     dirty.current = false;
     setSaveState("idle");
     setSelection("");
+    setExtractorView("nougat");
 
     benchmarkApi
       .detail(sourceId)
@@ -199,15 +205,56 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
               {detail?.domain} · {detail?.year} · {sourceId}
             </p>
 
-            {detail && !detail.fulltext ? (
+            {detail && !detail.fulltext && !detail.fulltext_nougat ? (
               <p className="mt-6 border-l-2 border-[var(--live)] pl-4 text-[0.9375rem] text-[var(--ink-soft)]">
                 No full text cached for this paper. Run{" "}
                 <code className="readout text-[0.875rem]">rb-benchmark-fetch</code> to download it.
               </p>
             ) : (
-              <pre className="mt-5 font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
-                {detail?.fulltext}
-              </pre>
+              <>
+                {detail?.fulltext_nougat && detail?.fulltext && (
+                  <div className="mb-3 flex gap-1">
+                    <button
+                      onClick={() => setExtractorView("nougat")}
+                      className={`eyebrow rounded-[2px] border px-2 py-1 text-[0.6875rem] ${
+                        extractorView === "nougat"
+                          ? "border-[var(--ink)] text-[var(--ink)]"
+                          : "border-[var(--rule)] text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+                      }`}
+                    >
+                      Nougat
+                    </button>
+                    <button
+                      onClick={() => setExtractorView("pymupdf")}
+                      className={`eyebrow rounded-[2px] border px-2 py-1 text-[0.6875rem] ${
+                        extractorView === "pymupdf"
+                          ? "border-[var(--ink)] text-[var(--ink)]"
+                          : "border-[var(--rule)] text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+                      }`}
+                    >
+                      PyMuPDF
+                    </button>
+                  </div>
+                )}
+
+                {(extractorView === "nougat" ? detail?.fulltext_nougat : detail?.fulltext) ? (
+                  extractorView === "nougat" && detail?.fulltext_nougat ? (
+                    <div className="mt-5 max-w-none font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] text-[var(--ink)]">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {detail.fulltext_nougat}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <pre className="mt-5 font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
+                      {detail?.fulltext}
+                    </pre>
+                  )
+                ) : (
+                  <pre className="mt-5 font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
+                    {detail?.fulltext}
+                  </pre>
+                )}
+              </>
             )}
           </div>
         </section>
