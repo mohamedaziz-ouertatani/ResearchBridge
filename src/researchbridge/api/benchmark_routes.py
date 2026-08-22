@@ -60,6 +60,7 @@ class AnnotationSummary(BaseModel):
     total: int
     is_complete: bool
     has_fulltext: bool
+    has_fulltext_nougat: bool
 
 
 class AnnotationDetail(AnnotationSummary):
@@ -68,6 +69,7 @@ class AnnotationDetail(AnnotationSummary):
     research_gap: dict[str, str]
     key_evidence: list[EvidenceItem]
     fulltext: str | None
+    fulltext_nougat: str | None
 
 
 class BenchmarkProgress(BaseModel):
@@ -80,6 +82,7 @@ class BenchmarkProgress(BaseModel):
 def _summary(annotation: Annotation, benchmark_dir: Path) -> AnnotationSummary:
     identity = annotation.identity
     year = identity.get("year")
+    fulltext_dir = benchmark_dir / "fulltext"
     return AnnotationSummary(
         source_id=annotation.source_id,
         title=identity.get("title"),
@@ -88,7 +91,8 @@ def _summary(annotation: Annotation, benchmark_dir: Path) -> AnnotationSummary:
         filled=annotation.filled_count,
         total=annotation.total_count,
         is_complete=annotation.is_complete,
-        has_fulltext=fulltext_path(benchmark_dir / "fulltext", annotation.source_id).exists(),
+        has_fulltext=fulltext_path(fulltext_dir, annotation.source_id).exists(),
+        has_fulltext_nougat=fulltext_path(fulltext_dir, annotation.source_id, extractor="nougat").exists(),
     )
 
 
@@ -124,7 +128,9 @@ def get_annotation(
     source_id: str, benchmark_dir: Path = Depends(get_benchmark_dir)
 ) -> AnnotationDetail:
     annotation = _find(source_id, benchmark_dir)
-    path = fulltext_path(benchmark_dir / "fulltext", source_id)
+    fulltext_dir = benchmark_dir / "fulltext"
+    path = fulltext_path(fulltext_dir, source_id)
+    nougat_path = fulltext_path(fulltext_dir, source_id, extractor="nougat")
 
     return AnnotationDetail(
         **_summary(annotation, benchmark_dir).model_dump(),
@@ -133,6 +139,7 @@ def get_annotation(
         research_gap=annotation.research_gap,
         key_evidence=[EvidenceItem(**item) for item in annotation.key_evidence],
         fulltext=path.read_text(encoding="utf-8") if path.exists() else None,
+        fulltext_nougat=nougat_path.read_text(encoding="utf-8") if nougat_path.exists() else None,
     )
 
 

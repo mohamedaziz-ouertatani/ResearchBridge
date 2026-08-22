@@ -40,6 +40,7 @@ def benchmark_dir(tmp_path) -> Path:
     fulltext = tmp_path / "fulltext"
     fulltext.mkdir()
     (fulltext / "1111.11111.txt").write_text("Full text of the first paper.", encoding="utf-8")
+    (fulltext / "1111.11111.nougat.md").write_text("# Full text\n\nWith $\\alpha$ math.", encoding="utf-8")
     return tmp_path
 
 
@@ -129,6 +130,23 @@ def test_update_cannot_rewrite_identity(client, benchmark_dir) -> None:
     on_disk = load(benchmark_dir / "annotations" / "arxiv_1111.11111.yaml")
     assert on_disk.source_id == "1111.11111"
     assert on_disk.fields["problem"] == "kept"
+
+
+def test_list_reports_which_papers_have_nougat_fulltext(client) -> None:
+    by_id = {row["source_id"]: row for row in client.get("/api/benchmark/papers").json()}
+
+    assert by_id["1111.11111"]["has_fulltext_nougat"] is True
+    assert by_id["2222.22222"]["has_fulltext_nougat"] is False
+
+
+def test_detail_includes_nougat_fulltext_when_cached(client) -> None:
+    body = client.get("/api/benchmark/papers/1111.11111").json()
+
+    assert body["fulltext_nougat"] == "# Full text\n\nWith $\\alpha$ math."
+
+
+def test_detail_nougat_fulltext_is_null_when_not_cached(client) -> None:
+    assert client.get("/api/benchmark/papers/2222.22222").json()["fulltext_nougat"] is None
 
 
 def test_progress_aggregates_across_papers(client) -> None:
