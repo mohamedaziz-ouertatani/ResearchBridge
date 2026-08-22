@@ -17,10 +17,17 @@ export type PipelineKey =
   | "extraction"
   | "embedding";
 
+export type AssessmentStats = {
+  total: number;
+  needs_review: number;
+};
+
 export type PipelineStatus = {
   total_papers: number;
   papers_with_claims: number;
   papers_with_embeddings: number;
+  papers_by_source: Record<string, number>;
+  assessment_stats: AssessmentStats;
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];
@@ -79,4 +86,10 @@ export const adminApi = {
 
   triggerEmbedding: (params: { limit?: number }) =>
     post<PipelineTriggerResult>("/api/admin/embedding/run", params),
+
+  log: (key: PipelineKey, lines = 200) =>
+    fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return (response.json() as Promise<{ log: string }>).then((body) => body.log);
+    }),
 };

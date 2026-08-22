@@ -229,10 +229,19 @@ class PipelineRunOut(BaseModel):
     field per run type so one schema covers all three pipeline stages."""
 
 
+class AssessmentStats(BaseModel):
+    total: int
+    """The latest assessment per research_input - re-run history collapses
+    to one, same as GET /api/assessments (Sec 2A)."""
+    needs_review: int
+
+
 class PipelineStatus(BaseModel):
     total_papers: int
     papers_with_claims: int
     papers_with_embeddings: int
+    papers_by_source: dict[str, int]
+    assessment_stats: AssessmentStats
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]

@@ -38,6 +38,20 @@ def is_running(key: str) -> bool:
     return proc is not None and proc.poll() is None
 
 
+def tail_log(key: str, lines: int = 200) -> str:
+    """The last `lines` lines of the most recent log file for this pipeline
+    key, or "" if none exists yet. Finds "most recent" by filename (the
+    timestamp trigger() embeds sorts lexicographically), not mtime - no
+    extra state to track beyond what's already on disk, and it keeps
+    working across a server restart the way the in-process _RUNNING
+    registry deliberately doesn't (see module docstring)."""
+    candidates = sorted(LOGS_DIR.glob(f"{key}-*.log"))
+    if not candidates:
+        return ""
+    content = candidates[-1].read_text(encoding="utf-8", errors="replace")
+    return "\n".join(content.splitlines()[-lines:])
+
+
 def trigger(key: str, module: str, args: list[str]) -> Path:
     """Launch `python -m <module> <args>` as a background subprocess.
 

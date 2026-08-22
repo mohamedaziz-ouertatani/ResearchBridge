@@ -20,6 +20,8 @@ from researchbridge.db.models import (
     ExtractionRun,
     IngestionRun,
     Paper,
+    ResearchAssessment,
+    ResearchInput,
 )
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
@@ -70,9 +72,11 @@ def session(session_factory):
     s.close()
 
 
-def _add_paper(session, embedder, source_id: str, embed: bool = False, claim: bool = False) -> Paper:
+def _add_paper(
+    session, embedder, source_id: str, embed: bool = False, claim: bool = False, source: str = "arxiv"
+) -> Paper:
     paper = Paper(
-        id=uuid.uuid4(), source="arxiv", source_id=source_id, title=f"paper {source_id}", abstract="",
+        id=uuid.uuid4(), source=source, source_id=source_id, title=f"paper {source_id}", abstract="",
         raw_metadata={}, ingestion_metadata={},
     )
     session.add(paper)
@@ -177,6 +181,92 @@ def test_pipeline_status_surfaces_error_summary(client, session) -> None:
     body = client.get("/api/admin/pipeline").json()
 
     assert body["ingestion_runs"][0]["error_summary"] == "connection timed out"
+
+
+def test_pipeline_status_reports_papers_by_source(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", source="arxiv")
+    _add_paper(session, embedder, "p2", source="arxiv")
+    _add_paper(session, embedder, "p3", source="springer")
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["papers_by_source"] == {"arxiv": 2, "springer": 1}
+
+
+def _add_assessment(session, human_reviewed: bool = False) -> ResearchAssessment:
+    research_input = ResearchInput(input_type="idea", raw_text="an idea")
+    session.add(research_input)
+    session.flush()
+    assessment = ResearchAssessment(
+        research_input_id=research_input.id, status="completed", human_reviewed=human_reviewed,
+    )
+    session.add(assessment)
+    session.flush()
+    return assessment
+
+
+def test_pipeline_status_reports_assessment_stats(client, session) -> None:
+    _add_assessment(session, human_reviewed=False)
+    _add_assessment(session, human_reviewed=True)
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["assessment_stats"] == {"total": 2, "needs_review": 1}
+
+
+def test_pipeline_status_assessment_stats_collapses_rerun_history(client, session) -> None:
+    research_input = ResearchInput(input_type="idea", raw_text="an idea")
+    session.add(research_input)
+    session.flush()
+    now = datetime.now(timezone.utc)
+    session.add(
+        ResearchAssessment(
+            research_input_id=research_input.id, status="completed", human_reviewed=False,
+            created_at=now - timedelta(minutes=5),
+        )
+    )
+    session.add(
+        ResearchAssessment(
+            research_input_id=research_input.id, status="completed", human_reviewed=True,
+            created_at=now,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    # only the latest (reviewed) counts - the older re-run is superseded
+    assert body["assessment_stats"] == {"total": 1, "needs_review": 0}
+
+
+def test_get_log_returns_the_tail_of_the_pipeline_s_log(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "tail_log", lambda key, lines=200: f"log for {key}, last {lines} lines")
+
+    response = client.get("/api/admin/extraction/log")
+
+    assert response.status_code == 200
+    assert response.json() == {"log": "log for extraction, last 200 lines"}
+
+
+def test_get_log_accepts_a_lines_param(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(routes_module, "tail_log", lambda key, lines=200: calls.append((key, lines)) or "x")
+
+    client.get("/api/admin/embedding/log", params={"lines": 50})
+
+    assert calls == [("embedding", 50)]
+
+
+def test_get_log_404s_for_an_unknown_pipeline_key(client) -> None:
+    response = client.get("/api/admin/bogus_key/log")
+
+    assert response.status_code == 404
 
 
 def test_exclude_sets_excluded_at(client, session, embedder) -> None:

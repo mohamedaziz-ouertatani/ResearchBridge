@@ -13,14 +13,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
-from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, trigger
+from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, tail_log, trigger
 from researchbridge.api.schemas import (
     ArxivIngestionTrigger,
+    AssessmentStats,
     EmbeddingTrigger,
     ExtractionTrigger,
     PaperExclude,
@@ -39,6 +40,7 @@ from researchbridge.db.models import (
     ExtractionRun,
     IngestionRun,
     Paper,
+    ResearchAssessment,
 )
 
 router = APIRouter(prefix="/api/admin")
@@ -56,11 +58,16 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
     papers_with_embeddings = session.execute(
         select(func.count(func.distinct(Embedding.paper_id)))
     ).scalar_one()
+    papers_by_source = dict(
+        session.execute(select(Paper.source, func.count(Paper.id)).group_by(Paper.source)).all()
+    )
 
     return PipelineStatus(
         total_papers=total_papers,
         papers_with_claims=papers_with_claims,
         papers_with_embeddings=papers_with_embeddings,
+        papers_by_source=papers_by_source,
+        assessment_stats=_assessment_stats(session),
         ingestion_runs=[
             _to_run(run, ("records_fetched", "records_inserted", "records_duplicate", "records_failed"))
             for run in _recent(session, IngestionRun)
@@ -74,6 +81,36 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         ],
         running={key: is_running(key) for key in PIPELINE_KEYS},
     )
+
+
+def _assessment_stats(session: Session) -> AssessmentStats:
+    """The latest assessment per research_input - mirrors GET /api/assessments'
+    collapse-to-latest query (assessment_routes.py), just counts instead of a
+    full listing, so re-run history doesn't inflate these numbers."""
+    latest = (
+        select(
+            ResearchAssessment.research_input_id,
+            func.max(ResearchAssessment.created_at).label("max_created_at"),
+        )
+        .group_by(ResearchAssessment.research_input_id)
+        .subquery()
+    )
+    latest_ids = select(ResearchAssessment.id).join(
+        latest,
+        and_(
+            ResearchAssessment.research_input_id == latest.c.research_input_id,
+            ResearchAssessment.created_at == latest.c.max_created_at,
+        ),
+    )
+
+    total = session.execute(select(func.count()).select_from(latest_ids.subquery())).scalar_one()
+    needs_review = session.execute(
+        select(func.count())
+        .select_from(ResearchAssessment)
+        .where(ResearchAssessment.id.in_(latest_ids), ResearchAssessment.human_reviewed.is_(False))
+    ).scalar_one()
+
+    return AssessmentStats(total=total, needs_review=needs_review)
 
 
 def _recent(session: Session, model: type) -> list:
@@ -92,6 +129,15 @@ def _to_run(run, count_fields: tuple[str, ...]) -> PipelineRunOut:
         source=getattr(run, "source", None),
         counts={field: getattr(run, field) for field in count_fields},
     )
+
+
+@router.get("/{key}/log")
+def get_pipeline_log(key: str, lines: int = Query(200, ge=1, le=2000)) -> dict:
+    """The tail of the given pipeline's most recent log file - polled by the
+    admin page while that pipeline is running (see pipeline_triggers.tail_log)."""
+    if key not in PIPELINE_KEYS:
+        raise HTTPException(status_code=404, detail=f"Unknown pipeline key {key!r}")
+    return {"log": tail_log(key, lines=lines)}
 
 
 @router.put("/papers/{paper_id}/exclude", response_model=PaperSummary)

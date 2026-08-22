@@ -89,3 +89,26 @@ def test_different_pipeline_keys_do_not_conflict(monkeypatch, tmp_path) -> None:
 
     assert pt.is_running("ingestion_arxiv") is True
     assert pt.is_running("ingestion_springer") is True
+
+
+def test_tail_log_returns_empty_string_when_no_log_exists(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
+
+    assert pt.tail_log("extraction") == ""
+
+
+def test_tail_log_reads_the_most_recent_matching_log(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
+    (tmp_path / "extraction-20260101T000000Z.log").write_text("older run\n")
+    (tmp_path / "extraction-20260822T120000Z.log").write_text("newest run\nline two\n")
+    (tmp_path / "embedding-20260822T130000Z.log").write_text("a different pipeline\n")
+
+    assert pt.tail_log("extraction") == "newest run\nline two"
+
+
+def test_tail_log_truncates_to_the_requested_number_of_lines(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
+    lines = "\n".join(f"line {i}" for i in range(10))
+    (tmp_path / "embedding-20260822T120000Z.log").write_text(lines)
+
+    assert pt.tail_log("embedding", lines=3) == "line 7\nline 8\nline 9"
