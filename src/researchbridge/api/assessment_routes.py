@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
+from researchbridge.assessment.export import build_docx, build_pdf
 from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchInput
@@ -139,6 +140,35 @@ def assessment_history(assessment_id: uuid.UUID, session: Session = Depends(get_
             .order_by(ResearchAssessment.created_at.desc())
         ).scalars()
     )
+
+
+@router.get("/{assessment_id}/export.docx")
+def export_assessment_docx(assessment_id: uuid.UUID, session: Session = Depends(get_session)) -> Response:
+    out = _load_for_export(session, assessment_id)
+    return Response(
+        content=build_docx(out),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=assessment-{assessment_id}.docx"},
+    )
+
+
+@router.get("/{assessment_id}/export.pdf")
+def export_assessment_pdf(assessment_id: uuid.UUID, session: Session = Depends(get_session)) -> Response:
+    out = _load_for_export(session, assessment_id)
+    return Response(
+        content=build_pdf(out),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=assessment-{assessment_id}.pdf"},
+    )
+
+
+def _load_for_export(session: Session, assessment_id: uuid.UUID) -> ResearchAssessmentOut:
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    research_input = session.get(ResearchInput, assessment.research_input_id)
+    return _to_out(session, assessment, research_input)
 
 
 def _to_out(

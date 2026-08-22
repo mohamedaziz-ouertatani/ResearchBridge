@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+import io
+import uuid
+
+from researchbridge.api.schemas import (
+    AssessmentEvidenceOut,
+    ResearchAssessmentOut,
+    ResearchInputOut,
+)
+from researchbridge.assessment.export import build_docx, build_pdf
+
+RESEARCH_INPUT_ID = uuid.uuid4()
+ASSESSMENT_ID = uuid.uuid4()
+PAPER_ID = uuid.uuid4()
+
+
+def _assessment(**overrides) -> ResearchAssessmentOut:
+    defaults = dict(
+        id=ASSESSMENT_ID,
+        research_input=ResearchInputOut(
+            id=RESEARCH_INPUT_ID,
+            input_type="idea",
+            raw_text="graph transformers for fraud detection",
+            title=None,
+            matched_paper_id=None,
+        ),
+        status="completed",
+        retrieved_paper_ids=[str(PAPER_ID)],
+        comparison_summary="Paper Title\n- method: a graph attention mechanism",
+        novelty_level="medium",
+        novelty_reasoning="Moderately related to the closest retrieved paper.",
+        research_gap_text="no real-time evaluation exists",
+        research_gap_source="input_specific",
+        candidate_gap_id=None,
+        potential_applications=[
+            {"application": "real-time payment fraud screening", "source_paper": "Paper Title", "paper_id": str(PAPER_ID)}
+        ],
+        technical_feasibility_level="medium",
+        technical_feasibility_reasoning="A graph attention mechanism was described.",
+        potential_opportunities=None,
+        risks_and_limitations="- Paper Title: evaluated only on offline datasets",
+        external_validation_needed="Market potential is NOT ASSESSED.",
+        recommendation="Proceed with caution",
+        confidence="medium",
+        human_reviewed=False,
+        evidence=[
+            AssessmentEvidenceOut(
+                role="comparison", paper_id=PAPER_ID, paper_title="Paper Title",
+                text="a graph attention mechanism", section=None,
+            ),
+            AssessmentEvidenceOut(
+                role="risk", paper_id=PAPER_ID, paper_title="Paper Title",
+                text="evaluated only on offline datasets", section="Limitations",
+            ),
+        ],
+    )
+    defaults.update(overrides)
+    return ResearchAssessmentOut(**defaults)
+
+
+def _unassessed_assessment() -> ResearchAssessmentOut:
+    return _assessment(
+        comparison_summary=None,
+        novelty_reasoning="Nothing in the corpus is close enough to judge novelty from.",
+        research_gap_text=None,
+        research_gap_source=None,
+        potential_applications=None,
+        technical_feasibility_reasoning="Nothing close enough to ground a feasibility judgement.",
+        risks_and_limitations=None,
+        evidence=[],
+    )
+
+
+def _docx_text(data: bytes) -> str:
+    import docx
+
+    document = docx.Document(io.BytesIO(data))
+    return "\n".join(p.text for p in document.paragraphs)
+
+
+def _pdf_text(data: bytes) -> str:
+    import pymupdf
+
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
+        return "\n".join(page.get_text() for page in doc)
+
+
+def test_build_docx_contains_recommendation_and_input_text() -> None:
+    text = _docx_text(build_docx(_assessment()))
+
+    assert "Proceed with caution" in text
+    assert "graph transformers for fraud detection" in text
+
+
+def test_build_docx_includes_evidence_passages() -> None:
+    text = _docx_text(build_docx(_assessment()))
+
+    assert "evaluated only on offline datasets" in text
+    assert "Paper Title" in text
+
+
+def test_build_docx_marks_unassessed_fields_with_reasoning() -> None:
+    text = _docx_text(build_docx(_unassessed_assessment()))
+
+    assert "No retrieved paper had extracted claims to compare against" in text
+    assert "No gap was found" in text
+    assert "No retrieved paper stated an application" in text
+
+
+def test_build_pdf_contains_recommendation_and_input_text() -> None:
+    text = _pdf_text(build_pdf(_assessment()))
+
+    assert "Proceed with caution" in text
+    assert "graph transformers for fraud detection" in text
+
+
+def test_build_pdf_includes_evidence_passages() -> None:
+    text = _pdf_text(build_pdf(_assessment()))
+
+    assert "evaluated only on offline datasets" in text
+    assert "Paper Title" in text
+
+
+def test_build_pdf_marks_unassessed_fields_with_reasoning() -> None:
+    text = _pdf_text(build_pdf(_unassessed_assessment()))
+
+    assert "No retrieved paper had extracted claims to compare against" in text
+    assert "No gap was found" in text
+    assert "No retrieved paper stated an application" in text

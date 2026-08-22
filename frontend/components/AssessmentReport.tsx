@@ -8,6 +8,7 @@ import {
   type EvidenceRole,
   type ResearchAssessment,
 } from "@/lib/assessmentApi";
+import { API_BASE } from "@/lib/api";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -255,6 +256,20 @@ function Verdict({
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
+          <a
+            href={`${API_BASE}/api/assessments/${assessment.id}/export.docx`}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
+          >
+            export .docx
+          </a>
+
+          <a
+            href={`${API_BASE}/api/assessments/${assessment.id}/export.pdf`}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
+          >
+            export .pdf
+          </a>
+
           <button
             onClick={rerun}
             disabled={rerunning}

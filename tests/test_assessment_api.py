@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import uuid
 from dataclasses import dataclass, field
 
@@ -434,5 +435,54 @@ def test_history_items_carry_enough_to_distinguish_entries(client, session) -> N
 
 def test_history_404s_for_unknown_assessment(client) -> None:
     response = client.get(f"/api/assessments/{uuid.uuid4()}/history")
+
+    assert response.status_code == 404
+
+
+def test_export_docx_returns_a_docx_file(client, session, embedder) -> None:
+    import docx
+
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    response = client.get(f"/api/assessments/{created['id']}/export.docx")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    assert f"assessment-{created['id']}.docx" in response.headers["content-disposition"]
+    text = "\n".join(p.text for p in docx.Document(io.BytesIO(response.content)).paragraphs)
+    assert "evaluated only on offline datasets" in text
+
+
+def test_export_docx_404s_for_unknown_assessment(client) -> None:
+    response = client.get(f"/api/assessments/{uuid.uuid4()}/export.docx")
+
+    assert response.status_code == 404
+
+
+def test_export_pdf_returns_a_pdf_file(client, session, embedder) -> None:
+    import pymupdf
+
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    response = client.get(f"/api/assessments/{created['id']}/export.pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert f"assessment-{created['id']}.pdf" in response.headers["content-disposition"]
+    with pymupdf.open(stream=response.content, filetype="pdf") as doc:
+        text = "\n".join(page.get_text() for page in doc)
+    assert "evaluated only on offline datasets" in text
+
+
+def test_export_pdf_404s_for_unknown_assessment(client) -> None:
+    response = client.get(f"/api/assessments/{uuid.uuid4()}/export.pdf")
 
     assert response.status_code == 404
