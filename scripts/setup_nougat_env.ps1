@@ -66,15 +66,28 @@
 #     2023-10-04 release date) is the period-correct pin: it resolves
 #     immediately and keeps datasets contemporaneous with nougat itself.
 #
-# torch itself is intentionally left unpinned: nougat-ocr does not declare
-# it directly (pytorch-lightning, one of nougat's own dependencies, pulls
-# it in transitively), and this machine only has Python 3.13 available -
-# old torch wheels contemporaneous with nougat's 2023 release predate
-# CPython 3.13 wheel support entirely, so pinning an old torch version
-# would simply fail to install here. Letting pip resolve torch picks the
-# newest release compatible with both transformers==4.38.2 (which has no
-# torch upper bound) and this interpreter's Python 3.13 (resolved to
-# torch==2.13.0 when this script was last verified).
+# torch itself is intentionally left unpinned on version, but NOT on build:
+# nougat-ocr does not declare it directly (pytorch-lightning, one of
+# nougat's own dependencies, pulls it in transitively), and this machine
+# only has Python 3.13 available - old torch wheels contemporaneous with
+# nougat's 2023 release predate CPython 3.13 wheel support entirely, so
+# pinning an old torch version would simply fail to install here.
+#
+# The transitive install above resolves torch from PyPI's default index,
+# which only ever serves CPU-only Windows wheels - there is no "auto-detect
+# your GPU" logic, so this silently gives CPU-only torch even on a machine
+# with a working CUDA GPU (discovered live: this machine's RTX 2050 sat
+# unused until this was caught). The explicit reinstall below forces the
+# CUDA build from PyTorch's own cu126 index instead. cu126 was chosen by
+# checking `pip index versions torch --index-url
+# https://download.pytorch.org/whl/cu126` and picking the newest channel
+# that had a matching 2.13.0 build (cu121/cu124/cu128/cu129 did not, as of
+# this script's last verification) - re-run that check and adjust the
+# index URL below if this is being re-verified after enough time has
+# passed that torch has moved on.
+#
+# If this machine has no CUDA GPU, this reinstall is harmless: pip still
+# installs a working torch, it just runs on CPU (as it already would have).
 
 $ErrorActionPreference = "Stop"
 
@@ -99,5 +112,10 @@ if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed (exit code $LASTEXITCODE)" 
     "pypdfium2==4.24.0" `
     "datasets[vision]==2.14.5"
 if ($LASTEXITCODE -ne 0) { throw "pip install of nougat-ocr and pinned dependencies failed (exit code $LASTEXITCODE)" }
+
+& .nougat-venv\Scripts\pip.exe install --force-reinstall `
+    "torch==2.13.0+cu126" `
+    --index-url https://download.pytorch.org/whl/cu126
+if ($LASTEXITCODE -ne 0) { throw "CUDA torch reinstall failed (exit code $LASTEXITCODE)" }
 
 Write-Host "Nougat environment ready at .nougat-venv/"
