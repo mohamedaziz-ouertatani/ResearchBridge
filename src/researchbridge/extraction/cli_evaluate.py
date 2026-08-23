@@ -39,6 +39,7 @@ from researchbridge.extraction.evaluation import DEFAULT_SIMILARITY_THRESHOLD, F
 from researchbridge.extraction.heuristic import HeuristicExtractor
 from researchbridge.extraction.hybrid import HybridExtractor
 from researchbridge.extraction.semantic import SemanticExtractor
+from researchbridge.extraction.type_validation_evaluation import TypeValidationScore, evaluate_claim_type_validation
 
 EXTRACTORS = ("heuristic", "semantic", "hybrid")
 
@@ -84,6 +85,9 @@ def main() -> None:
             scores = _evaluate_one(extractor, usable, papers_by_source_id, embedder, args.threshold)
             print(f"\n=== {extractor.extraction_method} ({len(usable)} papers, threshold={args.threshold}) ===")
             _print_table(scores)
+
+        print(f"\n=== claim-type validation ({len(usable)} papers, ground-truth only) ===")
+        _print_type_validation_table(evaluate_claim_type_validation(usable))
     finally:
         session.close()
 
@@ -113,6 +117,16 @@ def _print_table(scores: dict[str, FieldScore]) -> None:
     print("-" * len(header))
     for field, s in scores.items():
         print(f"{field:<20}{s.precision:>12.3f}{s.recall:>10.3f}{s.f1:>10.3f}")
+
+
+def _print_type_validation_table(scores: dict[str, TypeValidationScore]) -> None:
+    header = f"{'field':<20}{'own-field accept':>18}{'cross-field reject':>20}"
+    print(header)
+    print("-" * len(header))
+    for field, s in scores.items():
+        own = f"{s.own_field_acceptance_rate:.3f} ({s.own_field_accepted}/{s.own_field_total})"
+        cross = f"{s.cross_field_rejection_rate:.3f} ({s.cross_field_rejected}/{s.cross_field_total})"
+        print(f"{field:<20}{own:>18}{cross:>20}")
 
 
 if __name__ == "__main__":

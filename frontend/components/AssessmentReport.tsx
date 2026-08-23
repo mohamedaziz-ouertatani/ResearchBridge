@@ -39,19 +39,6 @@ const GRADEABLE_ROLES: EvidenceRole[] = [
   "opportunity",
 ];
 
-/** Extraction field keys, as the reader should see them (mirrors Sec 25/28 order). */
-const CLAIM_LABELS: Record<string, string> = {
-  problem: "Problem",
-  research_question: "Research question",
-  method: "Method",
-  dataset: "Dataset",
-  main_contribution: "Main contribution",
-  results: "Results",
-  limitations: "Limitations",
-  research_gap: "Research gap",
-  applications: "Applications",
-};
-
 function groupByRole(evidence: AssessmentEvidence[]) {
   const byRole = new Map<EvidenceRole, AssessmentEvidence[]>();
   for (const item of evidence) {
@@ -129,12 +116,16 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
         )}
       </Field>
 
-      <Field label="novelty assessment" evidence={byRole.get("novelty")} level={assessment.novelty_level}>
+      <Field label="corpus similarity / novelty signal" evidence={byRole.get("novelty")} level={assessment.novelty_level}>
         {assessment.novelty_reasoning ? (
           <Prose text={assessment.novelty_reasoning} />
         ) : (
-          <Unassessed reason="Not enough evidence to judge novelty." />
+          <Unassessed reason="Not enough evidence to judge corpus similarity." />
         )}
+        <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+          This reflects similarity to the papers retrieved from this corpus, not proof of global
+          originality - the corpus is one CS/AI/ML slice, not the full scientific literature.
+        </p>
       </Field>
 
       <Field label="research gap" evidence={byRole.get("research_gap")}>
@@ -187,6 +178,11 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
         ) : (
           <Unassessed reason="Nothing close enough to ground a feasibility judgement." />
         )}
+        <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+          This means documented technical grounding in the retrieved literature - a related method
+          or dataset already exists on paper - not a prediction of whether this specific idea will
+          succeed.
+        </p>
       </Field>
 
       <Field label="risks / limitations" evidence={byRole.get("risk")}>
@@ -430,14 +426,19 @@ function Prose({ text }: { text: string }) {
 }
 
 /*
-  comparison_summary arrives as blocks the pipeline assembled:
+  comparison_summary arrives as blocks the assessment builder assembled,
+  one per question rather than one per paper (assessment/existing_solutions.py):
 
-      Paper Title
-      - method: <claim text>
-      - limitations: <claim text>
+      Problems already addressed
+      - "Paper Title": <claim text>
+      - "Other Paper": <claim text>
 
-  Rendered rather than printed raw, so the reader sees "Method", not the
-  extraction pipeline's own field key.
+      Existing approaches / methods used
+      - "Paper Title": <claim text>
+
+  research_gap and applications claims are deliberately never in here -
+  they have their own dedicated report sections below, sourced from the
+  same underlying evidence but with their own relevance gating.
 */
 function ComparisonSummary({ text }: { text: string }) {
   const blocks = text.split("\n\n").filter(Boolean);
@@ -445,27 +446,27 @@ function ComparisonSummary({ text }: { text: string }) {
   return (
     <div className="max-w-[64ch] space-y-6">
       {blocks.map((block, blockIndex) => {
-        const [title, ...claimLines] = block.split("\n");
+        const [heading, ...claimLines] = block.split("\n");
         return (
           <div key={blockIndex}>
             <p className="font-[family-name:var(--type-text)] text-[0.9375rem] font-semibold leading-snug">
-              {title}
+              {heading}
             </p>
-            <dl className="mt-2 space-y-1.5">
+            <ul className="mt-2 space-y-2">
               {claimLines.map((line, lineIndex) => {
-                const match = /^-\s*([a-z_]+):\s*(.*)$/.exec(line);
+                const match = /^-\s*"([^"]*)":\s*(.*)$/.exec(line);
                 if (!match) return null;
-                const [, key, claimText] = match;
+                const [, paperTitle, claimText] = match;
                 return (
-                  <div key={lineIndex} className="grid grid-cols-1 gap-x-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
-                    <dt className="eyebrow sm:pt-1">{CLAIM_LABELS[key] ?? key.replace(/_/g, " ")}</dt>
-                    <dd className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+                  <li key={lineIndex}>
+                    <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
                       {claimText}
-                    </dd>
-                  </div>
+                    </p>
+                    <span className="eyebrow mt-0.5 inline-block">{paperTitle}</span>
+                  </li>
                 );
               })}
-            </dl>
+            </ul>
           </div>
         );
       })}

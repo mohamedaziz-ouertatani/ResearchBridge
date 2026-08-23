@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.existing_solutions import build_existing_solutions
 from researchbridge.assessment.external_validation import assess_external_validation
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
@@ -54,14 +55,9 @@ def build_assessment(
     results = search_by_text(session, query_text, embedder, top_k)
     papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
 
-    summary_parts: list[str] = []
-    comparison_evidence_ids: list[uuid.UUID] = []
-    for paper, _distance, claims in papers_with_claims:
-        if not claims:
-            continue
-        lines = [f"- {claim_type}: {text}" for claim_type, text, _evidence_id in claims]
-        summary_parts.append(f"{paper.title}\n" + "\n".join(lines))
-        comparison_evidence_ids.extend(evidence_id for _, _, evidence_id in claims)
+    existing_solutions = build_existing_solutions(
+        [(paper.title, claims) for paper, _distance, claims in papers_with_claims if claims]
+    )
 
     novelty = assess_novelty([(paper.title, distance, claims) for paper, distance, claims in papers_with_claims])
 
@@ -85,7 +81,7 @@ def build_assessment(
         research_input_id=research_input.id,
         status="completed",
         retrieved_paper_ids=[str(paper_id) for paper_id in retrieved_paper_uuids],
-        comparison_summary="\n\n".join(summary_parts) if summary_parts else None,
+        comparison_summary=existing_solutions.text,
         novelty_level=novelty.level,
         novelty_reasoning=novelty.reasoning,
         research_gap_text=gap.text,
@@ -115,7 +111,7 @@ def build_assessment(
     session.add(assessment)
     session.flush()
 
-    for evidence_id in comparison_evidence_ids:
+    for evidence_id in existing_solutions.evidence_ids:
         session.add(
             ResearchAssessmentEvidence(
                 research_assessment_id=assessment.id, evidence_id=evidence_id, role="comparison"

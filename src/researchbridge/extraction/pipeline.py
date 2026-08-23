@@ -1,12 +1,21 @@
-"""Extraction pipeline: select unprocessed papers -> extract -> verify grounding -> persist.
+"""Extraction pipeline: select unprocessed papers -> extract -> verify -> persist.
 
 Idempotent: only processes papers with no existing extracted_claims row, so
 re-running is safe and (once a costlier extractor is ever used) won't
-reprocess/re-bill already-processed papers. Every candidate's evidence_quote
-is verified against the paper's abstract before anything is persisted -
-ungrounded candidates are rejected and logged to extraction_errors, never
-silently stored (the concrete mechanism behind the blueprint's "no Grounding
-Illusion" rule, §15).
+reprocess/re-bill already-processed papers. Every candidate passes through
+two independent gates before anything is persisted, and failing either one
+rejects the candidate and logs it to extraction_errors rather than silently
+storing or silently relabeling it:
+
+1. Grounding (_quote_is_grounded): the evidence_quote is verified against
+   the paper's abstract - the concrete mechanism behind the blueprint's "no
+   Grounding Illusion" rule, §15. This proves the quote is not fabricated.
+
+2. Claim-type validation (extraction/validation.py::validate_claim_type):
+   grounding alone does not prove the quote actually expresses the claim
+   type it was filed under - a quote can be a verbatim, grounded substring
+   of the abstract and still be a results sentence mislabeled as a
+   research_gap. This is the semantic check for that.
 """
 
 from __future__ import annotations
@@ -27,6 +36,7 @@ from researchbridge.db.models import (
     Paper,
 )
 from researchbridge.extraction.base import Extractor
+from researchbridge.extraction.validation import validate_claim_type
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +93,19 @@ class ExtractionPipeline:
                     paper.id,
                     "ungrounded_quote",
                     f"evidence_quote not found in paper.abstract: {candidate.evidence_quote!r}",
+                )
+                run.candidates_rejected += 1
+                continue
+
+            type_validation = validate_claim_type(candidate.claim_type, candidate.claim_text)
+            if not type_validation.is_valid:
+                self._record_error(
+                    session,
+                    run.id,
+                    paper.id,
+                    "semantic_type_mismatch",
+                    f"claim_type={candidate.claim_type!r} rejected: {type_validation.reason} "
+                    f"(text: {candidate.claim_text!r})",
                 )
                 run.candidates_rejected += 1
                 continue

@@ -157,6 +157,46 @@ def test_ungrounded_quote_is_rejected_and_logged(session_factory) -> None:
         session.close()
 
 
+def test_grounded_but_semantically_mismatched_claim_is_rejected_and_logged(session_factory) -> None:
+    # The reported bug: a benchmark-results sentence is verbatim in the
+    # abstract (so grounding passes) but does not express a research gap.
+    session = session_factory()
+    abstract = "Our model achieves 94.2% AUC and an F1 score of 0.89 on the benchmark."
+    paper = _make_paper(session, "P1", abstract=abstract)
+    session.close()
+
+    extractor = FakeExtractor(
+        candidates_by_paper_id={
+            paper.id: [
+                ClaimCandidate(
+                    claim_type="research_gap",
+                    claim_text=abstract,
+                    evidence_quote=abstract,
+                    confidence="medium",
+                )
+            ]
+        }
+    )
+    pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(ExtractionRun, run_id)
+        assert run.status == "completed"
+        assert run.claims_created == 0
+        assert run.candidates_rejected == 1
+
+        assert session.execute(select(ExtractedClaim)).scalars().all() == []
+
+        errors = session.execute(select(ExtractionError).where(ExtractionError.paper_id == paper.id)).scalars().all()
+        assert len(errors) == 1
+        assert errors[0].error_type == "semantic_type_mismatch"
+        assert errors[0].extraction_run_id == run.id
+    finally:
+        session.close()
+
+
 def test_grounded_quote_with_extra_whitespace_still_verifies(session_factory) -> None:
     session = session_factory()
     paper = _make_paper(session, "P1", abstract="First sentence.   Second   sentence with gaps.")
