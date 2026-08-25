@@ -37,6 +37,35 @@ function runningKeyForTab(tab: PipelineTab): PipelineKey {
   return tab === "extraction" || tab === "embedding" ? tab : (`ingestion_${tab}` as PipelineKey);
 }
 
+// Preset topics per source, matching the stratification buckets used
+// elsewhere in the corpus (benchmark/domains.py) - each source has its own
+// query syntax (arXiv's cat: codes vs free-text OR/|), so the values differ
+// even though the topics line up. "Other…" always reveals a free-text field
+// for anything not covered here.
+const ARXIV_QUERY_OPTIONS = [
+  { label: "Machine Learning", value: "cat:cs.LG OR cat:stat.ML" },
+  { label: "NLP", value: "cat:cs.CL" },
+  { label: "Computer Vision", value: "cat:cs.CV OR cat:eess.IV" },
+  { label: "Systems", value: "cat:cs.DC OR cat:cs.OS OR cat:cs.NI OR cat:cs.DB OR cat:cs.SE OR cat:cs.AR OR cat:cs.PF OR cat:cs.DS" },
+  { label: "General AI", value: "cat:cs.AI" },
+];
+
+const SPRINGER_QUERY_OPTIONS = [
+  { label: "Machine Learning", value: '"machine learning"' },
+  { label: "NLP", value: '"natural language processing"' },
+  { label: "Computer Vision", value: '"computer vision"' },
+  { label: "Systems", value: '"distributed systems" OR "computer systems"' },
+  { label: "Artificial Intelligence", value: '"artificial intelligence"' },
+];
+
+const SEMANTIC_SCHOLAR_QUERY_OPTIONS = [
+  { label: "Machine Learning", value: '"machine learning"' },
+  { label: "NLP", value: '"natural language processing"' },
+  { label: "Computer Vision", value: '"computer vision"' },
+  { label: "Systems", value: '"distributed systems" | "computer systems"' },
+  { label: "Artificial Intelligence", value: '"artificial intelligence"' },
+];
+
 export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +171,13 @@ export default function AdminPipeline() {
                   runs={status.ingestion_runs.filter((run) => run.source === "arxiv")}
                   running={status.running.ingestion_arxiv}
                   fields={[
-                    { name: "search_query", label: "search query", placeholder: "cat:cs.LG OR cat:cs.AI" },
+                    {
+                      name: "search_query",
+                      label: "search query",
+                      type: "select",
+                      options: ARXIV_QUERY_OPTIONS,
+                      placeholder: "cat:cs.LG OR cat:cs.AI",
+                    },
                     { name: "page_size", label: "page size", type: "number" },
                     { name: "max_pages", label: "max pages", type: "number" },
                   ]}
@@ -158,7 +193,13 @@ export default function AdminPipeline() {
                   runs={status.ingestion_runs.filter((run) => run.source === "springer")}
                   running={status.running.ingestion_springer}
                   fields={[
-                    { name: "query", label: "query", placeholder: '"machine learning" OR "artificial intelligence"' },
+                    {
+                      name: "query",
+                      label: "query",
+                      type: "select",
+                      options: SPRINGER_QUERY_OPTIONS,
+                      placeholder: '"machine learning" OR "artificial intelligence"',
+                    },
                     { name: "page_size", label: "page size", type: "number" },
                     { name: "max_pages", label: "max pages", type: "number" },
                   ]}
@@ -174,7 +215,13 @@ export default function AdminPipeline() {
                   runs={status.ingestion_runs.filter((run) => run.source === "semantic_scholar")}
                   running={status.running.ingestion_semantic_scholar}
                   fields={[
-                    { name: "query", label: "query", placeholder: '"machine learning" | "artificial intelligence"' },
+                    {
+                      name: "query",
+                      label: "query",
+                      type: "select",
+                      options: SEMANTIC_SCHOLAR_QUERY_OPTIONS,
+                      placeholder: '"machine learning" | "artificial intelligence"',
+                    },
                     { name: "max_pages", label: "max pages", type: "number" },
                   ]}
                   onRun={(values) => adminApi.triggerSemanticScholarIngestion(values)}
@@ -233,7 +280,22 @@ function Stat({ label, value, small = false }: { label: string; value: number; s
   );
 }
 
-type Field = { name: string; label: string; type?: "text" | "number"; placeholder?: string };
+const OTHER_VALUE = "__other__";
+
+const FIELD_INPUT_CLASS =
+  "w-full min-w-[6rem] border-b border-[var(--rule)] bg-transparent py-1 text-[0.8125rem] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:outline-none disabled:opacity-50";
+
+type Field = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "select";
+  placeholder?: string;
+  /** Only for type: "select" - rendered as a dropdown with these choices
+   * plus an always-present "Other…" entry that reveals a free-text input
+   * bound to the same field, so picking a preset or typing a custom value
+   * both just set values[field.name]. */
+  options?: { label: string; value: string }[];
+};
 
 function RunSection({
   title,
@@ -260,6 +322,7 @@ function RunSection({
   forceWarning?: string;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,14 +406,49 @@ function RunSection({
         {fields.map((field) => (
           <label key={field.name} className="flex flex-1 flex-col gap-1">
             <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{field.label}</span>
-            <input
-              type={field.type ?? "text"}
-              placeholder={field.placeholder}
-              value={values[field.name] ?? ""}
-              onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
-              disabled={busy || running}
-              className="w-full min-w-[6rem] border-b border-[var(--rule)] bg-transparent py-1 text-[0.8125rem] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:outline-none disabled:opacity-50"
-            />
+            {field.type === "select" ? (
+              <>
+                <select
+                  value={otherMode[field.name] ? OTHER_VALUE : (values[field.name] ?? "")}
+                  onChange={(e) => {
+                    const picked = e.target.value === OTHER_VALUE;
+                    setOtherMode((m) => ({ ...m, [field.name]: picked }));
+                    setValues((v) => ({ ...v, [field.name]: picked ? "" : e.target.value }));
+                  }}
+                  disabled={busy || running}
+                  className={FIELD_INPUT_CLASS}
+                >
+                  <option value="" disabled>
+                    choose…
+                  </option>
+                  {field.options?.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                  <option value={OTHER_VALUE}>Other…</option>
+                </select>
+                {otherMode[field.name] && (
+                  <input
+                    type="text"
+                    placeholder={field.placeholder}
+                    value={values[field.name] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                    disabled={busy || running}
+                    className={`mt-1 ${FIELD_INPUT_CLASS}`}
+                  />
+                )}
+              </>
+            ) : (
+              <input
+                type={field.type ?? "text"}
+                placeholder={field.placeholder}
+                value={values[field.name] ?? ""}
+                onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                disabled={busy || running}
+                className={FIELD_INPUT_CLASS}
+              />
+            )}
           </label>
         ))}
         <button
