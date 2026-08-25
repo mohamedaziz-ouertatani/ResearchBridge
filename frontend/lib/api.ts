@@ -68,7 +68,7 @@ async function get<T>(path: string, params?: Record<string, string | number | bo
 }
 
 export const api = {
-  stats: () => get<CorpusStats>("/api/stats"),
+  stats: (params?: { year?: number }) => get<CorpusStats>("/api/stats", params),
 
   papers: (params: {
     limit?: number;

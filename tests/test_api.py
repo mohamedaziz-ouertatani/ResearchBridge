@@ -348,6 +348,22 @@ def test_stats_reports_corpus_shape(client, session, embedder) -> None:
     assert body["papers_by_category"]["cs.LG"] == 2
 
 
+def test_stats_year_param_scopes_totals_and_categories(client, session, embedder) -> None:
+    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
+    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",))
+    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), embed=embedder)
+
+    body = client.get("/api/stats", params={"year": 2019}).json()
+
+    assert body["total_papers"] == 2
+    assert body["total_authors"] == 2
+    assert body["embedded_papers"] == 1
+    assert body["papers_by_category"] == {"cs.LG": 2}
+    # papers_by_year stays unfiltered - it's what drives navigating to a
+    # different year, not just the currently selected one.
+    assert body["papers_by_year"] == {"2019": 2, "2024": 1}
+
+
 def test_stats_excludes_excluded_papers_by_default(client, session, embedder) -> None:
     _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
     excluded = _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), embed=embedder)

@@ -122,22 +122,34 @@ def _to_hits(session: Session, results: list[tuple[Paper, float]]) -> list[Searc
 
 
 @router.get("/stats", response_model=CorpusStats)
-def corpus_stats(session: Session = Depends(get_session)) -> CorpusStats:
+def corpus_stats(
+    session: Session = Depends(get_session),
+    year: int | None = Query(None, description="Scope totals/categories to one publication year"),
+) -> CorpusStats:
     """Counts here always exclude curated-out papers (Paper.excluded_at set) -
     matching /api/papers' default so this endpoint's totals and the corpus
-    page's default listing never disagree (see corpus-curation follow-up)."""
-    not_excluded = Paper.excluded_at.is_(None)
+    page's default listing never disagree (see corpus-curation follow-up).
 
-    total_papers = session.execute(select(func.count(Paper.id)).where(not_excluded)).scalar_one()
+    `year`, when given, scopes total_papers/total_authors/embedded_papers/
+    papers_by_category to that publication year - papers_by_year is always
+    computed unfiltered so the YearStrip driving this filter keeps showing
+    every year to navigate to, not just the one currently selected.
+    """
+    not_excluded = Paper.excluded_at.is_(None)
+    year_scope = func.extract("year", Paper.publication_date) == year if year is not None else True
+
+    total_papers = session.execute(
+        select(func.count(Paper.id)).where(not_excluded, year_scope)
+    ).scalar_one()
     total_authors = session.execute(
         select(func.count(func.distinct(PaperAuthor.author_id)))
         .join(Paper, Paper.id == PaperAuthor.paper_id)
-        .where(not_excluded)
+        .where(not_excluded, year_scope)
     ).scalar_one()
     embedded = session.execute(
         select(func.count(func.distinct(Embedding.paper_id)))
         .join(Paper, Paper.id == Embedding.paper_id)
-        .where(Embedding.embedding_type == EMBEDDING_TYPE, not_excluded)
+        .where(Embedding.embedding_type == EMBEDDING_TYPE, not_excluded, year_scope)
     ).scalar_one()
 
     year_rows = session.execute(
@@ -149,7 +161,7 @@ def corpus_stats(session: Session = Depends(get_session)) -> CorpusStats:
     category_rows = session.execute(
         select(PaperCategory.category, func.count(func.distinct(PaperCategory.paper_id)))
         .join(Paper, Paper.id == PaperCategory.paper_id)
-        .where(not_excluded)
+        .where(not_excluded, year_scope)
         .group_by(PaperCategory.category)
         .order_by(func.count(func.distinct(PaperCategory.paper_id)).desc())
         .limit(20)

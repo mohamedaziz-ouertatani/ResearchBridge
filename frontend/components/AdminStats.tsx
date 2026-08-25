@@ -28,12 +28,22 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
   const [activeYear, setActiveYear] = useState<number | null>(null);
 
   useEffect(() => {
-    api.stats().then(setCorpusStats).catch(() => setCorpusStats(null));
     assessmentApi
       .list("all")
       .then((page) => setAssessments(page.items))
       .catch(() => setAssessments(null));
   }, []);
+
+  // Re-fetches on every year toggle rather than filtering client-side: the
+  // category breakdown for a given year isn't part of the unfiltered
+  // payload (only the top 20 categories corpus-wide are), so scoping it
+  // to one year is a different query, not a client-side slice of this one.
+  useEffect(() => {
+    api
+      .stats(activeYear !== null ? { year: activeYear } : undefined)
+      .then(setCorpusStats)
+      .catch(() => setCorpusStats(null));
+  }, [activeYear]);
 
   return (
     <div className="space-y-10">
@@ -48,7 +58,20 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
         )}
         {corpusStats && (
           <div className="mt-6">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">top categories</span>
+            <div className="flex items-baseline justify-between">
+              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+                top categories{activeYear !== null ? ` — ${activeYear}` : ""}
+              </span>
+              {activeYear !== null && (
+                <button
+                  type="button"
+                  onClick={() => setActiveYear(null)}
+                  className="eyebrow text-[0.625rem] text-[var(--ink-faint)] hover:text-[var(--ink)]"
+                >
+                  clear
+                </button>
+              )}
+            </div>
             <div className="mt-2">
               <BarList counts={corpusStats.papers_by_category} limit={10} />
             </div>
