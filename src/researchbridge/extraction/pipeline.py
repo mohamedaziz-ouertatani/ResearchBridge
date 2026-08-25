@@ -79,9 +79,9 @@ class ExtractionPipeline:
         self.extractor = extractor
         self.session_factory = session_factory
 
-    def run(self, limit: int | None = None) -> str:
+    def run(self, limit: int | None = None, force: bool = False) -> str:
         session = self.session_factory()
-        run = ExtractionRun(extractor_name=self.extractor.extraction_method, status="running")
+        run = ExtractionRun(extractor_name=self.extractor.extraction_method, status="running", force=force)
         session.add(run)
         session.commit()
         run_id = str(run.id)

@@ -35,7 +35,7 @@ def main() -> None:
         print(f"--force: deleted {deleted} existing embeddings for model {embedder.model_name!r}.")
 
     pipeline = EmbeddingPipeline(embedder=embedder, session_factory=session_factory)
-    run_id = pipeline.run(limit=args.limit)
+    run_id = pipeline.run(limit=args.limit, force=args.force)
     print(f"Embedding run {run_id} finished.")
 
 

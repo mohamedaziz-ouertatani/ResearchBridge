@@ -13,6 +13,7 @@ from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.db.models import (
     EMBEDDING_DIM,
+    CandidateGap,
     Embedding,
     EmbeddingRun,
     Evidence,
@@ -480,6 +481,32 @@ def test_trigger_embedding_passes_overrides_as_flags(client, monkeypatch) -> Non
     assert calls == [("embedding", "researchbridge.embedding.cli_embed", ["--limit", "25"])]
 
 
+def test_trigger_extraction_with_force_passes_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/extraction/run", json={"force": True})
+
+    assert calls == [("extraction", "researchbridge.extraction.cli", ["--force"])]
+
+
+def test_trigger_embedding_with_force_passes_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/embedding/run", json={"limit": 5, "force": True})
+
+    assert calls == [("embedding", "researchbridge.embedding.cli_embed", ["--limit", "5", "--force"])]
+
+
 def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
     from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning
@@ -508,3 +535,128 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "extraction": True,
         "embedding": False,
     }
+
+
+def test_notifications_includes_completed_extraction_run(client, session) -> None:
+    session.add(
+        ExtractionRun(
+            extractor_name="hybrid", status="completed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), papers_processed=10, claims_created=8, candidates_rejected=2,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert len(body) == 1
+    assert body[0]["type"] == "extraction_completed"
+    assert body[0]["severity"] == "info"
+    assert "8 claims created" in body[0]["message"]
+    assert "(forced)" not in body[0]["message"]
+
+
+def test_notifications_marks_forced_runs(client, session) -> None:
+    session.add(
+        EmbeddingRun(
+            model_name="fake-embedder-v1", status="completed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), papers_processed=5, papers_skipped=0, force=True,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert "(forced)" in body[0]["message"]
+
+
+def test_notifications_includes_failed_ingestion_run_as_error_severity(client, session) -> None:
+    session.add(
+        IngestionRun(
+            source="springer", status="failed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), records_fetched=0, records_inserted=0,
+            records_duplicate=0, records_failed=0, error_summary="rate limited",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert body[0]["type"] == "ingestion_failed"
+    assert body[0]["severity"] == "error"
+    assert "rate limited" in body[0]["message"]
+
+
+def test_notifications_excludes_still_running_runs(client, session) -> None:
+    session.add(
+        ExtractionRun(extractor_name="hybrid", status="running", started_at=datetime.now(timezone.utc))
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert body == []
+
+
+def test_notifications_includes_needs_review_aggregate(client, session) -> None:
+    _add_assessment(session, human_reviewed=False)
+    _add_assessment(session, human_reviewed=False)
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    review_notifications = [n for n in body if n["type"] == "needs_review"]
+    assert len(review_notifications) == 1
+    assert review_notifications[0]["id"] == "needs_review:2"
+    assert "2 assessments need human review" in review_notifications[0]["message"]
+
+
+def test_notifications_omits_needs_review_when_zero(client, session) -> None:
+    _add_assessment(session, human_reviewed=True)
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert not any(n["type"] == "needs_review" for n in body)
+
+
+def test_notifications_includes_gaps_pending_aggregate(client, session) -> None:
+    paper = Paper(
+        id=uuid.uuid4(), source="arxiv", source_id="p1", title="p1", abstract="",
+        raw_metadata={}, ingestion_metadata={},
+    )
+    session.add(paper)
+    session.flush()
+    session.add(
+        CandidateGap(
+            seed_paper_id=paper.id, observation="a pattern", contributing_paper_count=3,
+            similarity_threshold=0.8, detection_method="embedding_cosine", status="pending",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    gap_notifications = [n for n in body if n["type"] == "gaps_pending"]
+    assert len(gap_notifications) == 1
+    assert gap_notifications[0]["id"] == "gaps_pending:1"
+
+
+def test_notifications_orders_most_recent_first(client, session) -> None:
+    now = datetime.now(timezone.utc)
+    session.add(
+        ExtractionRun(
+            extractor_name="hybrid", status="completed", started_at=now - timedelta(hours=1),
+            finished_at=now - timedelta(hours=1), papers_processed=1, claims_created=1, candidates_rejected=0,
+        )
+    )
+    session.add(
+        EmbeddingRun(
+            model_name="fake-embedder-v1", status="completed", started_at=now,
+            finished_at=now, papers_processed=1, papers_skipped=0,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert [n["type"] for n in body] == ["embedding_completed", "extraction_completed"]

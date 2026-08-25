@@ -253,6 +253,24 @@ class PipelineStatus(BaseModel):
     what this server process itself is still tracking."""
 
 
+class Notification(BaseModel):
+    id: str
+    """Stable per underlying event so a client can track which ones it has
+    already shown. Run-based notifications key off the run's own id
+    (unique forever); aggregate ones (needs_review/gaps_pending) key off
+    their current count, so a client that has already seen "needs_review:5"
+    treats "needs_review:6" as new but never re-notifies on an unchanged
+    count."""
+    type: str
+    """One of: ingestion_completed, ingestion_failed, extraction_completed,
+    extraction_failed, embedding_completed, embedding_failed, needs_review,
+    gaps_pending."""
+    severity: str
+    """"info" or "error" - error for a failed run, info otherwise."""
+    message: str
+    created_at: datetime
+
+
 class ArxivIngestionTrigger(BaseModel):
     search_query: str | None = None
     page_size: int | None = None

@@ -202,6 +202,7 @@ class ExtractionRun(Base):
     claims_created: Mapped[int] = mapped_column(Integer, default=0)
     candidates_rejected: Mapped[int] = mapped_column(Integer, default=0)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    force: Mapped[bool] = mapped_column(nullable=False, default=False)
 
 
 class ExtractionError(Base):
@@ -252,6 +253,7 @@ class EmbeddingRun(Base):
     papers_processed: Mapped[int] = mapped_column(Integer, default=0)
     papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    force: Mapped[bool] = mapped_column(nullable=False, default=False)
 
 
 class CandidateGap(Base):

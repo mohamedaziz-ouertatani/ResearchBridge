@@ -65,7 +65,7 @@ def main() -> None:
         print(f"--force: deleted {deleted} existing evidence rows (and their claims).")
 
     pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
-    run_id = pipeline.run(limit=args.limit)
+    run_id = pipeline.run(limit=args.limit, force=args.force)
     print(f"Extraction run {run_id} finished.")
 
 

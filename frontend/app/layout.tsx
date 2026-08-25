@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { NotificationBell } from "@/components/NotificationBell";
 
 /*
   Three faces, each tied to a kind of content:
@@ -42,7 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // :root, and a custom property resolves var() where it is declared - so
     // --ff-* has to exist at that same level or the declaration is invalid.
     <html lang="en" className={`${grotesk.variable} ${serif.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <NotificationBell />
+      </body>
     </html>
   );
 }

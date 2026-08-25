@@ -40,6 +40,14 @@ export type PipelineTriggerResult = {
   log_file: string;
 };
 
+export type Notification = {
+  id: string;
+  type: string;
+  severity: "info" | "error";
+  message: string;
+  created_at: string;
+};
+
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -91,5 +99,11 @@ export const adminApi = {
     fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return (response.json() as Promise<{ log: string }>).then((body) => body.log);
+    }),
+
+  notifications: () =>
+    fetch(`${API_BASE}/api/admin/notifications`, { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<Notification[]>;
     }),
 };

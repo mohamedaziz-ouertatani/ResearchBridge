@@ -43,9 +43,9 @@ class EmbeddingPipeline:
         self.embedder = embedder
         self.session_factory = session_factory
 
-    def run(self, limit: int | None = None) -> str:
+    def run(self, limit: int | None = None, force: bool = False) -> str:
         session = self.session_factory()
-        run = EmbeddingRun(model_name=self.embedder.model_name, status="running")
+        run = EmbeddingRun(model_name=self.embedder.model_name, status="running", force=force)
         session.add(run)
         session.commit()
         run_id = str(run.id)

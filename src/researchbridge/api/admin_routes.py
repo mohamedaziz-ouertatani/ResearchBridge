@@ -24,6 +24,7 @@ from researchbridge.api.schemas import (
     AssessmentStats,
     EmbeddingTrigger,
     ExtractionTrigger,
+    Notification,
     PaperExclude,
     PaperSummary,
     PipelineRunOut,
@@ -34,6 +35,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_summary
 from researchbridge.db.models import (
+    CandidateGap,
     Embedding,
     EmbeddingRun,
     ExtractedClaim,
@@ -47,6 +49,9 @@ router = APIRouter(prefix="/api/admin")
 
 RECENT_RUNS_LIMIT = 10
 PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar", "extraction", "embedding")
+
+NOTIFICATION_RUNS_PER_TYPE = 15
+NOTIFICATION_LIMIT = 30
 
 
 @router.get("/pipeline", response_model=PipelineStatus)
@@ -81,6 +86,120 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         ],
         running={key: is_running(key) for key in PIPELINE_KEYS},
     )
+
+
+@router.get("/notifications", response_model=list[Notification])
+def notifications(session: Session = Depends(get_session)) -> list[Notification]:
+    """Everything the admin page's bell icon shows: recently finished runs
+    (completed or failed - a still-"running" row isn't a notification yet,
+    it's covered by pipeline_status().running), plus the two review queues
+    (assessments, candidate gaps) collapsed to one aggregate entry each
+    rather than one per pending item.
+
+    No read/unread state lives server-side - id is stable per event so the
+    client can track what it has already shown itself (see Notification's
+    docstring for how the aggregate ids handle a changing count).
+    """
+    items: list[Notification] = []
+
+    for run in _recent_finished(session, IngestionRun):
+        items.append(
+            Notification(
+                id=f"run:{run.id}",
+                type="ingestion_failed" if run.status == "failed" else "ingestion_completed",
+                severity="error" if run.status == "failed" else "info",
+                message=_ingestion_message(run),
+                created_at=run.finished_at or run.started_at,
+            )
+        )
+
+    for run in _recent_finished(session, ExtractionRun):
+        items.append(
+            Notification(
+                id=f"run:{run.id}",
+                type="extraction_failed" if run.status == "failed" else "extraction_completed",
+                severity="error" if run.status == "failed" else "info",
+                message=_extraction_message(run),
+                created_at=run.finished_at or run.started_at,
+            )
+        )
+
+    for run in _recent_finished(session, EmbeddingRun):
+        items.append(
+            Notification(
+                id=f"run:{run.id}",
+                type="embedding_failed" if run.status == "failed" else "embedding_completed",
+                severity="error" if run.status == "failed" else "info",
+                message=_embedding_message(run),
+                created_at=run.finished_at or run.started_at,
+            )
+        )
+
+    now = datetime.now(timezone.utc)
+
+    needs_review = _assessment_stats(session).needs_review
+    if needs_review > 0:
+        items.append(
+            Notification(
+                id=f"needs_review:{needs_review}",
+                type="needs_review",
+                severity="info",
+                message=f"{needs_review} assessment{'s' if needs_review != 1 else ''} need human review",
+                created_at=now,
+            )
+        )
+
+    gaps_pending = session.execute(
+        select(func.count()).select_from(CandidateGap).where(CandidateGap.status == "pending")
+    ).scalar_one()
+    if gaps_pending > 0:
+        items.append(
+            Notification(
+                id=f"gaps_pending:{gaps_pending}",
+                type="gaps_pending",
+                severity="info",
+                message=f"{gaps_pending} candidate gap{'s' if gaps_pending != 1 else ''} pending review",
+                created_at=now,
+            )
+        )
+
+    items.sort(key=lambda n: n.created_at, reverse=True)
+    return items[:NOTIFICATION_LIMIT]
+
+
+def _recent_finished(session: Session, model: type) -> list:
+    return list(
+        session.execute(
+            select(model)
+            .where(model.status.in_(("completed", "failed")))
+            .order_by(model.started_at.desc())
+            .limit(NOTIFICATION_RUNS_PER_TYPE)
+        ).scalars()
+    )
+
+
+def _ingestion_message(run: IngestionRun) -> str:
+    label = (run.source or "ingestion").replace("_", " ")
+    if run.status == "failed":
+        return f"{label} ingestion failed: {run.error_summary or 'unknown error'}"
+    return (
+        f"{label} ingestion completed: {run.records_inserted} inserted, "
+        f"{run.records_duplicate} duplicate, {run.records_failed} failed"
+    )
+
+
+def _extraction_message(run: ExtractionRun) -> str:
+    forced = " (forced)" if run.force else ""
+    if run.status == "failed":
+        return f"Extraction run failed{forced}: {run.error_summary or 'unknown error'}"
+    return f"Extraction run completed{forced}: {run.claims_created} claims created, {run.candidates_rejected} rejected"
+
+
+def _embedding_message(run: EmbeddingRun) -> str:
+    forced = " (forced)" if run.force else ""
+    if run.status == "failed":
+        return f"Embedding run failed{forced}: {run.error_summary or 'unknown error'}"
+    return f"Embedding run completed{forced}: {run.papers_processed} processed, {run.papers_skipped} skipped"
 
 
 def _assessment_stats(session: Session) -> AssessmentStats:
