@@ -178,7 +178,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex flex-none flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] px-6 py-4">
         <div className="flex items-baseline gap-4">
           <Link href="/" className="eyebrow hover:text-[var(--ink)]">
@@ -219,7 +219,14 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
         </aside>
 
         {/* the paper */}
-        <section className="border-b border-[var(--rule)] lg:h-full lg:overflow-y-auto lg:border-r lg:border-b-0">
+        {/* relative: the Mathpix MathML overlay (nougat-mmd, added purely so
+            equations are text-selectable) renders position:absolute nodes
+            with no positioned ancestor of their own. Without a containing
+            block here they position against the whole document instead of
+            this scroll panel, which can push <html>'s scrollable height to
+            several thousand px past the viewport and open a phantom
+            page-level scrollbar alongside this panel's own. */}
+        <section className="relative border-b border-[var(--rule)] lg:h-full lg:overflow-y-auto lg:border-r lg:border-b-0">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--rule-soft)] bg-[var(--field)] px-5 py-3">
             <span className="eyebrow">the paper</span>
             {selection ? (
