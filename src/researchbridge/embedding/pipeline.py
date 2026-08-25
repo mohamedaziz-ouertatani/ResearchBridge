@@ -52,8 +52,17 @@ class EmbeddingPipeline:
 
         try:
             papers = self._select_unembedded_papers(session, limit)
+            total = len(papers)
+            total_batches = -(-total // BATCH_SIZE) if total else 0  # ceil division
+            logger.info(
+                "Embedding run %s starting: %d paper(s) to embed in %d batch(es) (model=%s)",
+                run_id,
+                total,
+                total_batches,
+                self.embedder.model_name,
+            )
 
-            for batch in _chunks(papers, BATCH_SIZE):
+            for batch_num, batch in enumerate(_chunks(papers, BATCH_SIZE), start=1):
                 texts: list[str] = []
                 embeddable: list[Paper] = []
                 for paper in batch:
@@ -79,10 +88,24 @@ class EmbeddingPipeline:
                         run.papers_processed += 1
 
                 session.commit()
+                logger.info(
+                    "Embedding run %s: batch %d/%d done (processed=%d, skipped=%d)",
+                    run_id,
+                    batch_num,
+                    total_batches,
+                    run.papers_processed,
+                    run.papers_skipped,
+                )
 
             run.status = "completed"
             run.finished_at = datetime.now(UTC)
             session.commit()
+            logger.info(
+                "Embedding run %s completed: %d processed, %d skipped",
+                run_id,
+                run.papers_processed,
+                run.papers_skipped,
+            )
 
         except Exception as exc:  # noqa: BLE001 - run must record failure, not crash silently
             logger.exception("Embedding run %s failed", run_id)

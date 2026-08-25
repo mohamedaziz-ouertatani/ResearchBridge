@@ -34,7 +34,7 @@ def test_trigger_spawns_a_subprocess_with_the_expected_command(monkeypatch, tmp_
 
     assert len(calls) == 1
     cmd, kwargs = calls[0]
-    assert cmd == [pt.sys.executable, "-m", "researchbridge.ingestion.cli", "--max-pages", "3"]
+    assert cmd == [pt.sys.executable, "-u", "-m", "researchbridge.ingestion.cli", "--max-pages", "3"]
     assert kwargs["cwd"] == pt.REPO_ROOT
     assert log_path.parent == tmp_path
     assert log_path.exists()

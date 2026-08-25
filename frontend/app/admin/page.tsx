@@ -47,11 +47,23 @@ export default function AdminPipeline() {
       .pipelineStatus()
       .then((next) => {
         setStatus(next);
+        setError(null);
       })
       .catch(() => setError("Can't reach the API. Is it running on port 8000?"));
   }
 
-  useEffect(reload, []);
+  // Auto-refresh so run history, "running now" dots, and the stats tab stay
+  // current without a manual page reload. 4s while something's running (the
+  // same cadence as the per-tab log poll below) so progress reads as live;
+  // 15s at idle so a run started from elsewhere (another tab, the CLI) still
+  // shows up promptly without polling harder than an idle page needs.
+  useEffect(() => {
+    reload();
+    const isRunning = status ? Object.values(status.running).some(Boolean) : false;
+    const interval = setInterval(reload, isRunning ? 4000 : 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status ? Object.values(status.running).some(Boolean) : false]);
 
   return (
     <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">

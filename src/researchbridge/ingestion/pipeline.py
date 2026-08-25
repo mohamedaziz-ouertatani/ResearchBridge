@@ -49,6 +49,8 @@ class IngestionPipeline:
         state = resume_state
         pages_fetched = 0
 
+        logger.info("Ingestion run %s starting (source=%s)", run_id, self.connector.source_name)
+
         try:
             while True:
                 fetch_result = self.connector.fetch(state)
@@ -73,15 +75,34 @@ class IngestionPipeline:
                 state = fetch_result.resume_state
                 pages_fetched += 1
 
+                logger.info(
+                    "Ingestion run %s: page %d fetched (%d fetched, %d inserted, %d duplicate, %d failed so far)",
+                    run_id,
+                    pages_fetched,
+                    run.records_fetched,
+                    run.records_inserted,
+                    run.records_duplicate,
+                    run.records_failed,
+                )
+
                 if fetch_result.exhausted:
                     run.status = "completed"
                     run.finished_at = datetime.now(UTC)
                     session.commit()
+                    logger.info(
+                        "Ingestion run %s completed: %d inserted, %d duplicate, %d failed over %d page(s)",
+                        run_id,
+                        run.records_inserted,
+                        run.records_duplicate,
+                        run.records_failed,
+                        pages_fetched,
+                    )
                     break
 
                 if max_pages is not None and pages_fetched >= max_pages:
                     run.status = "paused"
                     session.commit()
+                    logger.info("Ingestion run %s paused after %d page(s) (--max-pages reached)", run_id, pages_fetched)
                     break
 
         except Exception as exc:  # noqa: BLE001 - deliberately broad: run must record failure, not crash silently

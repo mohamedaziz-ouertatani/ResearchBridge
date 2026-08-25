@@ -65,10 +65,16 @@ def trigger(key: str, module: str, args: list[str]) -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     log_path = LOGS_DIR / f"{key}-{timestamp}.log"
-    log_file = log_path.open("w")
+    log_file = log_path.open("w", buffering=1)
 
     proc = subprocess.Popen(
-        [sys.executable, "-m", module, *args],
+        # -u: unbuffered stdout/stderr. Without it, the child's own stdout is
+        # block-buffered whenever it's not attached to a terminal (true here,
+        # since it's redirected to a file) - progress logging wouldn't reach
+        # disk until the buffer filled or the process exited, so the admin
+        # page's log tail would sit empty for most of the run instead of
+        # actually being live.
+        [sys.executable, "-u", "-m", module, *args],
         stdout=log_file,
         stderr=subprocess.STDOUT,
         cwd=REPO_ROOT,

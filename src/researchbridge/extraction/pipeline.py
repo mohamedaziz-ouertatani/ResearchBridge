@@ -88,15 +88,37 @@ class ExtractionPipeline:
 
         try:
             papers = self._select_unprocessed_papers(session, limit)
+            total = len(papers)
+            logger.info(
+                "Extraction run %s starting: %d paper(s) to process (extractor=%s)",
+                run_id,
+                total,
+                self.extractor.extraction_method,
+            )
 
-            for paper in papers:
+            for i, paper in enumerate(papers, start=1):
                 self._process_paper(session, run, paper)
                 run.papers_processed += 1
                 session.commit()
+                if i % 10 == 0 or i == total:
+                    logger.info(
+                        "Extraction run %s: %d/%d papers processed (claims=%d, rejected=%d)",
+                        run_id,
+                        i,
+                        total,
+                        run.claims_created,
+                        run.candidates_rejected,
+                    )
 
             run.status = "completed"
             run.finished_at = datetime.now(UTC)
             session.commit()
+            logger.info(
+                "Extraction run %s completed: %d claim(s) created, %d rejected",
+                run_id,
+                run.claims_created,
+                run.candidates_rejected,
+            )
 
         except Exception as exc:  # noqa: BLE001 - run must record failure, not crash silently
             logger.exception("Extraction run %s failed", run_id)
