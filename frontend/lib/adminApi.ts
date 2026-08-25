@@ -106,4 +106,10 @@ export const adminApi = {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<Notification[]>;
     }),
+
+  stopPipeline: (key: PipelineKey) =>
+    fetch(`${API_BASE}/api/admin/${key}/stop`, { method: "POST", cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<{ stopped: boolean; pipeline: string }>;
+    }),
 };

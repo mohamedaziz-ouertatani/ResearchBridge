@@ -18,7 +18,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
-from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, tail_log, trigger
+from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, stop, tail_log, trigger
 from researchbridge.api.schemas import (
     ArxivIngestionTrigger,
     AssessmentStats,
@@ -29,6 +29,7 @@ from researchbridge.api.schemas import (
     PaperSummary,
     PipelineRunOut,
     PipelineStatus,
+    PipelineStopOut,
     PipelineTriggerOut,
     SemanticScholarIngestionTrigger,
     SpringerIngestionTrigger,
@@ -52,6 +53,18 @@ PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_sc
 
 NOTIFICATION_RUNS_PER_TYPE = 15
 NOTIFICATION_LIMIT = 30
+
+# Which *_runs table (and, for ingestion, which source) a pipeline key's
+# in-progress row lives in - used only by stop_pipeline() to mark that row
+# "stopped" once the subprocess is killed, since the subprocess itself never
+# gets a chance to do that for us.
+RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
+    "ingestion_arxiv": (IngestionRun, "arxiv"),
+    "ingestion_springer": (IngestionRun, "springer"),
+    "ingestion_semantic_scholar": (IngestionRun, "semantic_scholar"),
+    "extraction": (ExtractionRun, None),
+    "embedding": (EmbeddingRun, None),
+}
 
 
 @router.get("/pipeline", response_model=PipelineStatus)
@@ -106,8 +119,8 @@ def notifications(session: Session = Depends(get_session)) -> list[Notification]
         items.append(
             Notification(
                 id=f"run:{run.id}",
-                type="ingestion_failed" if run.status == "failed" else "ingestion_completed",
-                severity="error" if run.status == "failed" else "info",
+                type=f"ingestion_{run.status}",
+                severity=_severity(run.status),
                 message=_ingestion_message(run),
                 created_at=run.finished_at or run.started_at,
             )
@@ -117,8 +130,8 @@ def notifications(session: Session = Depends(get_session)) -> list[Notification]
         items.append(
             Notification(
                 id=f"run:{run.id}",
-                type="extraction_failed" if run.status == "failed" else "extraction_completed",
-                severity="error" if run.status == "failed" else "info",
+                type=f"extraction_{run.status}",
+                severity=_severity(run.status),
                 message=_extraction_message(run),
                 created_at=run.finished_at or run.started_at,
             )
@@ -128,8 +141,8 @@ def notifications(session: Session = Depends(get_session)) -> list[Notification]
         items.append(
             Notification(
                 id=f"run:{run.id}",
-                type="embedding_failed" if run.status == "failed" else "embedding_completed",
-                severity="error" if run.status == "failed" else "info",
+                type=f"embedding_{run.status}",
+                severity=_severity(run.status),
                 message=_embedding_message(run),
                 created_at=run.finished_at or run.started_at,
             )
@@ -171,17 +184,23 @@ def _recent_finished(session: Session, model: type) -> list:
     return list(
         session.execute(
             select(model)
-            .where(model.status.in_(("completed", "failed")))
+            .where(model.status.in_(("completed", "failed", "stopped")))
             .order_by(model.started_at.desc())
             .limit(NOTIFICATION_RUNS_PER_TYPE)
         ).scalars()
     )
 
 
+def _severity(status: str) -> str:
+    return "error" if status == "failed" else "info"
+
+
 def _ingestion_message(run: IngestionRun) -> str:
     label = (run.source or "ingestion").replace("_", " ")
     if run.status == "failed":
         return f"{label} ingestion failed: {run.error_summary or 'unknown error'}"
+    if run.status == "stopped":
+        return f"{label} ingestion stopped: {run.records_inserted} inserted so far"
     return (
         f"{label} ingestion completed: {run.records_inserted} inserted, "
         f"{run.records_duplicate} duplicate, {run.records_failed} failed"
@@ -192,6 +211,8 @@ def _extraction_message(run: ExtractionRun) -> str:
     forced = " (forced)" if run.force else ""
     if run.status == "failed":
         return f"Extraction run failed{forced}: {run.error_summary or 'unknown error'}"
+    if run.status == "stopped":
+        return f"Extraction run stopped{forced}: {run.claims_created} claims created so far"
     return f"Extraction run completed{forced}: {run.claims_created} claims created, {run.candidates_rejected} rejected"
 
 
@@ -199,6 +220,8 @@ def _embedding_message(run: EmbeddingRun) -> str:
     forced = " (forced)" if run.force else ""
     if run.status == "failed":
         return f"Embedding run failed{forced}: {run.error_summary or 'unknown error'}"
+    if run.status == "stopped":
+        return f"Embedding run stopped{forced}: {run.papers_processed} processed so far"
     return f"Embedding run completed{forced}: {run.papers_processed} processed, {run.papers_skipped} skipped"
 
 
@@ -257,6 +280,32 @@ def get_pipeline_log(key: str, lines: int = Query(200, ge=1, le=2000)) -> dict:
     if key not in PIPELINE_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown pipeline key {key!r}")
     return {"log": tail_log(key, lines=lines)}
+
+
+@router.post("/{key}/stop", response_model=PipelineStopOut)
+def stop_pipeline(key: str, session: Session = Depends(get_session)) -> PipelineStopOut:
+    """Kill the subprocess running under `key`, if any, and mark its
+    in-progress *_runs row "stopped" - the subprocess itself never gets a
+    chance to do that since it's killed, not given time to shut down."""
+    if key not in PIPELINE_KEYS:
+        raise HTTPException(status_code=404, detail=f"Unknown pipeline key {key!r}")
+
+    stopped = stop(key)
+    if not stopped:
+        raise HTTPException(status_code=409, detail=f"{key} is not running")
+
+    model, source = RUN_MODEL_BY_KEY[key]
+    query = select(model).where(model.status == "running")
+    if source is not None:
+        query = query.where(model.source == source)
+    run = session.execute(query.order_by(model.started_at.desc()).limit(1)).scalar_one_or_none()
+    if run is not None:
+        run.status = "stopped"
+        run.finished_at = datetime.now(timezone.utc)
+        run.error_summary = "Stopped by operator"
+        session.commit()
+
+    return PipelineStopOut(stopped=True, pipeline=key)
 
 
 @router.put("/papers/{paper_id}/exclude", response_model=PaperSummary)

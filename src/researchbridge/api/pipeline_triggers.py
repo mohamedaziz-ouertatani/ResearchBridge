@@ -52,6 +52,32 @@ def tail_log(key: str, lines: int = 200) -> str:
     return "\n".join(content.splitlines()[-lines:])
 
 
+def stop(key: str) -> bool:
+    """Terminate the subprocess running under `key`, if any.
+
+    Returns True if something was actually running and got signaled, False
+    if there was nothing to stop (already finished, or never started).
+    Best-effort: on Windows, Popen.terminate() already maps to
+    TerminateProcess - a hard kill, not a graceful SIGTERM - so there's no
+    softer signal to try first the way there would be on POSIX. A short
+    wait() still happens so `is_running(key)` reads False immediately after
+    a caller awaits this, rather than racing the OS's own cleanup.
+    """
+    proc = _RUNNING.get(key)
+    if proc is None or proc.poll() is not None:
+        _RUNNING.pop(key, None)
+        return False
+
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+    _RUNNING.pop(key, None)
+    return True
+
+
 def trigger(key: str, module: str, args: list[str]) -> Path:
     """Launch `python -m <module> <args>` as a background subprocess.
 

@@ -261,6 +261,7 @@ function RunSection({
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<string | null>(null);
   const [confirmingForce, setConfirmingForce] = useState(false);
@@ -314,6 +315,19 @@ function RunSection({
     void runNow({ ...collectPayload(), force: true });
   }
 
+  async function stopNow() {
+    setStopping(true);
+    setError(null);
+    try {
+      await adminApi.stopPipeline(pipelineKey);
+      onStarted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't stop the run.");
+    } finally {
+      setStopping(false);
+    }
+  }
+
   return (
     <section className="flex flex-col">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -346,6 +360,17 @@ function RunSection({
         >
           {busy ? "starting…" : running ? "running…" : "run"}
         </button>
+
+        {running && (
+          <button
+            type="button"
+            onClick={() => void stopNow()}
+            disabled={stopping}
+            className="eyebrow rounded-[2px] border border-[var(--live)] px-3 py-1.5 text-[var(--live)] hover:bg-[var(--live)] hover:text-white disabled:opacity-50"
+          >
+            {stopping ? "stopping…" : "stop"}
+          </button>
+        )}
 
         {forceLabel && !confirmingForce && (
           <button

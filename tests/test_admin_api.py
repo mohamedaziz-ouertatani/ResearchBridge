@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
@@ -266,6 +267,55 @@ def test_get_log_accepts_a_lines_param(client, monkeypatch) -> None:
 
 def test_get_log_404s_for_an_unknown_pipeline_key(client) -> None:
     response = client.get("/api/admin/bogus_key/log")
+
+    assert response.status_code == 404
+
+
+def test_stop_marks_the_running_row_stopped(client, session, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    session.add(
+        ExtractionRun(extractor_name="hybrid", status="running", started_at=datetime.now(timezone.utc))
+    )
+    session.commit()
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    response = client.post("/api/admin/extraction/stop")
+
+    assert response.status_code == 200
+    assert response.json() == {"stopped": True, "pipeline": "extraction"}
+    run = session.execute(select(ExtractionRun)).scalar_one()
+    assert run.status == "stopped"
+    assert run.finished_at is not None
+    assert run.error_summary == "Stopped by operator"
+
+
+def test_stop_only_touches_the_matching_ingestion_source(client, session, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    session.add(IngestionRun(source="arxiv", status="running", started_at=datetime.now(timezone.utc)))
+    session.add(IngestionRun(source="springer", status="running", started_at=datetime.now(timezone.utc)))
+    session.commit()
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    client.post("/api/admin/ingestion_arxiv/stop")
+
+    runs = {r.source: r.status for r in session.execute(select(IngestionRun)).scalars()}
+    assert runs == {"arxiv": "stopped", "springer": "running"}
+
+
+def test_stop_409s_when_nothing_is_running(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "stop", lambda key: False)
+
+    response = client.post("/api/admin/embedding/stop")
+
+    assert response.status_code == 409
+
+
+def test_stop_404s_for_an_unknown_pipeline_key(client) -> None:
+    response = client.post("/api/admin/bogus_key/stop")
 
     assert response.status_code == 404
 
