@@ -153,14 +153,145 @@ body {
   }
 }
 
-/* --- KaTeX selection fix ----------------------------------------------
-   KaTeX renders both a visible HTML representation and a visually-hidden
-   MathML copy for accessibility. Both are real text nodes in the DOM, so a
-   mouse selection spanning rendered math picks up both, producing
-   duplicated/garbled text in window.getSelection(). Hiding the MathML copy
-   from rendering also removes it from selection, leaving only the visible
-   HTML representation selectable. */
+/* --- Mathpix Markdown selection fix -----------------------------------
+   The inverse problem to KaTeX's. MathJax renders equations to SVG, which
+   carries no text at all, so selecting a passage silently drops every
+   symbol - evidence captured from the workbench would read "is the number
+   of workers" with its subject missing. mathpix-markdown-it can emit a
+   MathML copy alongside (outMath.include_mathml), but ships it inside a
+   display:none wrapper, and hidden text is not selectable either.
+   Visually hide it instead of removing it from layout, so the symbols are
+   selectable and copyable while staying invisible. There is no duplication
+   to worry about here: the SVG contributes no text of its own, so this
+   MathML copy is the only text source for the equation. */
 
-.katex-html-only .katex-mathml {
-  display: none;
+/* Tailwind's preflight sets svg { display: block }, which is right for a
+   standalone image but wrong for MathJax's inline equations: a block-level
+   SVG sitting inside an inline span forces the browser to split the
+   surrounding text into separate anonymous block boxes - text, then the
+   equation alone on its own line, then the rest of the sentence on a third.
+   Restoring inline display is what lets prose and math share a line. */
+.nougat-mmd mjx-container,
+.nougat-mmd mjx-container svg {
+  display: inline;
+}
+
+.nougat-mmd mathml {
+  /* !important: the library sets display:none inline on this wrapper. */
+  display: block !important;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Mathpix Markdown base styling -------------------------------------
+   Tailwind's preflight strips all default browser styling from tables,
+   headings and lists - mathpix-markdown-it emits plain semantic HTML with
+   no classes of its own, so without this every paper renders as unstyled,
+   borderless, unpadded markup: correct content, unreadable presentation. */
+
+.nougat-mmd table {
+  border-collapse: collapse;
+  margin: 1.25rem auto;
+  font-size: 0.875rem;
+  max-width: 100%;
+  width: fit-content;
+  overflow-x: auto;
+  display: block;
+}
+
+.nougat-mmd th,
+.nougat-mmd td {
+  border: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.nougat-mmd th {
+  background: var(--panel);
+  font-family: var(--type-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.nougat-mmd h1,
+.nougat-mmd h2,
+.nougat-mmd h3,
+.nougat-mmd h4 {
+  font-family: var(--type-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 1.5rem 0 0.5rem;
+}
+
+.nougat-mmd h1 {
+  font-size: 1.25rem;
+}
+.nougat-mmd h2 {
+  font-size: 1.125rem;
+}
+.nougat-mmd h3,
+.nougat-mmd h4 {
+  font-size: 1rem;
+}
+
+.nougat-mmd p {
+  margin: 0.85rem 0;
+}
+
+.nougat-mmd ul,
+.nougat-mmd ol {
+  margin: 0.85rem 0;
+  padding-left: 1.5rem;
+}
+
+.nougat-mmd li {
+  margin: 0.25rem 0;
+}
+
+.nougat-mmd li > ul,
+.nougat-mmd li > ol {
+  margin: 0.25rem 0;
+}
+
+.nougat-mmd pre {
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-family: var(--type-mono);
+  font-size: 0.8125rem;
+  margin: 1rem 0;
+}
+
+.nougat-mmd code {
+  font-family: var(--type-mono);
+  font-size: 0.875em;
+}
+
+/* A new color, not --near: that teal is reserved for cosine distance
+   elsewhere in the app, and reusing it here would make citation links read
+   as a semantic distance signal they aren't. */
+.nougat-mmd a {
+  color: #3a5f8f;
+  text-decoration: none;
+}
+
+.nougat-mmd a:hover {
+  text-decoration: underline;
+}
+
+.nougat-mmd img {
+  max-width: 100%;
+}
+
+.nougat-mmd hr {
+  border: none;
+  border-top: 1px solid var(--rule-soft);
+  margin: 1.5rem 0;
 }

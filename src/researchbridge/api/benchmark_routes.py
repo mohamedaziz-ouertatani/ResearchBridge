@@ -13,9 +13,10 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from researchbridge.benchmark.fulltext import fulltext_path
+from researchbridge.benchmark.fulltext import fulltext_path, image_dir
 from researchbridge.benchmark.store import (
     ANNOTATION_FIELDS,
     Annotation,
@@ -140,6 +141,31 @@ def get_annotation(
         key_evidence=[EvidenceItem(**item) for item in annotation.key_evidence],
         fulltext=path.read_text(encoding="utf-8") if path.exists() else None,
         fulltext_nougat=nougat_path.read_text(encoding="utf-8") if nougat_path.exists() else None,
+    )
+
+
+_IMAGE_MEDIA_TYPES = {"png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg"}
+
+
+@router.get("/papers/{source_id}/images/{filename}")
+def get_figure(
+    source_id: str, filename: str, benchmark_dir: Path = Depends(get_benchmark_dir)
+) -> FileResponse:
+    if filename != Path(filename).name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    path = image_dir(benchmark_dir / "fulltext", source_id) / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"No image {filename!r} for {source_id}")
+
+    ext = path.suffix.lstrip(".").lower()
+    return FileResponse(
+        path,
+        media_type=_IMAGE_MEDIA_TYPES.get(ext, "application/octet-stream"),
+        # Served cross-origin from a different port than the Next.js dev
+        # server (Sec 44's local-only split) - without this header, browsers
+        # enforcing Cross-Origin-Resource-Policy block the image outright.
+        headers={"Cross-Origin-Resource-Policy": "cross-origin"},
     )
 
 

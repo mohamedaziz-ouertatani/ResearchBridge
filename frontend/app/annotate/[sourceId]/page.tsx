@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
+
+import { API_BASE } from "@/lib/api";
 import {
   ANNOTATION_FIELDS,
   benchmarkApi,
@@ -19,6 +17,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 
 const AUTOSAVE_DELAY_MS = 700;
 
+
 export default function Workbench({ params }: { params: Promise<{ sourceId: string }> }) {
   const { sourceId } = use(params);
 
@@ -31,6 +30,49 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   const [selection, setSelection] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [extractorView, setExtractorView] = useState<"nougat" | "pymupdf">("nougat");
+
+  // mathpix-markdown-it is CommonJS and drags in mathjax-full, opentype.js
+  // and highlight.js. Imported statically it breaks this page's chunking
+  // (chunks 404 and the component never hydrates), so load it on demand.
+  const [nougatHtml, setNougatHtml] = useState("");
+  useEffect(() => {
+    const mmd = detail?.fulltext_nougat;
+    if (!mmd) {
+      setNougatHtml("");
+      return;
+    }
+    let cancelled = false;
+    import("mathpix-markdown-it").then(({ MathpixMarkdownModel }) => {
+      if (cancelled) return;
+      // htmlTags stays false: this text is OCR of a third-party PDF, so any
+      // raw HTML in it is untrusted and must not reach the DOM. With it off
+      // the parser emits only its own markup, which is what makes the
+      // dangerouslySetInnerHTML below safe.
+      // The backend stores figure links as API-relative paths (it doesn't
+      // know this frontend's API_BASE), so the frontend fills that in before
+      // rendering rather than the backend baking in a base URL.
+      const withImageBase = mmd.replace(/\]\(\/api\/benchmark\//g, `](${API_BASE}/api/benchmark/`);
+      setNougatHtml(
+        // The text arrives already repaired: normalize_nougat_markdown runs
+        // at extraction time, so every consumer - this page, the export, the
+        // assessment pipeline - reads the same structurally sound Markdown.
+        MathpixMarkdownModel.markdownToHTML(withImageBase, {
+          htmlTags: false,
+          formulaNumbering: true,
+          // MathJax renders to SVG, which carries no text - so selecting an
+          // equation yields "" and evidence capture silently drops every
+          // variable from a quoted passage. Emitting MathML alongside puts
+          // the symbols back in the selection. It does not double up the way
+          // KaTeX did: there the HTML layer had text of its own, whereas the
+          // SVG here contributes none, so MathML is the only text source.
+          outMath: { include_mathml: true },
+        }),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.fulltext_nougat]);
 
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,7 +135,11 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   }
 
   function captureSelection() {
-    const text = window.getSelection()?.toString().trim() ?? "";
+    // MathML puts each token on its own line, so a selection crossing an
+    // equation arrives as "...Gossip;\n|\nW\n|\nis the number of...".
+    // Collapsing runs of whitespace restores the sentence as it reads on
+    // the page, which is what belongs in a quoted piece of evidence.
+    const text = window.getSelection()?.toString().replace(/\s+/g, " ").trim() ?? "";
     setSelection(text.length > 2 ? text : "");
   }
 
@@ -239,11 +285,10 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
 
                 {(extractorView === "nougat" ? detail?.fulltext_nougat : detail?.fulltext) ? (
                   extractorView === "nougat" && detail?.fulltext_nougat ? (
-                    <div className="katex-html-only mt-5 max-w-none font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] text-[var(--ink)]">
-                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                        {detail.fulltext_nougat}
-                      </ReactMarkdown>
-                    </div>
+                    <div
+                      className="nougat-mmd mt-5 max-w-none font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] text-[var(--ink)]"
+                      dangerouslySetInnerHTML={{ __html: nougatHtml }}
+                    />
                   ) : (
                     <pre className="mt-5 font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
                       {detail?.fulltext}

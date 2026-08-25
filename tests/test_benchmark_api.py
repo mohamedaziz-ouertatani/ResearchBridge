@@ -149,6 +149,28 @@ def test_detail_nougat_fulltext_is_null_when_not_cached(client) -> None:
     assert client.get("/api/benchmark/papers/2222.22222").json()["fulltext_nougat"] is None
 
 
+def test_get_figure_serves_the_saved_image_bytes(client, benchmark_dir) -> None:
+    images = benchmark_dir / "images" / "1111.11111"
+    images.mkdir(parents=True)
+    (images / "p0000_0.png").write_bytes(b"fake-png-bytes")
+
+    response = client.get("/api/benchmark/papers/1111.11111/images/p0000_0.png")
+
+    assert response.status_code == 200
+    assert response.content == b"fake-png-bytes"
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_get_figure_404s_when_the_image_is_missing(client) -> None:
+    assert client.get("/api/benchmark/papers/1111.11111/images/p0000_0.png").status_code == 404
+
+
+def test_get_figure_rejects_path_traversal_in_filename(client) -> None:
+    response = client.get("/api/benchmark/papers/1111.11111/images/..%2F..%2Fsecrets.txt")
+
+    assert response.status_code in (400, 404)
+
+
 def test_progress_aggregates_across_papers(client) -> None:
     client.put("/api/benchmark/papers/1111.11111", json={"problem": "a", "method": "b"})
 

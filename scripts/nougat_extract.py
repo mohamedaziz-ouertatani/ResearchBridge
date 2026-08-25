@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from contextlib import redirect_stdout
 from functools import partial
 from pathlib import Path
 
@@ -46,7 +47,12 @@ logger = logging.getLogger(__name__)
 
 
 def extract_markdown(pdf_path: Path) -> str:
-    checkpoint = get_checkpoint(None, model_tag="0.1.0-small")
+    # 0.1.0-base (350M) rather than 0.1.0-small (247M): the small model
+    # garbles math and, more damagingly, repeats itself often enough that
+    # nougat's own repetition detector rejected 66 pages across the 40
+    # benchmark papers - whole pages of content silently replaced by a
+    # placeholder. The base model is the accuracy the corpus needs.
+    checkpoint = get_checkpoint(None, model_tag="0.1.0-base")
     model = NougatModel.from_pretrained(checkpoint)
     model = move_to_device(model, bf16=False, cuda=torch.cuda.is_available())
     model.eval()
@@ -67,18 +73,30 @@ def extract_markdown(pdf_path: Path) -> str:
     )
 
     pages: list[str] = []
+    # 0-indexed, incremented once per page in the same order LazyDataset
+    # rasterized them - the same order PyMuPDF's own page iteration uses, so
+    # fulltext.py's separate image-extraction pass can match a figure back to
+    # the marker for the page it came from.
+    page_index = 0
     for sample, _is_last_page in dataloader:
         if sample is None:
             continue
-        model_output = model.inference(image_tensors=sample, early_stopping=True)
-        for j, output in enumerate(model_output["predictions"]):
-            repeats = model_output["repeats"][j]
-            if output.strip() == "[MISSING_PAGE_POST]" or (repeats is not None and repeats > 0):
-                # A truncated/repetitive page - record the gap rather than
-                # inventing content, same as nougat's own CLI does.
-                pages.append("\n\n[MISSING_PAGE_FAIL]\n\n")
+        # early_stopping=False is what nougat's CLI exposes as --no-skipping.
+        # With it on, a page that trips the repetition detector is discarded
+        # whole; the text that was read correctly goes in the bin along with
+        # the repetition. A page containing the real paper plus some repeated
+        # tokens is still the paper - a placeholder is nothing at all - so
+        # keep the content and let the reader see what was actually read.
+        model_output = model.inference(image_tensors=sample, early_stopping=False)
+        for output in model_output["predictions"]:
+            marker = f"<!--PAGE:{page_index}-->\n\n"
+            if not output.strip():
+                # Genuinely empty: nougat produced nothing for this page, so
+                # record the gap rather than inventing content.
+                pages.append(f"\n\n{marker}[MISSING_PAGE_FAIL]\n\n")
             else:
-                pages.append(markdown_compatible(output))
+                pages.append(f"\n\n{marker}" + markdown_compatible(output))
+            page_index += 1
 
     markdown = "".join(pages).strip()
     markdown = re.sub(r"\n{3,}", "\n\n", markdown)
@@ -96,7 +114,13 @@ def main() -> None:
     if not pdf_path.exists():
         raise FileNotFoundError(f"No such PDF: {pdf_path}")
 
-    markdown = extract_markdown(pdf_path)
+    # Nougat prints diagnostics ("INFO: likely hallucinated title...") on
+    # stdout, which is this script's data channel - they were landing inside
+    # the extracted papers. Give the extraction a stdout that points at
+    # stderr, so only the Markdown below reaches the real one.
+    with redirect_stdout(sys.stderr):
+        markdown = extract_markdown(pdf_path)
+
     sys.stdout.write(markdown)
 
 
