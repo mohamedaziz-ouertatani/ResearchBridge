@@ -73,7 +73,9 @@ def test_paper_without_doi_or_open_access_pdf() -> None:
     paper = result.papers[1]
 
     assert paper.doi is None
-    assert paper.url is None
+    # No open-access PDF, but "read online" still needs somewhere to go -
+    # falls back to the Semantic Scholar landing page for this paperId.
+    assert paper.url == "https://www.semanticscholar.org/paper/a1b2c3d4e5f60000000000000000000000000002"
     assert paper.open_access is False
     assert paper.publication_date is None  # no publicationDate and no year fallback needed for this fixture
 

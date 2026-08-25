@@ -168,10 +168,17 @@ class SemanticScholarConnector:
         document_type = publication_types[0] if publication_types else None
 
         open_access_pdf = record.get("openAccessPdf")
+        paper_id = record.get("paperId", "")
+        # Most records have no open-access PDF, but every record has a
+        # Semantic Scholar landing page - fall back to that so "read online"
+        # still has somewhere to send the reader.
+        url = open_access_pdf.get("url") if open_access_pdf else None
+        if not url and paper_id:
+            url = f"https://www.semanticscholar.org/paper/{paper_id}"
 
         return NormalizedPaper(
             source=self.source_name,
-            source_id=record.get("paperId", ""),
+            source_id=paper_id,
             title=record.get("title", ""),
             abstract=record.get("abstract") or None,
             publication_date=_parse_date(record.get("publicationDate")),
@@ -181,7 +188,7 @@ class SemanticScholarConnector:
             venue=record.get("venue") or None,
             document_type=document_type,
             language=None,  # not provided by the bulk search endpoint's default fields
-            url=open_access_pdf.get("url") if open_access_pdf else None,
+            url=url,
             open_access=open_access_pdf is not None,
             raw_metadata={
                 "externalIds": external_ids,
