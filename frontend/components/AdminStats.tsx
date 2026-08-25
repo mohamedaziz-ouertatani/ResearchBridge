@@ -54,24 +54,24 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             <div className="mt-2">
               <YearStrip byYear={corpusStats.papers_by_year} activeYear={activeYear} onSelectYear={setActiveYear} />
             </div>
+            {activeYear !== null && (
+              <p className="mt-2 text-[0.75rem] text-[var(--near)]">
+                Scoped to {activeYear} — categories, source breakdown, and coverage below all reflect this year
+                only.{" "}
+                <button
+                  type="button"
+                  onClick={() => setActiveYear(null)}
+                  className="underline underline-offset-2 hover:text-[var(--ink)]"
+                >
+                  clear
+                </button>
+              </p>
+            )}
           </div>
         )}
         {corpusStats && (
           <div className="mt-6">
-            <div className="flex items-baseline justify-between">
-              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
-                top categories{activeYear !== null ? ` — ${activeYear}` : ""}
-              </span>
-              {activeYear !== null && (
-                <button
-                  type="button"
-                  onClick={() => setActiveYear(null)}
-                  className="eyebrow text-[0.625rem] text-[var(--ink-faint)] hover:text-[var(--ink)]"
-                >
-                  clear
-                </button>
-              )}
-            </div>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">top categories</span>
             <div className="mt-2">
               <BarList counts={corpusStats.papers_by_category} limit={10} />
             </div>
@@ -80,25 +80,34 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
       </StatGroup>
 
       <StatGroup title="source & coverage">
-        <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">papers by source</span>
-        <div className="mt-2">
-          <BarList counts={status.papers_by_source} />
-        </div>
+        {corpusStats && (
+          <>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">papers by source</span>
+            <div className="mt-2">
+              <BarList counts={corpusStats.papers_by_source} />
+            </div>
 
-        <div className="mt-6 space-y-3">
-          <ProportionBar
-            label="with extracted claims"
-            value={status.papers_with_claims}
-            total={status.total_papers}
-          />
-          <ProportionBar label="with embeddings" value={status.papers_with_embeddings} total={status.total_papers} />
-        </div>
+            <div className="mt-6 space-y-3">
+              <ProportionBar
+                label="with extracted claims"
+                value={corpusStats.papers_with_claims}
+                total={corpusStats.total_papers}
+              />
+              <ProportionBar
+                label="with embeddings"
+                value={corpusStats.embedded_papers}
+                total={corpusStats.total_papers}
+              />
+            </div>
+          </>
+        )}
       </StatGroup>
 
       <StatGroup title="ingestion volume over time">
         <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
           Records inserted per run, oldest to newest - limited to the run history already loaded above
-          (not a full historical query).
+          (not a full historical query). Not scoped by the year filter above: a run&apos;s timing has no fixed
+          relationship to the publication year of the papers it fetched.
         </p>
         <div className="space-y-6">
           <IngestionVolume title="arXiv" runs={status.ingestion_runs.filter((r) => r.source === "arxiv")} />

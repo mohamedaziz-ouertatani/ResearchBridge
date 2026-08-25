@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit
 from researchbridge.api.serializers import to_claims, to_summaries, to_summary
-from researchbridge.db.models import Author, Embedding, Paper, PaperAuthor, PaperCategory
+from researchbridge.db.models import Author, Embedding, ExtractedClaim, Paper, PaperAuthor, PaperCategory
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.embedding.search import find_similar_to_paper, search_by_text
@@ -130,10 +130,10 @@ def corpus_stats(
     matching /api/papers' default so this endpoint's totals and the corpus
     page's default listing never disagree (see corpus-curation follow-up).
 
-    `year`, when given, scopes total_papers/total_authors/embedded_papers/
-    papers_by_category to that publication year - papers_by_year is always
-    computed unfiltered so the YearStrip driving this filter keeps showing
-    every year to navigate to, not just the one currently selected.
+    `year`, when given, scopes every field below except papers_by_year to
+    that publication year - papers_by_year is always computed unfiltered so
+    the YearStrip driving this filter keeps showing every year to navigate
+    to, not just the one currently selected.
     """
     not_excluded = Paper.excluded_at.is_(None)
     year_scope = func.extract("year", Paper.publication_date) == year if year is not None else True
@@ -151,6 +151,11 @@ def corpus_stats(
         .join(Paper, Paper.id == Embedding.paper_id)
         .where(Embedding.embedding_type == EMBEDDING_TYPE, not_excluded, year_scope)
     ).scalar_one()
+    with_claims = session.execute(
+        select(func.count(func.distinct(ExtractedClaim.paper_id)))
+        .join(Paper, Paper.id == ExtractedClaim.paper_id)
+        .where(not_excluded, year_scope)
+    ).scalar_one()
 
     year_rows = session.execute(
         select(func.extract("year", Paper.publication_date), func.count(Paper.id))
@@ -167,10 +172,16 @@ def corpus_stats(
         .limit(20)
     ).all()
 
+    source_rows = session.execute(
+        select(Paper.source, func.count(Paper.id)).where(not_excluded, year_scope).group_by(Paper.source)
+    ).all()
+
     return CorpusStats(
         total_papers=total_papers,
         total_authors=total_authors,
         embedded_papers=embedded,
+        papers_with_claims=with_claims,
         papers_by_year={int(year): count for year, count in year_rows},
         papers_by_category={category: count for category, count in category_rows},
+        papers_by_source=dict(source_rows),
     )

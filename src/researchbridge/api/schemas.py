@@ -209,8 +209,10 @@ class CorpusStats(BaseModel):
     total_papers: int
     total_authors: int
     embedded_papers: int
+    papers_with_claims: int
     papers_by_year: dict[int, int]
     papers_by_category: dict[str, int]
+    papers_by_source: dict[str, int]
 
 
 class PipelineRunOut(BaseModel):

@@ -40,8 +40,10 @@ export type CorpusStats = {
   total_papers: number;
   total_authors: number;
   embedded_papers: number;
+  papers_with_claims: number;
   papers_by_year: Record<string, number>;
   papers_by_category: Record<string, number>;
+  papers_by_source: Record<string, number>;
 };
 
 class ApiError extends Error {

@@ -70,10 +70,12 @@ def _add_paper(
     categories: tuple[str, ...] = ("cs.LG",),
     authors: tuple[str, ...] = (),
     embed: FakeEmbedder | None = None,
+    source: str = "arxiv",
+    claim: bool = False,
 ) -> Paper:
     paper = Paper(
         id=uuid.uuid4(),
-        source="arxiv",
+        source=source,
         source_id=source_id,
         title=title,
         abstract=f"Abstract for {title}.",
@@ -104,6 +106,20 @@ def _add_paper(
                 embedding_type=EMBEDDING_TYPE,
                 model_name=embed.model_name,
                 vector=vector,
+            )
+        )
+
+    if claim:
+        evidence = Evidence(
+            paper_id=paper.id, evidence_type="method", section=None, text=paper.abstract,
+            extraction_method="hybrid", model_version="v1", confidence="medium",
+        )
+        session.add(evidence)
+        session.flush()
+        session.add(
+            ExtractedClaim(
+                paper_id=paper.id, claim_type="method", text=paper.abstract,
+                evidence_id=evidence.id, confidence="medium",
             )
         )
 
@@ -335,30 +351,34 @@ def test_similar_papers_409s_when_paper_has_no_embedding(client, session) -> Non
 
 
 def test_stats_reports_corpus_shape(client, session, embedder) -> None:
-    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
-    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",))
-    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",))
+    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder, source="arxiv", claim=True)
+    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), source="springer")
+    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), source="arxiv")
 
     body = client.get("/api/stats").json()
 
     assert body["total_papers"] == 3
     assert body["total_authors"] == 2  # Alice deduped across two papers
     assert body["embedded_papers"] == 1
+    assert body["papers_with_claims"] == 1
     assert body["papers_by_year"] == {"2019": 2, "2024": 1}
     assert body["papers_by_category"]["cs.LG"] == 2
+    assert body["papers_by_source"] == {"arxiv": 2, "springer": 1}
 
 
-def test_stats_year_param_scopes_totals_and_categories(client, session, embedder) -> None:
-    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
-    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",))
-    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), embed=embedder)
+def test_stats_year_param_scopes_every_field_but_papers_by_year(client, session, embedder) -> None:
+    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder, source="arxiv", claim=True)
+    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), source="springer")
+    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), embed=embedder, source="arxiv", claim=True)
 
     body = client.get("/api/stats", params={"year": 2019}).json()
 
     assert body["total_papers"] == 2
     assert body["total_authors"] == 2
     assert body["embedded_papers"] == 1
+    assert body["papers_with_claims"] == 1
     assert body["papers_by_category"] == {"cs.LG": 2}
+    assert body["papers_by_source"] == {"arxiv": 1, "springer": 1}
     # papers_by_year stays unfiltered - it's what drives navigating to a
     # different year, not just the currently selected one.
     assert body["papers_by_year"] == {"2019": 2, "2024": 1}
