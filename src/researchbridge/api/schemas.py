@@ -273,10 +273,12 @@ class SemanticScholarIngestionTrigger(BaseModel):
 class ExtractionTrigger(BaseModel):
     limit: int | None = None
     extractor: str | None = None
+    force: bool = False
 
 
 class EmbeddingTrigger(BaseModel):
     limit: int | None = None
+    force: bool = False
 
 
 class PipelineTriggerOut(BaseModel):

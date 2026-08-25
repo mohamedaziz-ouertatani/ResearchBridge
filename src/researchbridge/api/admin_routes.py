@@ -205,6 +205,8 @@ def trigger_extraction(payload: ExtractionTrigger) -> PipelineTriggerOut:
         args += ["--limit", str(payload.limit)]
     if payload.extractor is not None:
         args += ["--extractor", payload.extractor]
+    if payload.force:
+        args += ["--force"]
     return _trigger_or_409("extraction", "researchbridge.extraction.cli", args)
 
 
@@ -213,4 +215,6 @@ def trigger_embedding(payload: EmbeddingTrigger) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.limit is not None:
         args += ["--limit", str(payload.limit)]
+    if payload.force:
+        args += ["--force"]
     return _trigger_or_409("embedding", "researchbridge.embedding.cli_embed", args)

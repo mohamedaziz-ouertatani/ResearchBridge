@@ -182,6 +182,8 @@ export default function AdminPipeline() {
                   ]}
                   onRun={(values) => adminApi.triggerExtraction(values)}
                   onStarted={reload}
+                  forceLabel="force re-extract"
+                  forceWarning="This deletes every extracted claim and evidence quote in the corpus (and any candidate gap or assessment citing that evidence), then re-runs extraction from scratch. This cannot be undone."
                 />
               )}
 
@@ -194,6 +196,8 @@ export default function AdminPipeline() {
                   fields={[{ name: "limit", label: "limit", type: "number" }]}
                   onRun={(values) => adminApi.triggerEmbedding(values)}
                   onStarted={reload}
+                  forceLabel="force re-embed"
+                  forceWarning="This deletes every existing embedding for the current model, then re-embeds the whole corpus from scratch. This cannot be undone."
                 />
               )}
 
@@ -227,19 +231,27 @@ function RunSection({
   fields,
   onRun,
   onStarted,
+  forceLabel,
+  forceWarning,
 }: {
   title: string;
   pipelineKey: PipelineKey;
   runs: PipelineRun[];
   running: boolean;
   fields: Field[];
-  onRun: (values: Record<string, string | number>) => Promise<unknown>;
+  onRun: (values: Record<string, string | number | boolean>) => Promise<unknown>;
   onStarted: () => void;
+  /** When set, renders a second "force re-run" button that wipes prior
+   * results before re-running - gated behind an inline confirmation step
+   * rather than firing on click, since it's destructive and irreversible. */
+  forceLabel?: string;
+  forceWarning?: string;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<string | null>(null);
+  const [confirmingForce, setConfirmingForce] = useState(false);
 
   // Poll the running subprocess's log while it's going, so the operator can
   // see progress instead of just "running now" with no detail. One extra
@@ -257,24 +269,37 @@ function RunSection({
     };
   }, [running, pipelineKey]);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  function collectPayload(): Record<string, string | number | boolean> {
+    const payload: Record<string, string | number | boolean> = {};
+    for (const field of fields) {
+      const raw = values[field.name]?.trim();
+      if (!raw) continue;
+      payload[field.name] = field.type === "number" ? Number(raw) : raw;
+    }
+    return payload;
+  }
+
+  async function runNow(payload: Record<string, string | number | boolean>) {
     setBusy(true);
     setError(null);
     try {
-      const payload: Record<string, string | number> = {};
-      for (const field of fields) {
-        const raw = values[field.name]?.trim();
-        if (!raw) continue;
-        payload[field.name] = field.type === "number" ? Number(raw) : raw;
-      }
       await onRun(payload);
       onStarted();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start the run.");
     } finally {
       setBusy(false);
+      setConfirmingForce(false);
     }
+  }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    void runNow(collectPayload());
+  }
+
+  function confirmForceRun() {
+    void runNow({ ...collectPayload(), force: true });
   }
 
   return (
@@ -309,8 +334,43 @@ function RunSection({
         >
           {busy ? "starting…" : running ? "running…" : "run"}
         </button>
+
+        {forceLabel && !confirmingForce && (
+          <button
+            type="button"
+            onClick={() => setConfirmingForce(true)}
+            disabled={busy || running}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 text-[var(--live)] hover:border-[var(--live)] disabled:opacity-50"
+          >
+            {forceLabel}
+          </button>
+        )}
       </form>
       {error && <p className="mt-2 text-[0.75rem] text-[var(--live)]">{error}</p>}
+
+      {forceLabel && confirmingForce && (
+        <div className="mt-3 border border-[var(--live)] bg-[var(--panel)] px-4 py-3">
+          <p className="text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">{forceWarning}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={confirmForceRun}
+              disabled={busy || running}
+              className="eyebrow rounded-[2px] border border-[var(--live)] bg-[var(--live)] px-3 py-1.5 text-white disabled:opacity-50"
+            >
+              {busy ? "starting…" : `yes, ${forceLabel}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingForce(false)}
+              disabled={busy}
+              className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {running && (
         <div className="mt-4">

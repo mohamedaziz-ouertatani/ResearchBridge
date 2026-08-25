@@ -10,7 +10,7 @@ import logging
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from researchbridge.db.models import Embedding, EmbeddingRun, Paper
@@ -21,6 +21,21 @@ logger = logging.getLogger(__name__)
 
 EMBEDDING_TYPE = "title_abstract"
 BATCH_SIZE = 32
+
+
+def reset_embedding_data(session: Session, model_name: str) -> int:
+    """Delete every existing (embedding_type, model_name) embedding so the
+    next run re-embeds the whole corpus from scratch (the "force re-embed"
+    path). Scoped to this model_name only - other models' embeddings, if
+    any ever coexist, are untouched. No downstream table references
+    embeddings.id, so this is a plain delete with no cascade to worry
+    about, unlike reset_extraction_data.
+    """
+    result = session.execute(
+        delete(Embedding).where(Embedding.embedding_type == EMBEDDING_TYPE, Embedding.model_name == model_name)
+    )
+    session.commit()
+    return result.rowcount
 
 
 class EmbeddingPipeline:

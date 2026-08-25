@@ -24,21 +24,54 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from researchbridge.db.models import (
+    CandidateGapEvidence,
     Evidence,
     ExtractedClaim,
     ExtractionError,
     ExtractionRun,
     Paper,
+    ResearchAssessmentEvidence,
 )
 from researchbridge.extraction.base import Extractor
 from researchbridge.extraction.validation import validate_claim_type
 
 logger = logging.getLogger(__name__)
+
+
+def reset_extraction_data(session: Session) -> int:
+    """Delete every prior extraction result so the next run reprocesses the
+    whole corpus from scratch (the "force re-extract" path).
+
+    Evidence rows can be referenced by CandidateGapEvidence and
+    ResearchAssessmentEvidence (gap detection and assessments both cite
+    specific evidence quotes) - those referencing rows have to go first or
+    the Evidence delete below violates their foreign key. This does mean a
+    force re-extract quietly drops support for any candidate gap or
+    assessment that cited the old evidence; there's no cheap way to
+    recompute those from the new extraction, so this is a deliberate
+    "start over" operation, not a safe background refresh.
+
+    Returns the number of Evidence rows removed (the corpus-wide count of
+    what got reset).
+    """
+    session.execute(
+        delete(CandidateGapEvidence).where(CandidateGapEvidence.evidence_id.in_(select(Evidence.id)))
+    )
+    session.execute(
+        delete(ResearchAssessmentEvidence).where(
+            ResearchAssessmentEvidence.evidence_id.in_(select(Evidence.id))
+        )
+    )
+    session.execute(delete(ExtractedClaim))
+    result = session.execute(delete(Evidence))
+    session.execute(delete(ExtractionError))
+    session.commit()
+    return result.rowcount
 
 
 class ExtractionPipeline:

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 
 from researchbridge.db.models import (
+    CandidateGap,
+    CandidateGapEvidence,
     Evidence,
     ExtractedClaim,
     ExtractionError,
@@ -13,7 +15,7 @@ from researchbridge.db.models import (
     Paper,
 )
 from researchbridge.extraction.base import ClaimCandidate
-from researchbridge.extraction.pipeline import ExtractionPipeline
+from researchbridge.extraction.pipeline import ExtractionPipeline, reset_extraction_data
 from researchbridge.extraction.stub import STUB_MODEL_VERSION, StubExtractor
 
 
@@ -249,6 +251,71 @@ def test_extractor_failure_is_logged_and_run_continues(session_factory) -> None:
         )
         assert len(errors) == 1
         assert errors[0].error_type == "extractor_error"
+    finally:
+        session.close()
+
+
+def test_force_reset_deletes_prior_extraction_and_allows_reprocessing(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1", abstract="We propose a new method for X.")
+    session.close()
+
+    pipeline = ExtractionPipeline(extractor=StubExtractor(), session_factory=session_factory)
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        assert session.execute(select(ExtractedClaim)).scalars().all() != []
+        deleted = reset_extraction_data(session)
+        assert deleted == 1
+        assert session.execute(select(ExtractedClaim)).scalars().all() == []
+        assert session.execute(select(Evidence)).scalars().all() == []
+    finally:
+        session.close()
+
+    # A fresh run should reprocess the paper as if it were never extracted.
+    second_run_id = pipeline.run()
+    session = session_factory()
+    try:
+        run = session.get(ExtractionRun, second_run_id)
+        assert run.papers_processed == 1
+        assert run.claims_created == 1
+        assert len(session.execute(select(ExtractedClaim).where(ExtractedClaim.paper_id == paper.id)).scalars().all()) == 1
+    finally:
+        session.close()
+
+
+def test_force_reset_cascades_through_candidate_gap_evidence(session_factory) -> None:
+    # A candidate gap can cite evidence from a paper being re-extracted;
+    # reset_extraction_data must clear that reference first or the Evidence
+    # delete violates candidate_gap_evidence's foreign key.
+    session = session_factory()
+    paper = _make_paper(session, "P1", abstract="We propose a new method for X.")
+    session.close()
+
+    pipeline = ExtractionPipeline(extractor=StubExtractor(), session_factory=session_factory)
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        evidence = session.execute(select(Evidence)).scalar_one()
+        gap = CandidateGap(
+            seed_paper_id=paper.id,
+            observation="A recurring pattern.",
+            contributing_paper_count=3,
+            similarity_threshold=0.8,
+            detection_method="embedding_cosine",
+        )
+        session.add(gap)
+        session.flush()
+        session.add(CandidateGapEvidence(candidate_gap_id=gap.id, evidence_id=evidence.id))
+        session.commit()
+
+        deleted = reset_extraction_data(session)
+        assert deleted == 1
+        assert session.execute(select(CandidateGapEvidence)).scalars().all() == []
+        # The candidate gap itself survives - only its evidence link is severed.
+        assert session.get(CandidateGap, gap.id) is not None
     finally:
         session.close()
 

@@ -9,7 +9,7 @@ from researchbridge.embedding.model import SentenceTransformerEmbedder
 from researchbridge.extraction.base import Extractor
 from researchbridge.extraction.heuristic import HeuristicExtractor
 from researchbridge.extraction.hybrid import HybridExtractor
-from researchbridge.extraction.pipeline import ExtractionPipeline
+from researchbridge.extraction.pipeline import ExtractionPipeline, reset_extraction_data
 from researchbridge.extraction.semantic import SemanticExtractor
 from researchbridge.extraction.stub import StubExtractor
 
@@ -44,12 +44,25 @@ def main() -> None:
         default="hybrid",
         help="Which Extractor to run (default: hybrid - see extraction/hybrid.py)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Delete all existing extracted claims/evidence first, then re-extract the whole corpus",
+    )
     args = parser.parse_args()
 
     extractor = _make_extractor(args.extractor)
 
     engine = make_engine()
     session_factory = make_session_factory(engine)
+
+    if args.force:
+        session = session_factory()
+        try:
+            deleted = reset_extraction_data(session)
+        finally:
+            session.close()
+        print(f"--force: deleted {deleted} existing evidence rows (and their claims).")
 
     pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
     run_id = pipeline.run(limit=args.limit)

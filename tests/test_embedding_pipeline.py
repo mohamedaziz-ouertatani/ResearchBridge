@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 
 from researchbridge.db.models import EMBEDDING_DIM, Embedding, EmbeddingRun, Paper
-from researchbridge.embedding.pipeline import EMBEDDING_TYPE, EmbeddingPipeline
+from researchbridge.embedding.pipeline import EMBEDDING_TYPE, EmbeddingPipeline, reset_embedding_data
 
 
 def _make_paper(session, source_id: str, title: str = "A Paper", abstract: str | None = "An abstract.") -> Paper:
@@ -126,6 +126,52 @@ def test_different_model_name_creates_separate_embedding_row(session_factory) ->
     try:
         rows = session.execute(select(Embedding).where(Embedding.paper_id == paper.id)).scalars().all()
         assert {r.model_name for r in rows} == {"model-a", "model-b"}
+    finally:
+        session.close()
+
+
+def test_force_reset_deletes_prior_embeddings_and_allows_reprocessing(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1")
+    session.close()
+
+    embedder = FakeEmbedder()
+    pipeline = EmbeddingPipeline(embedder=embedder, session_factory=session_factory)
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        assert session.execute(select(Embedding)).scalars().all() != []
+        deleted = reset_embedding_data(session, embedder.model_name)
+        assert deleted == 1
+        assert session.execute(select(Embedding)).scalars().all() == []
+    finally:
+        session.close()
+
+    second_run_id = pipeline.run()
+    session = session_factory()
+    try:
+        run = session.get(EmbeddingRun, second_run_id)
+        assert run.papers_processed == 1
+        assert len(session.execute(select(Embedding).where(Embedding.paper_id == paper.id)).scalars().all()) == 1
+    finally:
+        session.close()
+
+
+def test_force_reset_only_touches_matching_model_name(session_factory) -> None:
+    session = session_factory()
+    _make_paper(session, "P1")
+    session.close()
+
+    EmbeddingPipeline(embedder=FakeEmbedder(model_name="model-a"), session_factory=session_factory).run()
+    EmbeddingPipeline(embedder=FakeEmbedder(model_name="model-b"), session_factory=session_factory).run()
+
+    session = session_factory()
+    try:
+        deleted = reset_embedding_data(session, "model-a")
+        assert deleted == 1
+        remaining = session.execute(select(Embedding)).scalars().all()
+        assert {r.model_name for r in remaining} == {"model-b"}
     finally:
         session.close()
 

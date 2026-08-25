@@ -81,10 +81,10 @@ export const adminApi = {
   triggerSemanticScholarIngestion: (params: { query?: string; max_pages?: number }) =>
     post<PipelineTriggerResult>("/api/admin/ingestion/semantic-scholar/run", params),
 
-  triggerExtraction: (params: { limit?: number; extractor?: string }) =>
+  triggerExtraction: (params: { limit?: number; extractor?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/extraction/run", params),
 
-  triggerEmbedding: (params: { limit?: number }) =>
+  triggerEmbedding: (params: { limit?: number; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/embedding/run", params),
 
   log: (key: PipelineKey, lines = 200) =>
