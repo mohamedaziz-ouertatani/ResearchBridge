@@ -105,9 +105,10 @@ export function NotificationBell() {
               {notifications.map((n) => (
                 <li key={n.id} className="border-b border-[var(--rule-soft)] px-3 py-2.5 last:border-b-0">
                   <p
-                    className={`text-[0.8125rem] leading-snug ${
+                    className={`line-clamp-3 [overflow-wrap:anywhere] text-[0.8125rem] leading-snug ${
                       n.severity === "error" ? "text-[var(--live)]" : "text-[var(--ink)]"
                     }`}
+                    title={n.message}
                   >
                     {n.message}
                   </p>

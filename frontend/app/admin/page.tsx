@@ -443,7 +443,12 @@ function RunSection({
               </p>
 
               {run.error_summary && (
-                <p className="mt-2 text-[0.8125rem] text-[var(--live)]">{run.error_summary}</p>
+                <p
+                  className="mt-2 line-clamp-3 [overflow-wrap:anywhere] text-[0.8125rem] text-[var(--live)]"
+                  title={run.error_summary}
+                >
+                  {run.error_summary}
+                </p>
               )}
             </li>
           ))}
