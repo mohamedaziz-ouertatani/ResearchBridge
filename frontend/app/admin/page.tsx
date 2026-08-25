@@ -66,6 +66,16 @@ const SEMANTIC_SCHOLAR_QUERY_OPTIONS = [
   { label: "Artificial Intelligence", value: '"artificial intelligence"' },
 ];
 
+// Mirrors extraction/cli.py's EXTRACTOR_NAMES - kept as a literal list here
+// since the frontend can't import the Python tuple, so this needs updating
+// by hand if a new Extractor is ever added there.
+const EXTRACTOR_OPTIONS = [
+  { label: "hybrid (default)", value: "hybrid" },
+  { label: "semantic", value: "semantic" },
+  { label: "heuristic", value: "heuristic" },
+  { label: "stub (synthetic test data only)", value: "stub" },
+];
+
 export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -237,7 +247,13 @@ export default function AdminPipeline() {
                   running={status.running.extraction}
                   fields={[
                     { name: "limit", label: "limit", type: "number" },
-                    { name: "extractor", label: "extractor", placeholder: "hybrid" },
+                    {
+                      name: "extractor",
+                      label: "extractor",
+                      type: "select",
+                      options: EXTRACTOR_OPTIONS,
+                      placeholder: "hybrid",
+                    },
                   ]}
                   onRun={(values) => adminApi.triggerExtraction(values)}
                   onStarted={reload}
