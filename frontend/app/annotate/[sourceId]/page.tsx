@@ -178,8 +178,8 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] px-6 py-4">
+    <div className="flex h-screen flex-col">
+      <header className="flex flex-none flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] px-6 py-4">
         <div className="flex items-baseline gap-4">
           <Link href="/" className="eyebrow hover:text-[var(--ink)]">
             ← ResearchBridge
@@ -212,14 +212,14 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)]">
         {/* worklist */}
-        <aside className="border-b border-[var(--rule)] py-2 lg:border-r lg:border-b-0 lg:max-h-[calc(100vh-57px)] lg:overflow-y-auto">
+        <aside className="border-b border-[var(--rule)] py-2 lg:h-full lg:overflow-y-auto lg:border-r lg:border-b-0">
           <AnnotationQueue papers={queue} activeId={sourceId} />
         </aside>
 
         {/* the paper */}
-        <section className="border-b border-[var(--rule)] lg:border-r lg:border-b-0 lg:max-h-[calc(100vh-57px)] lg:overflow-y-auto">
+        <section className="border-b border-[var(--rule)] lg:h-full lg:overflow-y-auto lg:border-r lg:border-b-0">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--rule-soft)] bg-[var(--field)] px-5 py-3">
             <span className="eyebrow">the paper</span>
             {selection ? (
@@ -305,7 +305,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
         </section>
 
         {/* the annotation */}
-        <section className="lg:max-h-[calc(100vh-57px)] lg:overflow-y-auto">
+        <section className="lg:h-full lg:overflow-y-auto">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--rule-soft)] bg-[var(--field)] px-5 py-3">
             <span className="eyebrow">your annotation</span>
             <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
