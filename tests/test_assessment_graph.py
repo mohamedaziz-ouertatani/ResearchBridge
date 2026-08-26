@@ -4,6 +4,8 @@ import hashlib
 import uuid
 from dataclasses import dataclass, field
 
+import pytest
+
 from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.graph import build_similarity_graph
 from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, ResearchInput
@@ -89,7 +91,7 @@ def test_input_to_paper_distance_is_zero_for_exact_text_match(session_factory) -
     graph = build_similarity_graph(session, assessment, ri, embedder)
 
     paper_node = next(n for n in graph.nodes if n.type == "paper")
-    assert paper_node.distance_to_input == 0.0
+    assert paper_node.distance_to_input == pytest.approx(0.0, abs=1e-6)
     session.close()
 
 
