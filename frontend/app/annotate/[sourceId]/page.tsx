@@ -58,7 +58,6 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
         // assessment pipeline - reads the same structurally sound Markdown.
         MathpixMarkdownModel.markdownToHTML(withImageBase, {
           htmlTags: false,
-          formulaNumbering: true,
           // MathJax renders to SVG, which carries no text - so selecting an
           // equation yields "" and evidence capture silently drops every
           // variable from a quoted passage. Emitting MathML alongside puts
