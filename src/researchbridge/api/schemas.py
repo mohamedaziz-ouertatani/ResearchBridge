@@ -59,6 +59,25 @@ class SearchHit(BaseModel):
     """pgvector cosine distance: 0.0 is identical, 2.0 is maximally opposed."""
 
 
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1)
+
+
+class QuoteHitOut(BaseModel):
+    paper_id: uuid.UUID
+    paper_title: str
+    paper_source: str
+    claim_type: str
+    text: str
+    section: str | None
+    confidence: str
+    score: float
+
+
+class AskResponse(BaseModel):
+    hits: list[QuoteHitOut]
+
+
 class PaperPage(BaseModel):
     items: list[PaperSummary]
     total: int
