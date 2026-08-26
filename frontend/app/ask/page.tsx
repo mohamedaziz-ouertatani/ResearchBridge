@@ -7,17 +7,29 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 
 /*
-  Extractive Q&A: every result is a verbatim, already-grounded quote from
-  the corpus - never generated prose. See docs/superpowers/specs/
+  Extractive Q&A: every quote result is verbatim and already-grounded -
+  never generated prose. See docs/superpowers/specs/
   2026-08-26-corpus-qa-design.md for why (the codebase has no generative
-  LLM anywhere, by deliberate "never invent" design).
+  LLM anywhere else, by deliberate "never invent" design).
+
+  The optional summary panel below is the one exception: a local Ollama
+  model may synthesize a short, cited rephrasing of the quotes already
+  shown - never a replacement for them. See docs/superpowers/specs/
+  2026-08-26-ollama-summary-layer-design.md for the grounding guarantees
+  (citation-existence validation, fail-closed on an invalid citation).
 */
 
 export default function AskPage() {
   const [question, setQuestion] = useState("");
   const [hits, setHits] = useState<QuoteHit[] | null>(null);
+  const [summarizationAvailable, setSummarizationAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [summary, setSummary] = useState<string | null>(null);
+  const [citations, setCitations] = useState<number[]>([]);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -26,15 +38,44 @@ export default function AskPage() {
     setBusy(true);
     setError(null);
     setHits(null);
+    setSummary(null);
+    setSummaryError(null);
     try {
       const response = await qaApi.ask(text);
       setHits(response.hits);
+      setSummarizationAvailable(response.summarization_available);
     } catch {
       setError("Couldn't reach the API. Is it running on port 8000?");
       setHits(null);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function requestSummary() {
+    if (!hits || hits.length === 0) return;
+    setSummarizing(true);
+    setSummaryError(null);
+    try {
+      const response = await qaApi.summarize(question.trim(), hits);
+      setSummary(response.summary);
+      setCitations(response.citations);
+    } catch {
+      setSummaryError("local LLM unavailable — quotes above are unaffected");
+      setSummary(null);
+    } finally {
+      setSummarizing(false);
+    }
+  }
+
+  function jumpToQuote(n: number) {
+    const el = document.getElementById(`quote-${n}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("cite-flash");
+    // force reflow so the animation restarts if the same card was just flashed
+    void el.offsetWidth;
+    el.classList.add("cite-flash");
   }
 
   return (
@@ -94,6 +135,37 @@ export default function AskPage() {
           </p>
         )}
 
+        {hits && hits.length > 0 && summarizationAvailable && !summary && !summarizing && (
+          <button
+            type="button"
+            onClick={requestSummary}
+            className="eyebrow mt-10 rounded-[2px] border border-[var(--ink)] px-4 py-2 hover:bg-[var(--ink)] hover:text-[var(--panel)]"
+          >
+            ✨ synthesize a summary from these quotes
+          </button>
+        )}
+
+        {summarizing && (
+          <p className="mt-10 text-[0.9375rem] text-[var(--ink-soft)]">synthesizing…</p>
+        )}
+
+        {summaryError && (
+          <p className="mt-10 max-w-[58ch] border-l-2 border-[var(--live)] pl-4 text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+            {summaryError}
+          </p>
+        )}
+
+        {summary && hits && (
+          <div className="mt-10 max-w-[68ch] border-l-2 border-[var(--near)] pl-4">
+            <span className="eyebrow text-[var(--ink-faint)]">
+              AI-synthesized from the quotes below — not independently verified
+            </span>
+            <p className="mt-2 font-[family-name:var(--type-text)] text-[1.0625rem] leading-relaxed text-[var(--ink)]">
+              {renderSummaryWithCitationLinks(summary, jumpToQuote)}
+            </p>
+          </div>
+        )}
+
         {hits && hits.length > 0 && (
           <ul className="mt-10">
             {hits.map((hit, i) => (
@@ -106,9 +178,29 @@ export default function AskPage() {
   );
 }
 
+function renderSummaryWithCitationLinks(summary: string, onJump: (n: number) => void) {
+  const parts = summary.split(/(\[\d+\])/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^\[(\d+)\]$/);
+    if (!match) return <span key={i}>{part}</span>;
+    const n = Number(match[1]);
+    return (
+      <button
+        key={i}
+        type="button"
+        onClick={() => onJump(n)}
+        className="text-[var(--near)] underline underline-offset-2 hover:text-[var(--ink)]"
+      >
+        {part}
+      </button>
+    );
+  });
+}
+
 function QuoteCard({ hit, index }: { hit: QuoteHit; index: number }) {
   return (
     <li
+      id={`quote-${index + 1}`}
       className="resolve border-t border-[var(--rule-soft)] py-6 first:border-t-0"
       style={{ animationDelay: `${Math.min(index * 28, 280)}ms` }}
     >
