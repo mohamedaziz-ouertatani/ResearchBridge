@@ -19,16 +19,20 @@ from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.api.schemas import (
+    GraphEdgeOut,
+    GraphNodeOut,
     ResearchAssessmentCreate,
     ResearchAssessmentHistoryItem,
     ResearchAssessmentOut,
     ResearchAssessmentReview,
     ResearchAssessmentSummaryOut,
     ResearchAssessmentSummaryPage,
+    SimilarityGraphOut,
 )
 from researchbridge.api.serializers import to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.export import build_docx, build_pdf
+from researchbridge.assessment.graph import build_similarity_graph
 from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
@@ -166,6 +170,31 @@ def get_assessment(assessment_id: uuid.UUID, session: Session = Depends(get_sess
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)
+
+
+@router.get("/{assessment_id}/graph", response_model=SimilarityGraphOut)
+def get_assessment_graph(
+    assessment_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    embedder: Embedder = Depends(get_embedder),
+) -> SimilarityGraphOut:
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    research_input = session.get(ResearchInput, assessment.research_input_id)
+    graph = build_similarity_graph(session, assessment, research_input, embedder)
+
+    return SimilarityGraphOut(
+        nodes=[
+            GraphNodeOut(
+                id=node.id, type=node.type, title=node.title,
+                distance_to_input=node.distance_to_input, claim_counts=node.claim_counts,
+            )
+            for node in graph.nodes
+        ],
+        edges=[GraphEdgeOut(source=edge.source, target=edge.target, distance=edge.distance) for edge in graph.edges],
+    )
 
 
 @router.delete("/{assessment_id}", status_code=204)
