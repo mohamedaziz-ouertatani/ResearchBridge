@@ -67,6 +67,9 @@ export default function Console() {
           <Link href="/admin" className="eyebrow hover:text-[var(--ink)]">
             pipeline status →
           </Link>
+          <Link href="/ask" className="eyebrow hover:text-[var(--ink)]">
+            ask the corpus →
+          </Link>
         </div>
       </header>
 
