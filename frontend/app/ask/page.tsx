@@ -113,7 +113,7 @@ function QuoteCard({ hit, index }: { hit: QuoteHit; index: number }) {
       </div>
 
       <p className="mt-2 max-w-[68ch] font-[family-name:var(--type-text)] text-[1.0625rem] leading-relaxed text-[var(--ink)]">
-        &quot;{hit.text}&quot;
+        “{hit.text}”
       </p>
 
       <Link
