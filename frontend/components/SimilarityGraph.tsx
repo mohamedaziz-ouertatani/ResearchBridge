@@ -45,6 +45,12 @@ function loadForceGraph2D() {
 // next/dynamic() strips the generic type parameters off ForceGraph2D, so its
 // accessor props would otherwise widen to `{}`. Recast to the concrete
 // node/link shape this component actually passes in - no behavior change.
+type ForceGraphInstance = {
+  d3Force: (name: "link" | "charge" | "center" | string) =>
+    | { strength?: (v: number) => unknown; distance?: (v: number) => unknown }
+    | undefined;
+};
+
 const ForceGraph2D = dynamic(loadForceGraph2D, {
   ssr: false,
 }) as unknown as ComponentType<{
@@ -59,7 +65,23 @@ const ForceGraph2D = dynamic(loadForceGraph2D, {
   onBackgroundClick: () => void;
   width: number;
   height: number;
+  ref?: (instance: ForceGraphInstance | null) => void;
 }>;
+
+// Wider spacing than the library's d3-force defaults (charge strength -30,
+// link distance ~30) so nodes/edges don't render as an unreadably tight
+// cluster once there are more than a couple of retrieved papers. A callback
+// ref (not a plain ref + effect) because it needs to fire exactly once,
+// right when the underlying force-graph instance mounts - same reasoning as
+// measuredContainerRef below.
+const CHARGE_STRENGTH = -200;
+const LINK_DISTANCE = 120;
+
+function configureForces(instance: ForceGraphInstance | null) {
+  if (!instance) return;
+  instance.d3Force("charge")?.strength?.(CHARGE_STRENGTH);
+  instance.d3Force("link")?.distance?.(LINK_DISTANCE);
+}
 
 /** Same "teal near, washed-out far" convention as ProximityGauge - this ramp
  * is reserved for measured cosine distance and nothing else (see globals.css).
@@ -197,6 +219,7 @@ export function SimilarityGraph({ assessmentId }: { assessmentId: string }) {
           <div ref={measuredContainerRef} className="h-[420px] flex-1 overflow-hidden border border-[var(--rule)]">
             {graphWidth > 0 && (
               <ForceGraph2D
+                ref={configureForces}
                 graphData={graphData}
                 nodeId="id"
                 nodeLabel={nodeTooltipLabel}
