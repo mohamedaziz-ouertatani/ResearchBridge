@@ -17,7 +17,9 @@ type GraphLink = { source: string; target: string; distance: number };
 // they load. Without that they throw ReferenceErrors at module-evaluation
 // time and crash the whole page, even though this app only ever renders the
 // 2D graph and never touches the VR/AR code paths. Populate window.THREE
-// with the real "three" module (already a project dependency) so any eager
+// with the real "three" module (a direct dependency in package.json, pinned
+// to the version react-force-graph itself resolves, so an upgrade of either
+// package can't silently break this import) so any eager
 // `class X extends THREE.Y` evaluates correctly, and stub window.AFRAME
 // with a no-op proxy since nothing here ever registers a real A-Frame scene.
 function loadForceGraph2D() {
