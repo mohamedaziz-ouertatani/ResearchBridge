@@ -13,8 +13,10 @@ In scope:
 - A new endpoint, `POST /api/ask/summarize`, that takes a question plus the exact quote hits the
   client already received from `/api/ask`, and returns a short synthesized summary that only
   rephrases/connects those quotes, with inline citations.
-- A local Ollama call (`llama3.1:8b` default, configurable) over HTTP to `localhost:11434` via
-  `httpx`, matching the existing connector pattern (`connectors/springer.py`,
+- A local Ollama call (`qwen2.5:3b` default, configurable — already installed locally, general-
+  purpose instruct model; `llama3.1:8b`/other models are a drop-in swap via `OLLAMA_MODEL` if
+  citation compliance needs a larger model) over HTTP to `localhost:11434` via
+  `requests`, matching the existing connector pattern (`connectors/springer.py`,
   `connectors/semantic_scholar.py`) — no new Python dependency.
 - Deterministic citation-existence validation: every `[n]` marker in the model's output must
   reference an actual index in the hits the backend was given. One retry on failure, then fail
@@ -46,7 +48,7 @@ frontend already has hits[] from a completed POST /api/ask call
   -> POST /api/ask/summarize {question, hits}
        -> 503 immediately if OLLAMA_ENABLED is false
        -> build numbered prompt: [1] "quote text" - Paper Title, [2] ..., for each hit in order
-       -> httpx POST to OLLAMA_HOST/api/chat, system+user prompt (see Prompt design), temperature ~0.2
+       -> requests.post to OLLAMA_HOST/api/chat, system+user prompt (see Prompt design), temperature ~0.2
        -> parse response text, regex-extract all [n] citation markers
        -> validate: every n is in range 1..len(hits)
             -> valid: return {summary, citations: [n, ...]}
@@ -106,7 +108,7 @@ Temperature ~0.2. The constraint is stated at both the start and end of the syst
 (repetition measurably reduces drift in small instruct models).
 
 **New config** in the existing settings module: `OLLAMA_ENABLED` (bool, default `false`),
-`OLLAMA_MODEL` (str, default `"llama3.1:8b"`), `OLLAMA_HOST` (str, default
+`OLLAMA_MODEL` (str, default `"qwen2.5:3b"`), `OLLAMA_HOST` (str, default
 `"http://localhost:11434"`), `OLLAMA_TIMEOUT_SECONDS` (int, default `30`).
 
 **New schemas** in `api/schemas.py`:
@@ -170,7 +172,7 @@ the existing `QuoteHit`-adjacent response type for `ask()`.
 
 - Backend: unit tests for `build_prompt` (numbering matches hit order) and `extract_citations`
   (valid range, out-of-range raises, no citations found, malformed brackets) — pure functions, no
-  Ollama needed. `summarize_quotes` tested with the httpx call mocked: happy path, retry-then-
+  Ollama needed. `summarize_quotes` tested with the `requests.post` call mocked: happy path, retry-then-
   succeed, retry-then-fail, timeout. Route tests (`test_qa_api.py`): 200 with valid summary
   (mocked Ollama), 503 when `OLLAMA_ENABLED=false`, 503 when Ollama mocked unreachable, 422 on
   empty hits.

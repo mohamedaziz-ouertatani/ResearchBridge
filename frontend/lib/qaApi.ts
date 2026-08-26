@@ -13,6 +13,12 @@ export type QuoteHit = {
 
 export type AskResponse = {
   hits: QuoteHit[];
+  summarization_available: boolean;
+};
+
+export type SummarizeResponse = {
+  summary: string;
+  citations: number[];
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -30,5 +36,11 @@ export const qaApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
+    }),
+  summarize: (question: string, hits: QuoteHit[]) =>
+    request<SummarizeResponse>("/api/ask/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, hits }),
     }),
 };

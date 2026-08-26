@@ -143,6 +143,22 @@ body {
   animation: resolve 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* --- citation jump-to: brief flash when a summary [n] link scrolls a quote
+   card into view, so the reader can find which card it landed on --------- */
+
+@keyframes cite-flash {
+  from {
+    background: var(--rule);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.cite-flash {
+  animation: cite-flash 900ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
