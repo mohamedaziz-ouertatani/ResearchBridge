@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -222,6 +223,25 @@ class ResearchAssessmentOut(BaseModel):
 
 class ResearchAssessmentCreate(BaseModel):
     raw_text: str = Field(min_length=1)
+
+
+class GraphNodeOut(BaseModel):
+    id: str
+    type: Literal["input", "paper"]
+    title: str
+    distance_to_input: float | None
+    claim_counts: dict[str, int]
+
+
+class GraphEdgeOut(BaseModel):
+    source: str
+    target: str
+    distance: float
+
+
+class SimilarityGraphOut(BaseModel):
+    nodes: list[GraphNodeOut]
+    edges: list[GraphEdgeOut]
 
 
 class ResearchAssessmentHistoryItem(BaseModel):

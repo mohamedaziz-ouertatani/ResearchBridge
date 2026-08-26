@@ -84,6 +84,25 @@ export type AssessmentSummaryPage = {
   offset: number;
 };
 
+export type GraphNode = {
+  id: string;
+  type: "input" | "paper";
+  title: string;
+  distance_to_input: number | null;
+  claim_counts: Record<string, number>;
+};
+
+export type GraphEdge = {
+  source: string;
+  target: string;
+  distance: number;
+};
+
+export type GraphData = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+};
+
 export type ReviewFilter = "all" | "reviewed" | "needs_review";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -134,6 +153,8 @@ export const assessmentApi = {
   remove: (id: string) => requestNoContent(`/api/assessments/${id}`, { method: "DELETE" }),
 
   history: (id: string) => request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
+
+  graph: (id: string) => request<GraphData>(`/api/assessments/${id}/graph`),
 
   list: (review: ReviewFilter = "all") =>
     request<AssessmentSummaryPage>(`/api/assessments?review=${review}&limit=50`),
