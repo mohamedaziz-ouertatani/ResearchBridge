@@ -159,6 +159,27 @@ body {
   animation: cite-flash 900ms ease-out;
 }
 
+/* --- loading skeletons: a readout warming up, not a shimmer sweep -----
+   Shimmer gradients read as generic material-design chrome, which fights
+   the flat instrument surfaces everywhere else. A slow opacity breathe on
+   the same --rule-soft the real content's dividers already use keeps a
+   loading page feeling like the same instrument, just not powered up yet. */
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.skeleton-bar {
+  background: var(--rule-soft);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

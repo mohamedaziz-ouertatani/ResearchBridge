@@ -6,6 +6,7 @@ import { adminApi, type PipelineKey, type PipelineRun, type PipelineStatus } fro
 import { AdminStats } from "@/components/AdminStats";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
+import { SkeletonStats } from "@/components/Skeleton";
 
 /*
   Pipeline status + triggers. IngestionRun/ExtractionRun/EmbeddingRun existed
@@ -130,7 +131,7 @@ export default function AdminPipeline() {
         </p>
 
         {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
-        {!status && !error && <p className="eyebrow py-16">loading…</p>}
+        {!status && !error && <SkeletonStats count={5} />}
 
         {status && (
           <>

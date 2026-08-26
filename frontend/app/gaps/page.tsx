@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { gapsApi, type CandidateGap, type GapStatusFilter } from "@/lib/gapsApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
+import { SkeletonRows } from "@/components/Skeleton";
 
 const FILTERS: GapStatusFilter[] = ["pending", "approved", "rejected", "all"];
 
@@ -123,7 +124,7 @@ export default function GapReview() {
           ))}
         </div>
 
-        {loading && <p className="eyebrow py-16">loading…</p>}
+        {loading && <SkeletonRows count={3} />}
         {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
 
         {!loading && !error && gaps.length === 0 && (

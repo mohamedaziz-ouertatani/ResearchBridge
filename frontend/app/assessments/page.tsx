@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { assessmentApi, type AssessmentSummary, type ReviewFilter } from "@/lib/assessmentApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
+import { SkeletonRows } from "@/components/Skeleton";
 
 const FILTERS: ReviewFilter[] = ["needs_review", "reviewed", "all"];
 
@@ -64,7 +65,7 @@ export default function AssessmentDashboard() {
           ))}
         </div>
 
-        {loading && <p className="eyebrow py-16">loading…</p>}
+        {loading && <SkeletonRows count={5} />}
         {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
 
         {!loading && !error && assessments.length === 0 && (

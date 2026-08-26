@@ -7,6 +7,7 @@ import { PaperRow } from "@/components/PaperRow";
 import { YearStrip } from "@/components/YearStrip";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
+import { SkeletonRows } from "@/components/Skeleton";
 
 type Mode = "browse" | "search";
 type Sort = "date_desc" | "date_asc" | "title_asc";
@@ -280,7 +281,10 @@ export default function Explorer() {
         </div>
 
         {busy && (
-          <p className="eyebrow py-10">{mode === "search" ? "measuring distances…" : "loading…"}</p>
+          <>
+            <p className="eyebrow pt-2 pb-4">{mode === "search" ? "measuring distances…" : "loading…"}</p>
+            <SkeletonRows count={5} />
+          </>
         )}
 
         {!busy && mode === "search" && hits.length === 0 && !error && (

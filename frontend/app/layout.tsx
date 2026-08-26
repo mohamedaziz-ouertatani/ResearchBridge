@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationBell } from "@/components/NotificationBell";
+import { CommandPalette } from "@/components/CommandPalette";
+import { PageTransition } from "@/components/PageTransition";
 
 /*
   Three faces, each tied to a kind of content:
@@ -44,8 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // --ff-* has to exist at that same level or the declaration is invalid.
     <html lang="en" className={`${grotesk.variable} ${serif.variable} ${mono.variable}`}>
       <body>
-        {children}
+        <PageTransition>{children}</PageTransition>
         <NotificationBell />
+        <CommandPalette />
       </body>
     </html>
   );

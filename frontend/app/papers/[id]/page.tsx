@@ -12,6 +12,7 @@ import { adminApi } from "@/lib/adminApi";
 import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
+import { SkeletonReport } from "@/components/Skeleton";
 
 function ExcludeToggle({
   paper,
@@ -125,7 +126,7 @@ export default function PaperDetail({
       </header>
 
       {!paper ? (
-        <p className="eyebrow py-16">loading…</p>
+        <SkeletonReport />
       ) : (
         <article className="resolve pt-12">
           <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">

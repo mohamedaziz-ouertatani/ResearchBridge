@@ -5,6 +5,7 @@ import { use, useEffect, useState } from "react";
 import { assessmentApi, type ResearchAssessment } from "@/lib/assessmentApi";
 import { AssessmentReport } from "@/components/AssessmentReport";
 import { SimilarityGraph } from "@/components/SimilarityGraph";
+import { SkeletonReport } from "@/components/Skeleton";
 
 export default function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -35,7 +36,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
 
       {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
 
-      {!assessment && !error && <p className="eyebrow py-16">loading…</p>}
+      {!assessment && !error && <SkeletonReport />}
 
       {assessment && (
         <div className="pt-12">
