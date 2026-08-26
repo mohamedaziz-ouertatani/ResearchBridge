@@ -32,6 +32,15 @@ def test_build_prompt_numbers_hits_in_order() -> None:
     assert "what are the limitations?" in user_prompt
 
 
+def test_build_prompt_escapes_bracketed_numbers_inside_quote_text() -> None:
+    hits = [_hit("prior work showed this already [5]", "Paper A")]
+
+    _system_prompt, user_prompt = build_prompt("a question", hits)
+
+    assert "[5]" not in user_prompt
+    assert "(5)" in user_prompt
+
+
 def test_extract_citations_returns_unique_numbers_in_order_of_appearance() -> None:
     text = "Models struggle offline [2]. This was also noted elsewhere [1][2]."
 

@@ -151,7 +151,10 @@ def test_ask_reports_summarization_available_true_when_enabled(
     assert response.json()["summarization_available"] is True
 
 
-def test_ask_reports_summarization_available_false_by_default(client) -> None:
+def test_ask_reports_summarization_available_false_by_default(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
     response = client.post("/api/ask", json={"question": "anything"})
 
     assert response.json()["summarization_available"] is False
@@ -188,7 +191,10 @@ def test_summarize_returns_summary_when_enabled(
     assert body["citations"] == [1]
 
 
-def test_summarize_returns_503_when_disabled(client) -> None:
+def test_summarize_returns_503_when_disabled(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
     hit = {
         "paper_id": str(uuid.uuid4()),
         "paper_title": "Paper A",

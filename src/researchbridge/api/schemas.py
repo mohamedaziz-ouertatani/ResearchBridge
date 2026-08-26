@@ -88,7 +88,7 @@ class AskResponse(BaseModel):
 
 class SummarizeRequest(BaseModel):
     question: str = Field(min_length=1)
-    hits: list[QuoteHitOut] = Field(min_length=1)
+    hits: list[QuoteHitOut] = Field(min_length=1, max_length=20)
 
     @field_validator("question")
     @classmethod

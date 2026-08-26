@@ -21,13 +21,13 @@ import { Nav } from "@/components/Nav";
 
 export default function AskPage() {
   const [question, setQuestion] = useState("");
+  const [answeredQuestion, setAnsweredQuestion] = useState("");
   const [hits, setHits] = useState<QuoteHit[] | null>(null);
   const [summarizationAvailable, setSummarizationAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<string | null>(null);
-  const [citations, setCitations] = useState<number[]>([]);
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
@@ -43,6 +43,7 @@ export default function AskPage() {
     try {
       const response = await qaApi.ask(text);
       setHits(response.hits);
+      setAnsweredQuestion(text);
       setSummarizationAvailable(response.summarization_available);
     } catch {
       setError("Couldn't reach the API. Is it running on port 8000?");
@@ -57,9 +58,8 @@ export default function AskPage() {
     setSummarizing(true);
     setSummaryError(null);
     try {
-      const response = await qaApi.summarize(question.trim(), hits);
+      const response = await qaApi.summarize(answeredQuestion, hits);
       setSummary(response.summary);
-      setCitations(response.citations);
     } catch {
       setSummaryError("local LLM unavailable — quotes above are unaffected");
       setSummary(null);
