@@ -72,6 +72,14 @@ def build_similarity_graph(
 
     # papers missing an embedding row for the current model are silently
     # excluded from this query's results - skipped below, not errored
+    #
+    # Deliberately no `Paper.excluded_at.is_(None)` filter here, unlike the
+    # retrieval-shaped queries in embedding/search.py, gaps/batch.py, and
+    # api/routes.py. Those filter live corpus state for new retrieval; this
+    # graph instead reconstructs what THIS assessment was actually compared
+    # against at build time, from its already-stored retrieved_paper_ids. A
+    # paper curated out afterward doesn't retroactively change what was
+    # compared, so it still belongs in the graph.
     rows = session.execute(
         select(Paper.id, Paper.title, Embedding.vector)
         .join(Embedding, Embedding.paper_id == Paper.id)
