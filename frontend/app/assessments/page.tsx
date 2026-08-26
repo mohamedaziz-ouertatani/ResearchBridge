@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { assessmentApi, type AssessmentSummary, type ReviewFilter } from "@/lib/assessmentApi";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { Nav } from "@/components/Nav";
 
 const FILTERS: ReviewFilter[] = ["needs_review", "reviewed", "all"];
 
@@ -13,6 +15,9 @@ export default function AssessmentDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Resetting loading/error before a fetch keyed on `review` is intentional -
+    // not the accidental-derived-state case this rule otherwise targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     assessmentApi
@@ -24,11 +29,7 @@ export default function AssessmentDashboard() {
 
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
-      <header className="border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
-        </Link>
-      </header>
+      <Nav />
 
       <div className="pt-12">
         <span className="eyebrow">assessments</span>
@@ -37,8 +38,17 @@ export default function AssessmentDashboard() {
           assessment keeps its older versions in that assessment&apos;s own history — this list
           always shows only the latest.
         </p>
+        <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+          Every assessment is created from the{" "}
+          <Link href="/" className="underline hover:text-[var(--ink)]">
+            home page
+          </Link>
+          , either by describing an idea or uploading a paper. This page is where you come back to
+          find one again, and where any that need a closer human look are flagged for review.
+        </p>
 
-        <div className="mt-6 flex gap-1 border-b border-[var(--rule)]">
+        <div className="mt-6 flex items-center gap-1 border-b border-[var(--rule)]">
+          <InfoTooltip text={'"Needs review" is every assessment nobody has marked reviewed yet. "Reviewed" is everything a person has already looked at and confirmed. "All" ignores review status entirely.'} />
           {FILTERS.map((f) => (
             <button
               key={f}

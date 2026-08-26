@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { adminApi, type PipelineKey, type PipelineRun, type PipelineStatus } from "@/lib/adminApi";
 import { AdminStats } from "@/components/AdminStats";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { Nav } from "@/components/Nav";
 
 /*
   Pipeline status + triggers. IngestionRun/ExtractionRun/EmbeddingRun existed
@@ -106,18 +108,25 @@ export default function AdminPipeline() {
 
   return (
     <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">
-      <header className="border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
-        </Link>
-      </header>
+      <Nav />
 
       <div className="pt-12">
         <span className="eyebrow">pipeline status</span>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
           Run history for ingestion, extraction, and embedding, plus a way to start a new run of
-          each. Gap detection stays CLI-only (<code className="readout text-[0.8125rem]">rb-gaps-detect</code>)
-          - not triggerable here.
+          each. Gap detection can be triggered from the{" "}
+          <Link href="/gaps" className="underline hover:text-[var(--ink)]">
+            candidate gaps
+          </Link>{" "}
+          page.
+        </p>
+        <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+          The corpus is built by a chain of stages: ingestion pulls raw papers in from an external
+          source (arXiv, Springer Nature, or Semantic Scholar), extraction pulls structured claims
+          and evidence out of each paper&apos;s text, and embedding turns that text into the
+          vectors search and gap detection rely on. Each tab below runs and monitors one stage; a
+          paper generally needs to pass through all three before it&apos;s fully usable elsewhere
+          in the app.
         </p>
 
         {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
@@ -127,9 +136,21 @@ export default function AdminPipeline() {
           <>
             <div className="mt-8 flex flex-wrap gap-x-12 gap-y-6 border-b border-[var(--rule)] pb-8">
               <dl className="flex flex-wrap gap-x-10 gap-y-3">
-                <Stat label="total papers" value={status.total_papers} />
-                <Stat label="with extracted claims" value={status.papers_with_claims} />
-                <Stat label="with embeddings" value={status.papers_with_embeddings} />
+                <Stat
+                  label="total papers"
+                  value={status.total_papers}
+                  info="Every paper currently in the corpus, across all three sources, regardless of what stage of processing it's reached."
+                />
+                <Stat
+                  label="with extracted claims"
+                  value={status.papers_with_claims}
+                  info="Papers that have been through the extraction stage, so their claims and evidence are available for assessments and gap detection."
+                />
+                <Stat
+                  label="with embeddings"
+                  value={status.papers_with_embeddings}
+                  info="Papers that have been through the embedding stage, so they're searchable by meaning and eligible for gap detection's neighborhood comparisons."
+                />
               </dl>
 
               <dl className="flex flex-wrap gap-x-6 gap-y-3">
@@ -285,10 +306,23 @@ export default function AdminPipeline() {
   );
 }
 
-function Stat({ label, value, small = false }: { label: string; value: number; small?: boolean }) {
+function Stat({
+  label,
+  value,
+  small = false,
+  info,
+}: {
+  label: string;
+  value: number;
+  small?: boolean;
+  info?: string;
+}) {
   return (
     <div>
-      <dt className="eyebrow">{label}</dt>
+      <dt className="eyebrow inline-flex items-center gap-1.5">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </dt>
       <dd className={`readout mt-1 tabular-nums ${small ? "text-[1rem]" : "text-[1.25rem]"}`}>
         {value.toLocaleString()}
       </dd>
@@ -410,7 +444,10 @@ function RunSection({
   return (
     <section className="flex flex-col">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="eyebrow">{title}</span>
+        <span className="eyebrow inline-flex items-center gap-1.5">
+          {title}
+          <InfoTooltip text="Fill in the fields and click run to start this pipeline as a background job. It keeps running even if you navigate away; come back to this tab to check progress or stop it." />
+        </span>
         <span
           className={`readout text-[0.6875rem] ${running ? "text-[var(--live)]" : "text-[var(--ink-faint)]"}`}
         >
@@ -487,14 +524,20 @@ function RunSection({
         )}
 
         {forceLabel && !confirmingForce && (
-          <button
-            type="button"
-            onClick={() => setConfirmingForce(true)}
-            disabled={busy || running}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 text-[var(--live)] hover:border-[var(--live)] disabled:opacity-50"
-          >
-            {forceLabel}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirmingForce(true)}
+              disabled={busy || running}
+              className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 text-[var(--live)] hover:border-[var(--live)] disabled:opacity-50"
+            >
+              {forceLabel}
+            </button>
+            <InfoTooltip
+              label="What does force re-run do?"
+              text="Unlike the regular run button, this deletes existing results for this stage first and rebuilds them from scratch instead of only processing what's new. It's destructive and cannot be undone, so it asks for confirmation before starting."
+            />
+          </>
         )}
       </form>
       {error && <p className="mt-2 text-[0.75rem] text-[var(--live)]">{error}</p>}

@@ -338,6 +338,11 @@ class PipelineStopOut(BaseModel):
     pipeline: str
 
 
+class GapsDetectStatus(BaseModel):
+    running: bool
+    log: str
+
+
 class ResearchAssessmentSummaryOut(BaseModel):
     """One dashboard row (GET /api/assessments) - the latest assessment for
     one research_input, not every re-run (see assessment_routes.py's list

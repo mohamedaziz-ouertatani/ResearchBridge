@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gapsApi, type CandidateGap, type GapStatusFilter } from "@/lib/gapsApi";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { Nav } from "@/components/Nav";
 
 const FILTERS: GapStatusFilter[] = ["pending", "approved", "rejected", "all"];
 
@@ -13,6 +15,9 @@ export default function GapReview() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Resetting loading/error before a fetch keyed on `status` is intentional -
+    // not the accidental-derived-state case this rule otherwise targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     gapsApi
@@ -21,6 +26,45 @@ export default function GapReview() {
       .catch(() => setError("Couldn't load candidate gaps."))
       .finally(() => setLoading(false));
   }, [status]);
+
+  const [running, setRunning] = useState(false);
+  const [log, setLog] = useState("");
+  const [detectError, setDetectError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    function poll() {
+      gapsApi.detectStatus().then((next) => {
+        if (cancelled) return;
+        setRunning(next.running);
+        setLog(next.log);
+      });
+    }
+    poll();
+    const interval = setInterval(poll, running ? 3000 : 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [running]);
+
+  async function handleDetect() {
+    setDetectError(null);
+    try {
+      await gapsApi.detect();
+      setRunning(true);
+    } catch {
+      setDetectError("Couldn't start gap detection — it may already be running.");
+    }
+  }
+
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      gapsApi.list(status).then((page) => setGaps(page.items));
+    }
+    wasRunning.current = running;
+  }, [running, status]);
 
   function handleReviewed(reviewed: CandidateGap) {
     // reviewing moves a gap out of whatever list it was in (unless viewing "all")
@@ -31,11 +75,7 @@ export default function GapReview() {
 
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
-      <header className="border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
-        </Link>
-      </header>
+      <Nav />
 
       <div className="pt-12">
         <span className="eyebrow">candidate gaps</span>
@@ -44,6 +84,30 @@ export default function GapReview() {
           single author&apos;s claim, and never presented as validated until reviewed here. Approving or
           rejecting is the only way a candidate leaves &quot;pending&quot;.
         </p>
+        <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+          A candidate gap is a computer-generated observation: the system noticed that several
+          papers near each other in embedding space share the same limitation, and is surfacing
+          that pattern for a human to check. This page is that check — nothing here counts as an
+          established gap in the literature until someone approves it.
+        </p>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleDetect}
+            disabled={running}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
+          >
+            {running ? "generating…" : "generate gaps"}
+          </button>
+          <InfoTooltip text="Scans the corpus for new candidate gaps and adds any it finds to the pending queue below. This runs the same detection the CLI uses; it can take a while on a large corpus, and the log below shows its progress." />
+          {detectError && <span className="text-[0.75rem] text-[var(--live)]">{detectError}</span>}
+        </div>
+
+        {running && log && (
+          <pre className="readout mt-3 max-h-40 overflow-auto whitespace-pre-wrap border border-[var(--rule-soft)] p-3 text-[0.75rem] text-[var(--ink-soft)]">
+            {log}
+          </pre>
+        )}
 
         <div className="mt-6 flex gap-1 border-b border-[var(--rule)]">
           {FILTERS.map((f) => (
@@ -64,9 +128,9 @@ export default function GapReview() {
 
         {!loading && !error && gaps.length === 0 && (
           <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">
-            No {status === "all" ? "" : status} candidate gaps. Run{" "}
-            <code className="readout text-[0.875rem]">rb-gaps-detect &lt;source_id&gt; --save</code> to
-            generate more.
+            No {status === "all" ? "" : status} candidate gaps. Click &quot;generate gaps&quot; above, or
+            run <code className="readout text-[0.875rem]">rb-gaps-detect &lt;source_id&gt; --save</code>{" "}
+            for a single paper.
           </p>
         )}
 
@@ -131,8 +195,9 @@ function GapCard({
 
       {gap.evidence.length > 0 && (
         <details className="mt-4">
-          <summary className="eyebrow cursor-pointer hover:text-[var(--ink)]">
+          <summary className="eyebrow inline-flex cursor-pointer items-center gap-1.5 hover:text-[var(--ink)]">
             evidence ({gap.evidence.length})
+            <InfoTooltip text="The actual passages this candidate was inferred from — one per contributing paper. Read these before approving or rejecting; the observation above is a synthesis of them, not a quote itself." />
           </summary>
           <ul className="mt-2 space-y-3 border-l border-[var(--rule-soft)] pl-4">
             {gap.evidence.map((ev, i) => (
@@ -171,6 +236,7 @@ function GapCard({
           >
             {busy === "rejected" ? "rejecting…" : "reject"}
           </button>
+          <InfoTooltip text="Approve confirms this is a real, worth-tracking gap in the literature. Reject dismisses it as noise or a bad inference. Either choice removes it from the pending queue; the optional note is saved alongside your decision." />
           {failed && <span className="text-[0.75rem] text-[var(--live)]">save failed — try again</span>}
         </div>
       ) : (

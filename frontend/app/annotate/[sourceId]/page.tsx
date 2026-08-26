@@ -38,6 +38,10 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
   useEffect(() => {
     const mmd = detail?.fulltext_nougat;
     if (!mmd) {
+      // Clearing stale rendered HTML when the source paper has none is
+      // intentional - not the accidental-derived-state case this rule
+      // otherwise targets.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNougatHtml("");
       return;
     }
@@ -82,6 +86,10 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
 
   useEffect(() => {
     dirty.current = false;
+    // Resetting the workbench's local edit state before loading a new
+    // sourceId is intentional - not the accidental-derived-state case this
+    // rule otherwise targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSaveState("idle");
     setSelection("");
     setExtractorView("nougat");

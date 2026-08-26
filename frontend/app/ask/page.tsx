@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { qaApi, type QuoteHit } from "@/lib/qaApi";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { Nav } from "@/components/Nav";
 
 /*
   Extractive Q&A: every result is a verbatim, already-grounded quote from
@@ -37,12 +39,7 @@ export default function AskPage() {
 
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
-        </Link>
-        <span className="eyebrow">ask the corpus</span>
-      </header>
+      <Nav />
 
       <section className="pt-12">
         <h1 className="display max-w-[24ch] text-[clamp(1.75rem,4vw,2.5rem)]">
@@ -53,11 +50,20 @@ export default function AskPage() {
           generated answer. Nothing here is invented; a quote either exists or it doesn&apos;t show
           up.
         </p>
+        <p className="mt-3 max-w-[58ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+          This is different from the idea assessment on the home page: that produces a full
+          synthesized report across many findings, while this page just answers one question at a
+          time by finding the closest matching quotes already sitting in the corpus.
+        </p>
 
         <form onSubmit={submit} className="mt-8 flex flex-wrap items-end gap-3">
           <label htmlFor="question" className="sr-only">
             question
           </label>
+          <InfoTooltip
+            label="How does this search work?"
+            text="Your question first finds the closest papers by embedding similarity — the same search the corpus explorer uses — then re-ranks those papers' already-extracted claims and evidence against the question, and returns the best-matching passages as direct quotes."
+          />
           <input
             id="question"
             value={question}

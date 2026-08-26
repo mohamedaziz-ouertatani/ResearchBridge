@@ -12,6 +12,9 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Clearing the stale assessment/error before fetching by `id` is intentional -
+    // not the accidental-derived-state case this rule otherwise targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAssessment(null);
     setError(null);
     assessmentApi

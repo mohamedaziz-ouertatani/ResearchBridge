@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type CorpusStats, type PaperSummary, type SearchHit } from "@/lib/api";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
 import { YearStrip } from "@/components/YearStrip";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { Nav } from "@/components/Nav";
 
 type Mode = "browse" | "search";
 
@@ -48,6 +49,10 @@ export default function Explorer() {
   }, [year, category, showExcluded]);
 
   useEffect(() => {
+    // loadBrowse resets busy/error before fetching, keyed on mode/year/category/
+    // showExcluded - intentional, not the accidental-derived-state case this
+    // rule otherwise targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (mode === "browse") void loadBrowse();
   }, [mode, loadBrowse]);
 
@@ -77,32 +82,29 @@ export default function Explorer() {
 
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
-        <Link href="/" className="eyebrow hover:text-[var(--ink)]">
-          ← ResearchBridge
-        </Link>
-        <div className="flex items-baseline gap-5">
-          <Link href="/annotate" className="eyebrow hover:text-[var(--ink)]">
-            annotation workbench →
-          </Link>
-          <Link href="/gaps" className="eyebrow hover:text-[var(--ink)]">
-            gap review →
-          </Link>
-          <span className="eyebrow">
-            {stats ? `${stats.total_papers.toLocaleString()} papers · ${stats.total_authors.toLocaleString()} authors` : "connecting"}
-          </span>
-        </div>
-      </header>
+      <Nav />
 
       {/* Hero: the aperture. Type meaning in, the corpus resolves by distance. */}
       <section className="pt-16 pb-10">
-        <span className="eyebrow">supporting infrastructure</span>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <span className="eyebrow">supporting infrastructure</span>
+          <span className="eyebrow text-[var(--ink-faint)]">
+            {stats ? `${stats.total_papers.toLocaleString()} papers · ${stats.total_authors.toLocaleString()} authors` : "connecting"}
+          </span>
+        </div>
         <h1 className="display mt-3 max-w-[16ch] text-[clamp(2.25rem,5.5vw,3.5rem)]">
           Search the corpus by meaning.
         </h1>
         <p className="mt-4 max-w-[52ch] text-[1.0625rem] leading-relaxed text-[var(--ink-soft)]">
           The literature an assessment draws on. Every result is scored by how close it sits to
-          your query in embedding space — not by which words it happens to contain.
+          your query in embedding space — not by which words it happens to contain, so a search
+          for &quot;detecting fraud in real time&quot; can surface a paper that never uses the
+          word &quot;fraud&quot; at all.
+        </p>
+        <p className="mt-3 max-w-[52ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
+          This page browses the same collection of papers that idea assessments and gap detection
+          are built on — it doesn&apos;t assess anything itself, it just lets you look at what&apos;s
+          in there and how it was gathered.
         </p>
 
         <form onSubmit={runSearch} className="mt-8">
@@ -110,6 +112,10 @@ export default function Explorer() {
             <span aria-hidden className="readout text-[var(--ink-faint)]">
               ▸
             </span>
+            <InfoTooltip
+              label="What does search do?"
+              text="Searches by meaning, not keywords: your query is embedded and compared against every paper's embedding, then ranked by how close they sit (the teal/gray gauge on each result). Clear the box to go back to browsing by year and category."
+            />
             <input
               ref={inputRef}
               value={query}
@@ -142,7 +148,10 @@ export default function Explorer() {
       {stats && mode === "browse" && (
         <section className="border-t border-[var(--rule)] pt-6">
           <div className="mb-4 flex items-baseline justify-between gap-4">
-            <span className="eyebrow">corpus by year</span>
+            <span className="eyebrow inline-flex items-center gap-1.5">
+              corpus by year
+              <InfoTooltip text="Each bar is how many papers were published that year. Click a bar to filter the list below to just that year; click it again (or the clear button) to remove the filter." />
+            </span>
             {year && (
               <button onClick={() => setYear(null)} className="eyebrow hover:text-[var(--ink)]">
                 clear {year} ✕
@@ -152,7 +161,10 @@ export default function Explorer() {
           <YearStrip byYear={stats.papers_by_year} activeYear={year} onSelectYear={setYear} />
 
           <div className="mt-8 flex flex-wrap items-center gap-2">
-            <span className="eyebrow mr-1">categories</span>
+            <span className="eyebrow mr-1 inline-flex items-center gap-1.5">
+              categories
+              <InfoTooltip text="Each source paper is tagged with a subject category on ingestion. Click one to filter to just that category; click it again to clear the filter. Only the 8 largest categories are shown here." />
+            </span>
             {Object.entries(stats.papers_by_category)
               .slice(0, 8)
               .map(([name, count]) => {
@@ -186,6 +198,7 @@ export default function Explorer() {
             >
               show excluded
             </button>
+            <InfoTooltip text="Some papers are marked excluded — e.g. withdrawn, or found unsuitable during review — and are hidden by default so they don't skew search and browse. Toggle this to include them anyway." />
           </div>
         </section>
       )}

@@ -30,6 +30,11 @@ export type CandidateGapPage = {
 
 export type GapStatusFilter = "pending" | "approved" | "rejected" | "all";
 
+export type GapsDetectStatus = {
+  running: boolean;
+  log: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -49,4 +54,8 @@ export const gapsApi = {
       method: "PUT",
       body: JSON.stringify({ status, review_note: reviewNote || null }),
     }),
+
+  detect: () => request<{ started: boolean; pipeline: string; log_file: string }>(`/api/gaps/detect`, { method: "POST" }),
+
+  detectStatus: () => request<GapsDetectStatus>(`/api/gaps/detect/status`),
 };

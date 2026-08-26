@@ -1,9 +1,13 @@
 """Candidate gap review endpoints (Phase 3, Sec 35/44).
 
-Detection stays a deliberate CLI step (rb-gaps-detect --save) - these
-routes only list and review rows that already exist, never trigger
-detection. Approving/rejecting is the only way a candidate gap's status
-ever leaves "pending"; nothing here scores or auto-approves anything.
+Detection is still the same rb-gaps-detect logic as always - /detect just
+launches it as a subprocess (via pipeline_triggers, the same mechanism the
+admin panel uses for ingestion/extraction/embedding) instead of requiring
+an operator to run it from a terminal. Always incremental, whole-corpus
+(--all --save, no --force): a good fit for a button since it only touches
+papers that don't have a candidate gap yet. Approving/rejecting remains the
+only way a candidate gap's status ever leaves "pending"; nothing here
+scores or auto-approves anything.
 """
 
 from __future__ import annotations
@@ -16,7 +20,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
-from researchbridge.api.schemas import CandidateGapOut, CandidateGapPage, CandidateGapReview
+from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, tail_log, trigger
+from researchbridge.api.schemas import (
+    CandidateGapOut,
+    CandidateGapPage,
+    CandidateGapReview,
+    GapsDetectStatus,
+    PipelineTriggerOut,
+)
 from researchbridge.api.serializers import to_gaps
 from researchbridge.db.models import CandidateGap
 
@@ -24,6 +35,7 @@ router = APIRouter(prefix="/api/gaps")
 
 MAX_LIMIT = 100
 VALID_STATUSES = {"pending", "approved", "rejected"}
+PIPELINE_KEY = "gaps"
 
 
 @router.get("", response_model=CandidateGapPage)
@@ -69,3 +81,17 @@ def review_gap(
     session.commit()
 
     return to_gaps(session, [gap])[0]
+
+
+@router.post("/detect", response_model=PipelineTriggerOut)
+def trigger_detect() -> PipelineTriggerOut:
+    try:
+        log_path = trigger(PIPELINE_KEY, "researchbridge.gaps.cli_detect", ["--all", "--save"])
+    except PipelineAlreadyRunning as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return PipelineTriggerOut(started=True, pipeline=PIPELINE_KEY, log_file=str(log_path))
+
+
+@router.get("/detect/status", response_model=GapsDetectStatus)
+def detect_status() -> GapsDetectStatus:
+    return GapsDetectStatus(running=is_running(PIPELINE_KEY), log=tail_log(PIPELINE_KEY))
