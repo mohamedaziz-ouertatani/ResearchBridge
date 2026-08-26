@@ -31,7 +31,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=DEV_FRONTEND_ORIGINS,
-        allow_methods=["GET", "PUT", "POST"],  # PUT: annotation/gap review saves; POST: creating a ResearchAssessment
+        # PUT: annotation/gap review saves, excluding a paper; POST: creating a ResearchAssessment (also pipeline
+        # triggers/stop); DELETE: removing an assessment.
+        allow_methods=["GET", "PUT", "POST", "DELETE"],
         allow_headers=["*"],
     )
     app.include_router(router)

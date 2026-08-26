@@ -65,7 +65,12 @@ export default function AssessmentDashboard() {
 
         <ul>
           {assessments.map((assessment, i) => (
-            <AssessmentRow key={assessment.id} assessment={assessment} index={i} />
+            <AssessmentRow
+              key={assessment.id}
+              assessment={assessment}
+              index={i}
+              onDeleted={() => setAssessments((rows) => rows.filter((r) => r.id !== assessment.id))}
+            />
           ))}
         </ul>
       </div>
@@ -73,13 +78,37 @@ export default function AssessmentDashboard() {
   );
 }
 
-function AssessmentRow({ assessment, index }: { assessment: AssessmentSummary; index: number }) {
+function AssessmentRow({
+  assessment,
+  index,
+  onDeleted,
+}: {
+  assessment: AssessmentSummary;
+  index: number;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await assessmentApi.remove(assessment.id);
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete this assessment.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <li
-      className="resolve border-t border-[var(--rule-soft)] py-6 first:border-t-0"
+      className="resolve flex items-start gap-4 border-t border-[var(--rule-soft)] py-6 first:border-t-0"
       style={{ animationDelay: `${Math.min(index * 28, 280)}ms` }}
     >
-      <Link href={`/assessments/${assessment.id}`} className="block hover:opacity-80">
+      <Link href={`/assessments/${assessment.id}`} className="min-w-0 flex-1 hover:opacity-80">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="eyebrow">{assessment.input_type === "document" ? "uploaded document" : "research idea"}</span>
           <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
@@ -99,7 +128,46 @@ function AssessmentRow({ assessment, index }: { assessment: AssessmentSummary; i
           )}
           <span className="eyebrow">{assessment.human_reviewed ? "✓ reviewed" : "needs review"}</span>
         </div>
+
+        {error && <p className="mt-2 text-[0.75rem] text-[var(--live)]">{error}</p>}
       </Link>
+
+      {/* Sibling of the Link, not nested inside it, so a click here never
+       * triggers navigation - no preventDefault/stopPropagation needed. A
+       * normal-flow flex-none column (not absolutely positioned) so it
+       * always reserves its own space instead of overlapping the
+       * timestamp above whenever the row's content wraps. */}
+      <div className="flex flex-none items-baseline gap-2 pt-px">
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            aria-label="Delete this assessment"
+            className="eyebrow text-[0.6875rem] text-[var(--ink-faint)] hover:text-[var(--live)]"
+          >
+            delete
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => void confirmDelete()}
+              disabled={deleting}
+              className="eyebrow text-[0.6875rem] text-[var(--live)] hover:underline disabled:opacity-50"
+            >
+              {deleting ? "deleting…" : "confirm?"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={deleting}
+              className="eyebrow text-[0.6875rem] text-[var(--ink-faint)] hover:text-[var(--ink)] disabled:opacity-50"
+            >
+              cancel
+            </button>
+          </>
+        )}
+      </div>
     </li>
   );
 }

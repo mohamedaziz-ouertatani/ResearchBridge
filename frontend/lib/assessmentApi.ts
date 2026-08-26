@@ -95,6 +95,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 
+async function requestNoContent(path: string, init?: RequestInit): Promise<void> {
+  const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Request failed (${response.status})`);
+  }
+}
+
 export const assessmentApi = {
   create: (rawText: string) =>
     request<ResearchAssessment>("/api/assessments", {
@@ -120,6 +128,10 @@ export const assessmentApi = {
     }),
 
   rerun: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}/rerun`, { method: "POST" }),
+
+  /** Deletes the whole assessment thread (every rerun for the same input,
+   * not just this one id) - see the backend route's docstring. */
+  remove: (id: string) => requestNoContent(`/api/assessments/${id}`, { method: "DELETE" }),
 
   history: (id: string) => request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
 

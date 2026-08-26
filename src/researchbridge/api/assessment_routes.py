@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
@@ -31,7 +31,7 @@ from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.export import build_docx, build_pdf
 from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.benchmark.fulltext import extract_text
-from researchbridge.db.models import ResearchAssessment, ResearchInput
+from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
 
 router = APIRouter(prefix="/api/assessments")
@@ -166,6 +166,31 @@ def get_assessment(assessment_id: uuid.UUID, session: Session = Depends(get_sess
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)
+
+
+@router.delete("/{assessment_id}", status_code=204)
+def delete_assessment(assessment_id: uuid.UUID, session: Session = Depends(get_session)) -> None:
+    """Deletes the whole assessment thread - every rerun for the same
+    research_input (see rerun_assessment: a rerun always adds a new row,
+    never overwrites), not just the one row `assessment_id` names.
+
+    The list page collapses to "latest per research_input" (see
+    list_assessments), so deleting only this one row would just let the
+    next-most-recent rerun silently resurface as "the" entry - not what
+    "delete this from the list" means from that page.
+    """
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    research_input_id = assessment.research_input_id
+    thread_ids = select(ResearchAssessment.id).where(ResearchAssessment.research_input_id == research_input_id)
+    session.execute(
+        delete(ResearchAssessmentEvidence).where(ResearchAssessmentEvidence.research_assessment_id.in_(thread_ids))
+    )
+    session.execute(delete(ResearchAssessment).where(ResearchAssessment.research_input_id == research_input_id))
+    session.execute(delete(ResearchInput).where(ResearchInput.id == research_input_id))
+    session.commit()
 
 
 @router.put("/{assessment_id}/review", response_model=ResearchAssessmentOut)

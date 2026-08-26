@@ -411,6 +411,46 @@ def test_rerun_404s_for_unknown_assessment(client) -> None:
     assert response.status_code == 404
 
 
+def test_delete_removes_the_assessment(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea"}).json()
+
+    response = client.delete(f"/api/assessments/{created['id']}")
+
+    assert response.status_code == 204
+    assert client.get(f"/api/assessments/{created['id']}").status_code == 404
+
+
+def test_delete_removes_every_rerun_in_the_same_thread(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
+
+    # Deleting the ORIGINAL id must also remove the rerun - it's the same
+    # logical entry from the list page's point of view (latest-per-input).
+    response = client.delete(f"/api/assessments/{created['id']}")
+
+    assert response.status_code == 204
+    assert client.get(f"/api/assessments/{created['id']}").status_code == 404
+    assert client.get(f"/api/assessments/{rerun['id']}").status_code == 404
+
+
+def test_delete_removes_the_assessment_from_the_list(client) -> None:
+    created = client.post("/api/assessments", json={"raw_text": "an idea"}).json()
+
+    client.delete(f"/api/assessments/{created['id']}")
+
+    body = client.get("/api/assessments", params={"review": "all"}).json()
+    assert created["id"] not in [item["id"] for item in body["items"]]
+
+
+def test_delete_404s_for_unknown_assessment(client) -> None:
+    response = client.delete(f"/api/assessments/{uuid.uuid4()}")
+
+    assert response.status_code == 404
+
+
 def test_history_lists_all_assessments_for_the_same_input_newest_first(client, session) -> None:
     created = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
     rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
