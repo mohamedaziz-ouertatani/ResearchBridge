@@ -194,6 +194,47 @@ def test_list_papers_filters_by_category(client, session) -> None:
     assert body["items"][0]["source_id"] == "nlp"
 
 
+def test_list_papers_filters_by_source(client, session) -> None:
+    _add_paper(session, "ar1", source="arxiv")
+    _add_paper(session, "sp1", source="springer")
+
+    body = client.get("/api/papers", params={"source": "springer"}).json()
+
+    assert body["total"] == 1
+    assert body["items"][0]["source_id"] == "sp1"
+
+
+def test_list_papers_default_sort_is_newest_first(client, session) -> None:
+    _add_paper(session, "old", year=2019)
+    _add_paper(session, "new", year=2025)
+
+    body = client.get("/api/papers").json()
+
+    assert [item["source_id"] for item in body["items"]] == ["new", "old"]
+
+
+def test_list_papers_sorts_by_date_asc(client, session) -> None:
+    _add_paper(session, "old", year=2019)
+    _add_paper(session, "new", year=2025)
+
+    body = client.get("/api/papers", params={"sort": "date_asc"}).json()
+
+    assert [item["source_id"] for item in body["items"]] == ["old", "new"]
+
+
+def test_list_papers_sorts_by_title_asc(client, session) -> None:
+    _add_paper(session, "b", title="Banana Study")
+    _add_paper(session, "a", title="Apple Study")
+
+    body = client.get("/api/papers", params={"sort": "title_asc"}).json()
+
+    assert [item["source_id"] for item in body["items"]] == ["a", "b"]
+
+
+def test_list_papers_rejects_unknown_sort(client) -> None:
+    assert client.get("/api/papers", params={"sort": "made_up"}).status_code == 422
+
+
 def test_list_papers_title_filter_is_case_insensitive(client, session) -> None:
     _add_paper(session, "p1", title="Graph Transformers for Fraud")
     _add_paper(session, "p2", title="Unrelated Work")

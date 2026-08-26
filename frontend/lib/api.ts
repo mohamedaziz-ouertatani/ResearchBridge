@@ -77,8 +77,10 @@ export const api = {
     offset?: number;
     year?: number;
     category?: string;
+    source?: string;
     q?: string;
     include_excluded?: boolean;
+    sort?: "date_desc" | "date_asc" | "title_asc";
   }) => get<PaperPage>("/api/papers", params),
 
   paper: (id: string) => get<PaperSummary>(`/api/papers/${id}`),

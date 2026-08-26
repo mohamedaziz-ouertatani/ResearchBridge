@@ -21,6 +21,12 @@ router = APIRouter(prefix="/api")
 MAX_LIMIT = 100
 MAX_TOP_K = 50
 
+SORT_ORDERINGS = {
+    "date_desc": (Paper.publication_date.desc().nullslast(), Paper.id),
+    "date_asc": (Paper.publication_date.asc().nullslast(), Paper.id),
+    "title_asc": (func.lower(Paper.title).asc(), Paper.id),
+}
+
 
 @router.get("/papers", response_model=PaperPage)
 def list_papers(
@@ -29,8 +35,10 @@ def list_papers(
     offset: int = Query(0, ge=0),
     year: int | None = Query(None, description="Filter by publication year"),
     category: str | None = Query(None, description="Filter by an arXiv category, e.g. cs.LG"),
+    source: str | None = Query(None, description="Filter by ingestion source, e.g. arxiv"),
     q: str | None = Query(None, description="Case-insensitive substring match on title"),
     include_excluded: bool = Query(False, description="Include papers excluded from curation"),
+    sort: str = Query("date_desc", pattern="^(date_desc|date_asc|title_asc)$"),
 ) -> PaperPage:
     """Browse the corpus. `q` is a plain title filter - for meaning-based search use /api/search."""
     query = select(Paper)
@@ -40,20 +48,19 @@ def list_papers(
         query = query.where(Paper.excluded_at.is_(None))
         count_query = count_query.where(Paper.excluded_at.is_(None))
 
-    for condition in _filters(year=year, category=category, q=q):
+    for condition in _filters(year=year, category=category, source=source, q=q):
         query = query.where(condition)
         count_query = count_query.where(condition)
 
     total = session.execute(count_query).scalar_one()
     papers = list(
-        session.execute(query.order_by(Paper.publication_date.desc().nullslast(), Paper.id).limit(limit).offset(offset))
-        .scalars()
+        session.execute(query.order_by(*SORT_ORDERINGS[sort]).limit(limit).offset(offset)).scalars()
     )
 
     return PaperPage(items=to_summaries(session, papers), total=total, limit=limit, offset=offset)
 
 
-def _filters(year: int | None, category: str | None, q: str | None) -> list:
+def _filters(year: int | None, category: str | None, source: str | None, q: str | None) -> list:
     conditions = []
     if year is not None:
         conditions.append(func.extract("year", Paper.publication_date) == year)
@@ -61,6 +68,8 @@ def _filters(year: int | None, category: str | None, q: str | None) -> list:
         conditions.append(
             Paper.id.in_(select(PaperCategory.paper_id).where(PaperCategory.category == category))
         )
+    if source:
+        conditions.append(Paper.source == source)
     if q:
         conditions.append(Paper.title.ilike(f"%{q}%"))
     return conditions

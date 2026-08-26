@@ -9,6 +9,13 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 
 type Mode = "browse" | "search";
+type Sort = "date_desc" | "date_asc" | "title_asc";
+
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "date_desc", label: "newest" },
+  { value: "date_asc", label: "oldest" },
+  { value: "title_asc", label: "title A–Z" },
+];
 
 export default function Explorer() {
   const [stats, setStats] = useState<CorpusStats | null>(null);
@@ -19,6 +26,8 @@ export default function Explorer() {
   const [total, setTotal] = useState(0);
   const [year, setYear] = useState<number | null>(null);
   const [category, setCategory] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  const [sort, setSort] = useState<Sort>("date_desc");
   const [showExcluded, setShowExcluded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +46,9 @@ export default function Explorer() {
         limit: 25,
         year: year ?? undefined,
         category: category ?? undefined,
+        source: source ?? undefined,
         include_excluded: showExcluded || undefined,
+        sort,
       });
       setPapers(page.items);
       setTotal(page.total);
@@ -46,12 +57,12 @@ export default function Explorer() {
     } finally {
       setBusy(false);
     }
-  }, [year, category, showExcluded]);
+  }, [year, category, source, sort, showExcluded]);
 
   useEffect(() => {
     // loadBrowse resets busy/error before fetching, keyed on mode/year/category/
-    // showExcluded - intentional, not the accidental-derived-state case this
-    // rule otherwise targets.
+    // source/sort/showExcluded - intentional, not the accidental-derived-state
+    // case this rule otherwise targets.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (mode === "browse") void loadBrowse();
   }, [mode, loadBrowse]);
@@ -186,6 +197,54 @@ export default function Explorer() {
               })}
           </div>
 
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            <span className="eyebrow mr-1 inline-flex items-center gap-1.5">
+              sources
+              <InfoTooltip text="Where each paper was ingested from — e.g. arXiv or Springer Nature. Click one to filter to just that source; click it again to clear the filter." />
+            </span>
+            {Object.entries(stats.papers_by_source).map(([name, count]) => {
+              const isActive = source === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => setSource(isActive ? null : name)}
+                  aria-pressed={isActive}
+                  className={`readout rounded-[2px] border px-2 py-1 text-[0.6875rem] transition-colors ${
+                    isActive
+                      ? "border-[var(--near)] bg-[var(--near)] text-white"
+                      : "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)]"
+                  }`}
+                >
+                  {name} <span className="opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            <span className="eyebrow mr-1 inline-flex items-center gap-1.5">
+              sort by
+              <InfoTooltip text="Order the list below. Applies only while browsing — search results are always ranked by how closely they match your query." />
+            </span>
+            {SORT_OPTIONS.map(({ value, label }) => {
+              const isActive = sort === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setSort(value)}
+                  aria-pressed={isActive}
+                  className={`readout rounded-[2px] border px-2 py-1 text-[0.6875rem] transition-colors ${
+                    isActive
+                      ? "border-[var(--near)] bg-[var(--near)] text-white"
+                      : "border-[var(--rule)] text-[var(--ink-soft)] hover:border-[var(--ink)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="mt-4 flex items-center gap-2">
             <button
               onClick={() => setShowExcluded((v) => !v)}
@@ -215,7 +274,7 @@ export default function Explorer() {
           <span className="eyebrow">
             {mode === "search"
               ? `${hits.length} nearest to “${query.trim()}”`
-              : `${total.toLocaleString()} papers${year ? ` · ${year}` : ""}${category ? ` · ${category}` : ""}${showExcluded ? " · including excluded" : ""}`}
+              : `${total.toLocaleString()} papers${year ? ` · ${year}` : ""}${category ? ` · ${category}` : ""}${source ? ` · ${source}` : ""}${showExcluded ? " · including excluded" : ""}`}
           </span>
           {mode === "search" && hits.length > 0 && <GaugeLegend />}
         </div>
