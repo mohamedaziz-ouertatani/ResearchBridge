@@ -8,7 +8,7 @@ import {
   type EvidenceRole,
   type ResearchAssessment,
 } from "@/lib/assessmentApi";
-import { API_BASE } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -106,6 +106,10 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
             </p>
           </>
         )}
+      </Field>
+
+      <Field label="when this idea was discussed" gradeable={false}>
+        <IdeaYearTrend evidence={assessment.evidence} />
       </Field>
 
       <Field label="existing solutions" evidence={byRole.get("comparison")}>
@@ -350,6 +354,184 @@ function AssessmentHistory({ assessmentId }: { assessmentId: string }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/*
+  How many supporting passages trace back to a paper published in each year -
+  a proxy for when the literature was mostly discussing this idea. Built from
+  the evidence gutter's own paper_ids (not retrieved_paper_ids), so it only
+  counts years the report actually grounds a claim in.
+
+  Drawn as a single-series line rather than YearStrip's bar strip: a trend
+  over a continuous year axis reads as change-over-time, so the gaps between
+  discussed years (filled with zero, not skipped) are as meaningful as the
+  peaks. One series needs no legend - the section title already names it -
+  so this stays plain ink on the chart surface, no categorical palette.
+*/
+function IdeaYearTrend({ evidence }: { evidence: AssessmentEvidence[] }) {
+  const [byYear, setByYear] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const paperIds = [...new Set(evidence.map((item) => item.paper_id))];
+
+    if (paperIds.length === 0) {
+      setByYear({});
+      return;
+    }
+
+    Promise.all(
+      paperIds.map((id) =>
+        api
+          .paper(id)
+          .then((paper) => [id, paper.publication_date] as const)
+          .catch(() => [id, null] as const),
+      ),
+    ).then((pairs) => {
+      if (cancelled) return;
+      const yearByPaper = new Map(pairs.map(([id, date]) => [id, date ? new Date(date).getFullYear() : null]));
+      const counts: Record<string, number> = {};
+      for (const item of evidence) {
+        const year = yearByPaper.get(item.paper_id);
+        if (year == null) continue;
+        counts[year] = (counts[year] ?? 0) + 1;
+      }
+      setByYear(counts);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [evidence]);
+
+  if (byYear === null) {
+    return <p className="text-[0.875rem] text-[var(--ink-faint)]">Loading…</p>;
+  }
+
+  if (Object.keys(byYear).length === 0) {
+    return <Unassessed reason="No supporting passage traces back to a paper with a known publication year." />;
+  }
+
+  return (
+    <div>
+      <IdeaYearLineChart byYear={byYear} />
+      <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+        Supporting passages grouped by the publication year of the paper they came from - a proxy for when the
+        retrieved literature was mostly discussing this idea, not a count of all papers ever written on it.
+      </p>
+    </div>
+  );
+}
+
+const CHART_WIDTH = 640;
+const CHART_HEIGHT = 160;
+const CHART_PAD_X = 16;
+const CHART_PAD_TOP = 14;
+const CHART_PAD_BOTTOM = 28;
+
+/** A thin monochrome line chart: count of supporting passages per year,
+    zero-filled across the full range so the line reads as a continuous trend. */
+function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const observedYears = Object.keys(byYear)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const minYear = observedYears[0];
+  const maxYear = observedYears[observedYears.length - 1];
+  const years: number[] = [];
+  for (let y = minYear; y <= maxYear; y++) years.push(y);
+
+  const counts = years.map((y) => byYear[String(y)] ?? 0);
+  const peak = Math.max(...counts, 1);
+
+  const plotWidth = CHART_WIDTH - CHART_PAD_X * 2;
+  const plotHeight = CHART_HEIGHT - CHART_PAD_TOP - CHART_PAD_BOTTOM;
+
+  const xFor = (i: number) => CHART_PAD_X + (years.length === 1 ? plotWidth / 2 : (i / (years.length - 1)) * plotWidth);
+  const yFor = (count: number) => CHART_PAD_TOP + plotHeight - (count / peak) * plotHeight;
+
+  const linePath = counts.map((count, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(count)}`).join(" ");
+  const baselineY = CHART_PAD_TOP + plotHeight;
+
+  return (
+    <div className="relative">
+      <svg
+        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+        className="w-full"
+        role="img"
+        aria-label={`Supporting passages by year, ${minYear} to ${maxYear}`}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        {/* recessive baseline */}
+        <line
+          x1={CHART_PAD_X}
+          y1={baselineY}
+          x2={CHART_WIDTH - CHART_PAD_X}
+          y2={baselineY}
+          stroke="var(--rule-soft)"
+          strokeWidth={1}
+        />
+
+        <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+
+        {years.map((year, i) => (
+          <g key={year}>
+            {/* generous invisible hit target, per interaction spec */}
+            <rect
+              x={xFor(i) - plotWidth / years.length / 2}
+              y={0}
+              width={plotWidth / years.length}
+              height={CHART_HEIGHT}
+              fill="transparent"
+              onMouseEnter={() => setHoverIndex(i)}
+            />
+            <circle
+              cx={xFor(i)}
+              cy={yFor(counts[i])}
+              r={hoverIndex === i ? 5 : 3}
+              fill={counts[i] > 0 ? "var(--ink)" : "var(--rule)"}
+            />
+            <text
+              x={xFor(i)}
+              y={CHART_HEIGHT - 8}
+              textAnchor="middle"
+              className="readout"
+              style={{ fontSize: "9px", fill: hoverIndex === i ? "var(--near)" : "var(--ink-faint)" }}
+            >
+              {String(year).slice(2)}
+            </text>
+          </g>
+        ))}
+
+        {hoverIndex !== null && (
+          <line
+            x1={xFor(hoverIndex)}
+            y1={CHART_PAD_TOP}
+            x2={xFor(hoverIndex)}
+            y2={baselineY}
+            stroke="var(--rule)"
+            strokeWidth={1}
+            strokeDasharray="2 2"
+          />
+        )}
+      </svg>
+
+      {hoverIndex !== null && (
+        <div
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[2px] border border-[var(--rule)] bg-[var(--panel)] px-2 py-1 shadow-sm"
+          style={{
+            left: `${(xFor(hoverIndex) / CHART_WIDTH) * 100}%`,
+            top: `${(yFor(counts[hoverIndex]) / CHART_HEIGHT) * 100}%`,
+          }}
+        >
+          <p className="readout text-[0.6875rem] text-[var(--ink)] tabular-nums">
+            {years[hoverIndex]} · {counts[hoverIndex]} passage{counts[hoverIndex] === 1 ? "" : "s"}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
