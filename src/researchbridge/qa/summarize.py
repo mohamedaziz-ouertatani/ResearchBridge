@@ -13,7 +13,11 @@ why, and why it stays optional/off-by-default.
 
 from __future__ import annotations
 
+import os
 import re
+from dataclasses import dataclass
+
+import requests
 
 from researchbridge.api.schemas import QuoteHitOut
 
@@ -51,3 +55,62 @@ def extract_citations(text: str, hit_count: int) -> list[int]:
         if n not in seen:
             seen.append(n)
     return seen
+
+
+@dataclass
+class SummaryResult:
+    summary: str
+    citations: list[int]
+
+
+class SummarizationUnavailable(Exception):
+    """Raised when OLLAMA_ENABLED is false, or Ollama is unreachable/times
+    out/produces an invalid summary after one retry. The route layer turns
+    this into a 503 - never a partially-validated summary."""
+
+
+def ollama_enabled() -> bool:
+    return os.environ.get("OLLAMA_ENABLED", "false").lower() == "true"
+
+
+def _call_ollama(system_prompt: str, user_prompt: str) -> str:
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "30"))
+
+    response = requests.post(
+        f"{host}/api/chat",
+        json={
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+            "options": {"temperature": 0.2},
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return response.json()["message"]["content"]
+
+
+def summarize_quotes(question: str, hits: list[QuoteHitOut]) -> SummaryResult:
+    """Calls the local Ollama model to synthesize a grounded summary of
+    the given hits. Retries once on an unreachable model or an
+    out-of-range citation, then raises SummarizationUnavailable - never
+    returns a summary whose citations weren't checked against hits."""
+    if not ollama_enabled():
+        raise SummarizationUnavailable("local LLM summarization is not enabled")
+
+    system_prompt, user_prompt = build_prompt(question, hits)
+
+    for _attempt in range(2):
+        try:
+            content = _call_ollama(system_prompt, user_prompt)
+            citations = extract_citations(content, len(hits))
+        except (requests.RequestException, ValueError, KeyError):
+            continue
+        return SummaryResult(summary=content, citations=citations)
+
+    raise SummarizationUnavailable("local LLM could not produce a valid grounded summary")
