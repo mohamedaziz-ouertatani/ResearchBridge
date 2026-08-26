@@ -83,6 +83,24 @@ class QuoteHitOut(BaseModel):
 
 class AskResponse(BaseModel):
     hits: list[QuoteHitOut]
+    summarization_available: bool
+
+
+class SummarizeRequest(BaseModel):
+    question: str = Field(min_length=1)
+    hits: list[QuoteHitOut] = Field(min_length=1)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question must not be blank")
+        return v
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+    citations: list[int]
 
 
 class PaperPage(BaseModel):

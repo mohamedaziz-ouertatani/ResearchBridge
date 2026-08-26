@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -134,5 +135,107 @@ def test_ask_rejects_missing_question(client) -> None:
 
 def test_ask_rejects_whitespace_only_question(client) -> None:
     response = client.post("/api/ask", json={"question": "   "})
+
+    assert response.status_code == 422
+
+
+def test_ask_reports_summarization_available_true_when_enabled(
+    client, session, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    response = client.post("/api/ask", json={"question": "graph transformers for fraud detection"})
+
+    assert response.json()["summarization_available"] is True
+
+
+def test_ask_reports_summarization_available_false_by_default(client) -> None:
+    response = client.post("/api/ask", json={"question": "anything"})
+
+    assert response.json()["summarization_available"] is False
+
+
+def test_summarize_returns_summary_when_enabled(
+    client, session, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    mock_response = Mock()
+    mock_response.json.return_value = {"message": {"content": "Grounded summary [1]."}}
+    mock_response.raise_for_status = Mock()
+    monkeypatch.setattr(
+        "researchbridge.qa.summarize.requests.post", Mock(return_value=mock_response)
+    )
+    hit = {
+        "paper_id": str(uuid.uuid4()),
+        "paper_title": "Paper A",
+        "paper_source": "arxiv",
+        "claim_type": "limitations",
+        "text": "some quote",
+        "section": None,
+        "confidence": "medium",
+        "score": 0.9,
+    }
+
+    response = client.post(
+        "/api/ask/summarize", json={"question": "a question", "hits": [hit]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"] == "Grounded summary [1]."
+    assert body["citations"] == [1]
+
+
+def test_summarize_returns_503_when_disabled(client) -> None:
+    hit = {
+        "paper_id": str(uuid.uuid4()),
+        "paper_title": "Paper A",
+        "paper_source": "arxiv",
+        "claim_type": "limitations",
+        "text": "some quote",
+        "section": None,
+        "confidence": "medium",
+        "score": 0.9,
+    }
+
+    response = client.post(
+        "/api/ask/summarize", json={"question": "a question", "hits": [hit]}
+    )
+
+    assert response.status_code == 503
+
+
+def test_summarize_returns_503_when_ollama_unreachable(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import requests
+
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    monkeypatch.setattr(
+        "researchbridge.qa.summarize.requests.post",
+        Mock(side_effect=requests.ConnectionError("refused")),
+    )
+    hit = {
+        "paper_id": str(uuid.uuid4()),
+        "paper_title": "Paper A",
+        "paper_source": "arxiv",
+        "claim_type": "limitations",
+        "text": "some quote",
+        "section": None,
+        "confidence": "medium",
+        "score": 0.9,
+    }
+
+    response = client.post(
+        "/api/ask/summarize", json={"question": "a question", "hits": [hit]}
+    )
+
+    assert response.status_code == 503
+
+
+def test_summarize_rejects_empty_hits(client) -> None:
+    response = client.post("/api/ask/summarize", json={"question": "a question", "hits": []})
 
     assert response.status_code == 422
