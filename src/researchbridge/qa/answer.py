@@ -61,8 +61,9 @@ def answer_question(
     if not rows:
         return []
 
-    [question_vector] = embedder.embed_texts([question])
-    quote_vectors = embedder.embed_texts([claim.text for claim, _ in rows])
+    texts = [question] + [claim.text for claim, _ in rows]
+    vectors = embedder.embed_texts(texts)
+    question_vector, quote_vectors = vectors[0], vectors[1:]
 
     scored = [
         (_dot(question_vector, vector), claim, evidence)

@@ -130,3 +130,9 @@ def test_ask_rejects_missing_question(client) -> None:
     response = client.post("/api/ask", json={})
 
     assert response.status_code == 422
+
+
+def test_ask_rejects_whitespace_only_question(client) -> None:
+    response = client.post("/api/ask", json={"question": "   "})
+
+    assert response.status_code == 422

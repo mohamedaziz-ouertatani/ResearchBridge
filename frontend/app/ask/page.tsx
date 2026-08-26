@@ -23,6 +23,7 @@ export default function AskPage() {
     if (!text) return;
     setBusy(true);
     setError(null);
+    setHits(null);
     try {
       const response = await qaApi.ask(text);
       setHits(response.hits);

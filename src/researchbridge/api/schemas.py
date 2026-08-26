@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PaperSummary(BaseModel):
@@ -61,6 +61,13 @@ class SearchHit(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question must not be blank")
+        return v
 
 
 class QuoteHitOut(BaseModel):
