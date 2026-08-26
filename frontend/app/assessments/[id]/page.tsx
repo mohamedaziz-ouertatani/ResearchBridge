@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { assessmentApi, type ResearchAssessment } from "@/lib/assessmentApi";
 import { AssessmentReport } from "@/components/AssessmentReport";
+import { SimilarityGraph } from "@/components/SimilarityGraph";
 
 export default function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -39,6 +40,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
       {assessment && (
         <div className="pt-12">
           <AssessmentReport assessment={assessment} />
+          <SimilarityGraph assessmentId={id} />
         </div>
       )}
     </main>
