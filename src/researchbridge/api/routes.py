@@ -9,9 +9,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit
+from researchbridge.api.schemas import (
+    CitationEdgeOut,
+    CitationGraphOut,
+    CitationNodeOut,
+    CorpusStats,
+    ExtractedClaimOut,
+    PaperPage,
+    PaperSummary,
+    SearchHit,
+)
 from researchbridge.api.serializers import to_claims, to_summaries, to_summary
-from researchbridge.db.models import Author, Embedding, ExtractedClaim, Paper, PaperAuthor, PaperCategory
+from researchbridge.db.models import Author, Embedding, ExtractedClaim, Paper, PaperAuthor, PaperCategory, PaperCitation
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.embedding.search import find_similar_to_paper, search_by_text
@@ -113,6 +122,38 @@ def similar_papers(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return _to_hits(session, results)
+
+
+@router.get("/papers/{paper_id}/citations", response_model=CitationGraphOut)
+def paper_citations(paper_id: uuid.UUID, session: Session = Depends(get_session)) -> CitationGraphOut:
+    paper = session.get(Paper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail=f"No paper with id {paper_id}")
+    return _build_citation_graph(session, paper)
+
+
+def _build_citation_graph(session: Session, paper: Paper) -> CitationGraphOut:
+    cited_by_rows = session.execute(
+        select(PaperCitation.citing_paper_id, Paper.title)
+        .join(Paper, Paper.id == PaperCitation.citing_paper_id)
+        .where(PaperCitation.cited_paper_id == paper.id)
+    ).all()
+    cites_rows = session.execute(
+        select(PaperCitation.cited_paper_id, Paper.title)
+        .join(Paper, Paper.id == PaperCitation.cited_paper_id)
+        .where(PaperCitation.citing_paper_id == paper.id)
+    ).all()
+
+    nodes = [CitationNodeOut(id=str(paper.id), type="center", title=paper.title)]
+    edges = []
+    for citing_id, title in cited_by_rows:
+        nodes.append(CitationNodeOut(id=str(citing_id), type="paper", title=title))
+        edges.append(CitationEdgeOut(source=str(citing_id), target=str(paper.id), direction="cited_by"))
+    for cited_id, title in cites_rows:
+        nodes.append(CitationNodeOut(id=str(cited_id), type="paper", title=title))
+        edges.append(CitationEdgeOut(source=str(paper.id), target=str(cited_id), direction="cites"))
+
+    return CitationGraphOut(nodes=nodes, edges=edges)
 
 
 @router.get("/search", response_model=list[SearchHit])
