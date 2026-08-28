@@ -6,16 +6,22 @@ PaperCitation rows.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 
-from researchbridge.citations.batch import run_all
+from researchbridge.citations.batch import BatchSummary, run_all
 from researchbridge.citations.fetch import SemanticScholarCitationFetcher, persist_citation_edges, resolve_citations
 from researchbridge.config import load_config
 from researchbridge.db.models import Paper
 from researchbridge.db.session import make_engine, make_session_factory
+
+DEFAULT_SUMMARY_PATH = Path("benchmark/citations_fetch_summary.json")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,6 +96,28 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
     print(f"Papers failed:          {summary.papers_failed}")
     print(f"Edges created:          {summary.edges_created}")
     print(f"Edges already existed:  {summary.edges_already_existed}")
+
+    write_summary_json(DEFAULT_SUMMARY_PATH, summary)
+    print(f"\nWrote summary to {DEFAULT_SUMMARY_PATH}")
+
+
+def _build_summary_json(summary: BatchSummary) -> dict[str, Any]:
+    """Shapes a BatchSummary into the JSON the admin dashboard reads
+    (GET /api/admin/citations-fetch) - a flat file, not a DB table, since
+    this is a background job over the corpus, not a repeating pipeline
+    stage (same "no run-history table" choice as retrieval evaluation)."""
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "papers_seen": summary.papers_seen,
+        "papers_failed": summary.papers_failed,
+        "edges_created": summary.edges_created,
+        "edges_already_existed": summary.edges_already_existed,
+    }
+
+
+def write_summary_json(path: Path, summary: BatchSummary) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_build_summary_json(summary), indent=2))
 
 
 if __name__ == "__main__":
