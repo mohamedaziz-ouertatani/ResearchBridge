@@ -392,6 +392,7 @@ class ResearchAssessmentSummaryOut(BaseModel):
     created_at: datetime
     status: str
     novelty_level: str
+    technical_feasibility_level: str
     recommendation: str | None
     confidence: str | None
     human_reviewed: bool

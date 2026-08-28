@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper
+from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, ResearchAssessment, ResearchInput
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
 
@@ -82,6 +82,33 @@ def _add_claim(session, paper: Paper, claim_type: str, text: str) -> None:
     session.add(evidence)
     session.flush()
     session.add(ExtractedClaim(paper_id=paper.id, claim_type=claim_type, text=text, evidence_id=evidence.id, confidence="medium"))
+
+
+def _add_completed_assessment(
+    session,
+    raw_text: str,
+    recommendation: str | None,
+    novelty_level: str = "not_assessed",
+    technical_feasibility_level: str = "not_assessed",
+) -> ResearchAssessment:
+    """Directly inserts a completed assessment with specific categorical
+    fields, bypassing the real pipeline - used by sort/filter tests below,
+    which exercise the list endpoint's own logic rather than recommendation
+    computation (already covered by the pipeline tests above)."""
+    research_input = ResearchInput(id=uuid.uuid4(), input_type="idea", raw_text=raw_text)
+    session.add(research_input)
+    session.flush()
+    assessment = ResearchAssessment(
+        id=uuid.uuid4(),
+        research_input_id=research_input.id,
+        status="completed",
+        novelty_level=novelty_level,
+        technical_feasibility_level=technical_feasibility_level,
+        recommendation=recommendation,
+    )
+    session.add(assessment)
+    session.commit()
+    return assessment
 
 
 def test_post_assessment_creates_input_and_runs_the_pipeline(client, session, embedder) -> None:
@@ -591,3 +618,64 @@ def test_list_assessments_paginates(client) -> None:
     assert body["total"] == 3
     assert body["limit"] == 2
     assert body["offset"] == 1
+
+
+def test_list_assessments_includes_technical_feasibility_level(client, session) -> None:
+    _add_completed_assessment(session, "idea", "MEDIUM PRIORITY", technical_feasibility_level="high")
+
+    item = client.get("/api/assessments").json()["items"][0]
+
+    assert item["technical_feasibility_level"] == "high"
+
+
+def test_list_assessments_sort_priority_orders_by_recommendation_tier(client, session) -> None:
+    insufficient = _add_completed_assessment(session, "insufficient", "INSUFFICIENT EVIDENCE")
+    high = _add_completed_assessment(session, "high", "HIGH PRIORITY")
+    medium = _add_completed_assessment(session, "medium", "MEDIUM PRIORITY")
+    low = _add_completed_assessment(session, "low", "LOW PRIORITY")
+    needs_review = _add_completed_assessment(session, "needs review", "REQUIRES HUMAN REVIEW")
+    unassessed = _add_completed_assessment(session, "unassessed", None)
+
+    body = client.get("/api/assessments", params={"sort": "priority"}).json()
+
+    assert [item["id"] for item in body["items"]] == [
+        str(high.id),
+        str(medium.id),
+        str(low.id),
+        str(needs_review.id),
+        str(insufficient.id),
+        str(unassessed.id),
+    ]
+
+
+def test_list_assessments_default_sort_is_newest_not_priority(client, session) -> None:
+    _add_completed_assessment(session, "first", "HIGH PRIORITY")
+    second = _add_completed_assessment(session, "second", "INSUFFICIENT EVIDENCE")
+
+    body = client.get("/api/assessments").json()
+
+    assert body["items"][0]["id"] == str(second.id)  # newest first, not priority-ordered
+
+
+def test_list_assessments_rejects_invalid_sort(client) -> None:
+    assert client.get("/api/assessments", params={"sort": "bogus"}).status_code == 422
+
+
+def test_list_assessments_filters_by_novelty_level(client, session) -> None:
+    high_novelty = _add_completed_assessment(session, "high novelty", "HIGH PRIORITY", novelty_level="high")
+    _add_completed_assessment(session, "low novelty", "LOW PRIORITY", novelty_level="low")
+
+    body = client.get("/api/assessments", params={"novelty": "high"}).json()
+
+    assert [item["id"] for item in body["items"]] == [str(high_novelty.id)]
+
+
+def test_list_assessments_filters_by_technical_feasibility_level(client, session) -> None:
+    high_feasibility = _add_completed_assessment(
+        session, "high feasibility", "HIGH PRIORITY", technical_feasibility_level="high"
+    )
+    _add_completed_assessment(session, "low feasibility", "LOW PRIORITY", technical_feasibility_level="low")
+
+    body = client.get("/api/assessments", params={"feasibility": "high"}).json()
+
+    assert [item["id"] for item in body["items"]] == [str(high_feasibility.id)]

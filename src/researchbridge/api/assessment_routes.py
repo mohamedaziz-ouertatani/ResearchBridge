@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
@@ -42,20 +42,42 @@ router = APIRouter(prefix="/api/assessments")
 
 MAX_LIST_LIMIT = 100
 _REVIEW_FILTERS = {"all", "reviewed", "needs_review"}
+_SORT_OPTIONS = {"newest", "priority"}
 _INPUT_PREVIEW_LENGTH = 120
+
+# Order-of-preference for "priority" sort, lowest rank first. Not a fabricated
+# score (blueprint Sec 18/42) - this only reorders by the recommendation the
+# pipeline already computed, same categorical value shown elsewhere in the
+# app. A NULL recommendation (assessment not yet completed) sorts last.
+_PRIORITY_RANK = {
+    "HIGH PRIORITY": 0,
+    "MEDIUM PRIORITY": 1,
+    "LOW PRIORITY": 2,
+    "REQUIRES HUMAN REVIEW": 3,
+    "INSUFFICIENT EVIDENCE": 4,
+}
 
 
 @router.get("", response_model=ResearchAssessmentSummaryPage)
 def list_assessments(
     session: Session = Depends(get_session),
     review: str = Query("all", description="all, reviewed, or needs_review"),
+    sort: str = Query("newest", description="newest or priority"),
+    novelty: str | None = Query(None, description="Filter by novelty_level: high, medium, low, or not_assessed"),
+    feasibility: str | None = Query(
+        None, description="Filter by technical_feasibility_level: high, medium, low, or not_assessed"
+    ),
     limit: int = Query(20, ge=1, le=MAX_LIST_LIMIT),
     offset: int = Query(0, ge=0),
 ) -> ResearchAssessmentSummaryPage:
-    """The latest assessment per research_input, newest first - re-run history
-    collapses to one row (see the assessment's own /history for the rest)."""
+    """The latest assessment per research_input - re-run history collapses to
+    one row (see the assessment's own /history for the rest). "priority" sort
+    orders by the pipeline's own recommendation tier (see _PRIORITY_RANK) -
+    not a new score, just a defensible ordering over an existing field."""
     if review not in _REVIEW_FILTERS:
         raise HTTPException(status_code=422, detail=f"review must be one of {sorted(_REVIEW_FILTERS)}")
+    if sort not in _SORT_OPTIONS:
+        raise HTTPException(status_code=422, detail=f"sort must be one of {sorted(_SORT_OPTIONS)}")
 
     latest = (
         select(
@@ -81,11 +103,19 @@ def list_assessments(
         query = query.where(ResearchAssessment.human_reviewed.is_(True))
     elif review == "needs_review":
         query = query.where(ResearchAssessment.human_reviewed.is_(False))
+    if novelty is not None:
+        query = query.where(ResearchAssessment.novelty_level == novelty)
+    if feasibility is not None:
+        query = query.where(ResearchAssessment.technical_feasibility_level == feasibility)
+
+    if sort == "priority":
+        priority_rank = case(_PRIORITY_RANK, value=ResearchAssessment.recommendation, else_=len(_PRIORITY_RANK))
+        ordering = (priority_rank, ResearchAssessment.created_at.desc())
+    else:
+        ordering = (ResearchAssessment.created_at.desc(),)
 
     total = session.execute(select(func.count()).select_from(query.subquery())).scalar_one()
-    rows = session.execute(
-        query.order_by(ResearchAssessment.created_at.desc()).limit(limit).offset(offset)
-    ).all()
+    rows = session.execute(query.order_by(*ordering).limit(limit).offset(offset)).all()
 
     return ResearchAssessmentSummaryPage(
         items=[_to_summary(assessment, research_input) for assessment, research_input in rows],
@@ -109,6 +139,7 @@ def _to_summary(assessment: ResearchAssessment, research_input: ResearchInput) -
         created_at=assessment.created_at,
         status=assessment.status,
         novelty_level=assessment.novelty_level,
+        technical_feasibility_level=assessment.technical_feasibility_level,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,
         human_reviewed=assessment.human_reviewed,
