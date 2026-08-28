@@ -99,3 +99,40 @@ def test_run_all_continues_past_a_failing_paper(session) -> None:
 
     assert summary.papers_seen == 2
     assert summary.papers_failed == 1
+
+
+def _add_doi_paper(session, doi: str, source: str = "springer") -> Paper:
+    paper = Paper(id=uuid.uuid4(), source=source, source_id=doi, doi=doi, title=f"Paper {doi}")
+    session.add(paper)
+    session.commit()
+    return paper
+
+
+def test_run_all_for_crossref_targets_every_doi_bearing_paper_regardless_of_source(session) -> None:
+    a = _add_doi_paper(session, "10.1/a", source="arxiv")
+    b = _add_doi_paper(session, "10.1/b", source="semantic_scholar")
+    session.add(Paper(id=uuid.uuid4(), source="core", source_id="c", title="No DOI"))  # doi=None, skipped
+    session.commit()
+    fetcher = FakeFetcher(payloads={"10.1/a": RawCitationsPayload(cited_source_ids=["10.1/b"])})
+
+    summary = run_all(session, fetcher, source="crossref", save=True)
+
+    assert sorted(fetcher.calls) == ["10.1/a", "10.1/b"]
+    assert summary.papers_seen == 2
+    assert session.query(PaperCitation).filter_by(source="crossref").count() == 1
+
+
+def test_run_all_idempotency_is_scoped_per_source(session) -> None:
+    """A paper with an existing semantic_scholar edge must still be
+    processed by a crossref --all run, and vice versa - each source tracks
+    its own coverage independently."""
+    a = _add_doi_paper(session, "10.1/a", source="arxiv")
+    b = _add_doi_paper(session, "10.1/b", source="arxiv")
+    session.add(PaperCitation(citing_paper_id=a.id, cited_paper_id=b.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+    fetcher = FakeFetcher()
+
+    summary = run_all(session, fetcher, source="crossref", save=True)
+
+    assert sorted(fetcher.calls) == ["10.1/a", "10.1/b"]  # the semantic_scholar edge doesn't block crossref
+    assert summary.papers_seen == 2
