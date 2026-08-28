@@ -29,6 +29,23 @@ export type SearchHit = {
   distance: number;
 };
 
+export type CitationNode = {
+  id: string;
+  type: "center" | "paper";
+  title: string;
+};
+
+export type CitationEdge = {
+  source: string;
+  target: string;
+  direction: "cites" | "cited_by";
+};
+
+export type CitationGraphData = {
+  nodes: CitationNode[];
+  edges: CitationEdge[];
+};
+
 export type PaperPage = {
   items: PaperSummary[];
   total: number;
@@ -86,6 +103,8 @@ export const api = {
   paper: (id: string) => get<PaperSummary>(`/api/papers/${id}`),
 
   similar: (id: string, topK = 8) => get<SearchHit[]>(`/api/papers/${id}/similar`, { top_k: topK }),
+
+  citations: (id: string) => get<CitationGraphData>(`/api/papers/${id}/citations`),
 
   claims: (id: string) => get<ExtractedClaim[]>(`/api/papers/${id}/claims`),
 
