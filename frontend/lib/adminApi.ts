@@ -17,7 +17,8 @@ export type PipelineKey =
   | "ingestion_core"
   | "extraction"
   | "embedding"
-  | "retrieval_eval";
+  | "retrieval_eval"
+  | "citations_fetch";
 
 export type AssessmentStats = {
   total: number;
@@ -69,6 +70,15 @@ export type RetrievalEvalResult = {
   generated_at: string | null;
   k: number | null;
   query_sets: Record<string, RetrievalEvalQuerySet> | null;
+};
+
+export type CitationsFetchResult = {
+  available: boolean;
+  generated_at: string | null;
+  papers_seen: number | null;
+  papers_failed: number | null;
+  edges_created: number | null;
+  edges_already_existed: number | null;
 };
 
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
@@ -128,6 +138,15 @@ export const adminApi = {
     fetch(`${API_BASE}/api/admin/retrieval-eval`, { cache: "no-store" }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<RetrievalEvalResult>;
+    }),
+
+  triggerCitationsFetch: (params: { force?: boolean }) =>
+    post<PipelineTriggerResult>("/api/admin/citations-fetch/run", params),
+
+  citationsFetch: () =>
+    fetch(`${API_BASE}/api/admin/citations-fetch`, { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<CitationsFetchResult>;
     }),
 
   log: (key: PipelineKey, lines = 200) =>
