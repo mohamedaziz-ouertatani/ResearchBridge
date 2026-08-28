@@ -13,7 +13,7 @@
 */
 
 :root {
-  color-scheme: light; /* deliberate single look - the faceplate is pale by design */
+  color-scheme: light; /* the faceplate is pale by default - dark is an opt-in override below */
 
   --ink: #14181d;
   --ink-soft: #4a545f;
@@ -27,12 +27,37 @@
   --near: #006d77; /* cosine distance -> 0 */
   --far: #a9b6bc; /* cosine distance -> 1 */
   --live: #b45309; /* reserved for active/typing state only */
+  --cite-link: #3a5f8f;
 
   /* type-* rather than font-*: see the note in layout.tsx about Tailwind's
      built-in --font-sans/serif/mono theme keys shadowing same-named vars. */
   --type-display: var(--ff-grotesk), ui-sans-serif, system-ui, sans-serif;
   --type-text: var(--ff-serif), Georgia, serif;
   --type-mono: var(--ff-mono), ui-monospace, "SF Mono", monospace;
+}
+
+/* Dark faceplate: the same instrument, lit from the readout side instead of
+   the housing. Set by ThemeToggle via a data-theme attribute on <html> and
+   persisted to localStorage - not prefers-color-scheme, so the pale look
+   stays the default for anyone who hasn't chosen otherwise. Same --near/--far
+   hues as light mode, re-tuned for contrast on a dark field, so the teal
+   ramp still reads as the same cosine-distance signal in both themes. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink: #e8eaed;
+  --ink-soft: #a7afba;
+  --ink-faint: #78838f;
+
+  --field: #16191d; /* instrument housing */
+  --panel: #1e2226;
+  --rule: #383e45;
+  --rule-soft: #2a2f35;
+
+  --near: #2dd4c8; /* cosine distance -> 0 */
+  --far: #4c5860; /* cosine distance -> 1 */
+  --live: #d97a2a; /* reserved for active/typing state only */
+  --cite-link: #7ea6da;
 }
 
 @theme inline {
@@ -46,6 +71,7 @@
   --color-near: var(--near);
   --color-far: var(--far);
   --color-live: var(--live);
+  --color-cite-link: var(--cite-link);
   --font-display: var(--type-display);
   --font-text: var(--type-text);
   --font-readout: var(--type-mono);
@@ -329,7 +355,7 @@ body {
    elsewhere in the app, and reusing it here would make citation links read
    as a semantic distance signal they aren't. */
 .nougat-mmd a {
-  color: #3a5f8f;
+  color: var(--cite-link);
   text-decoration: none;
 }
 

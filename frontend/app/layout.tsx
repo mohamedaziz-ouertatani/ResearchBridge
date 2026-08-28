@@ -4,6 +4,14 @@ import "./globals.css";
 import { NotificationBell } from "@/components/NotificationBell";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PageTransition } from "@/components/PageTransition";
+import { ThemeToggle } from "@/components/ThemeToggle";
+
+// Runs before paint so a stored dark-mode choice applies immediately instead
+// of flashing the light default first. Inline (not a module) because it must
+// execute synchronously, ahead of hydration; wrapped in try/catch since
+// localStorage can throw in private-mode/quota-exceeded browsers, in which
+// case the pale default is exactly the right fallback.
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("rb-theme");if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`;
 
 /*
   Three faces, each tied to a kind of content:
@@ -45,10 +53,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // :root, and a custom property resolves var() where it is declared - so
     // --ff-* has to exist at that same level or the declaration is invalid.
     <html lang="en" className={`${grotesk.variable} ${serif.variable} ${mono.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <PageTransition>{children}</PageTransition>
         <NotificationBell />
         <CommandPalette />
+        <ThemeToggle />
       </body>
     </html>
   );
