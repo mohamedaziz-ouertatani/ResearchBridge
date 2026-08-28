@@ -413,6 +413,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "ingestion_arxiv": False,
         "ingestion_springer": False,
         "ingestion_semantic_scholar": False,
+        "ingestion_core": False,
         "extraction": False,
         "embedding": False,
     }
@@ -495,6 +496,28 @@ def test_trigger_semantic_scholar_ingestion_passes_overrides_as_flags(client, mo
             "ingestion_semantic_scholar",
             "researchbridge.ingestion.cli_semantic_scholar",
             ["--query", '"deep learning"', "--max-pages", "4"],
+        )
+    ]
+
+
+def test_trigger_core_ingestion_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post(
+        "/api/admin/ingestion/core/run",
+        json={"query": "deep learning", "page_size": 50, "max_pages": 4},
+    )
+
+    assert calls == [
+        (
+            "ingestion_core",
+            "researchbridge.ingestion.cli_core",
+            ["--query", "deep learning", "--page-size", "50", "--max-pages", "4"],
         )
     ]
 
@@ -582,6 +605,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "ingestion_arxiv": False,
         "ingestion_springer": False,
         "ingestion_semantic_scholar": False,
+        "ingestion_core": False,
         "extraction": True,
         "embedding": False,
     }

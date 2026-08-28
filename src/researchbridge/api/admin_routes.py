@@ -22,6 +22,7 @@ from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_runn
 from researchbridge.api.schemas import (
     ArxivIngestionTrigger,
     AssessmentStats,
+    CoreIngestionTrigger,
     EmbeddingTrigger,
     ExtractionTrigger,
     Notification,
@@ -49,7 +50,14 @@ from researchbridge.db.models import (
 router = APIRouter(prefix="/api/admin")
 
 RECENT_RUNS_LIMIT = 10
-PIPELINE_KEYS = ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar", "extraction", "embedding")
+PIPELINE_KEYS = (
+    "ingestion_arxiv",
+    "ingestion_springer",
+    "ingestion_semantic_scholar",
+    "ingestion_core",
+    "extraction",
+    "embedding",
+)
 
 NOTIFICATION_RUNS_PER_TYPE = 15
 NOTIFICATION_LIMIT = 30
@@ -62,6 +70,7 @@ RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
     "ingestion_arxiv": (IngestionRun, "arxiv"),
     "ingestion_springer": (IngestionRun, "springer"),
     "ingestion_semantic_scholar": (IngestionRun, "semantic_scholar"),
+    "ingestion_core": (IngestionRun, "core"),
     "extraction": (ExtractionRun, None),
     "embedding": (EmbeddingRun, None),
 }
@@ -364,6 +373,18 @@ def trigger_semantic_scholar_ingestion(payload: SemanticScholarIngestionTrigger)
     return _trigger_or_409(
         "ingestion_semantic_scholar", "researchbridge.ingestion.cli_semantic_scholar", args
     )
+
+
+@router.post("/ingestion/core/run", response_model=PipelineTriggerOut)
+def trigger_core_ingestion(payload: CoreIngestionTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.query is not None:
+        args += ["--query", payload.query]
+    if payload.page_size is not None:
+        args += ["--page-size", str(payload.page_size)]
+    if payload.max_pages is not None:
+        args += ["--max-pages", str(payload.max_pages)]
+    return _trigger_or_409("ingestion_core", "researchbridge.ingestion.cli_core", args)
 
 
 @router.post("/extraction/run", response_model=PipelineTriggerOut)

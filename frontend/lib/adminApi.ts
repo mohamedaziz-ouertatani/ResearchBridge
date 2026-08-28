@@ -14,6 +14,7 @@ export type PipelineKey =
   | "ingestion_arxiv"
   | "ingestion_springer"
   | "ingestion_semantic_scholar"
+  | "ingestion_core"
   | "extraction"
   | "embedding";
 
@@ -88,6 +89,9 @@ export const adminApi = {
 
   triggerSemanticScholarIngestion: (params: { query?: string; max_pages?: number }) =>
     post<PipelineTriggerResult>("/api/admin/ingestion/semantic-scholar/run", params),
+
+  triggerCoreIngestion: (params: { query?: string; page_size?: number; max_pages?: number }) =>
+    post<PipelineTriggerResult>("/api/admin/ingestion/core/run", params),
 
   triggerExtraction: (params: { limit?: number; extractor?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/extraction/run", params),

@@ -14,24 +14,25 @@ import { SkeletonStats } from "@/components/Skeleton";
   direct SQL; this page shows run history AND lets an operator start a new
   run of any of the five pipelines (three ingestion sources, extraction,
   embedding) as a background subprocess of the same CLI commands
-  (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/rb-extract/
-  rb-embed) - a button, not a new execution engine. Gap detection stays a
-  deliberate CLI-only step (see gaps_routes.py) - not triggerable here, by
-  design.
+  (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/rb-ingest-core/
+  rb-extract/rb-embed) - a button, not a new execution engine. Gap detection
+  stays a deliberate CLI-only step (see gaps_routes.py) - not triggerable
+  here, by design.
 
-  One pipeline is shown at a time via tabs rather than all five stacked or
+  One pipeline is shown at a time via tabs rather than all six stacked or
   gridded at once - each tab still carries a "running" dot even when not
   selected, so switching away from a running pipeline doesn't hide that
   it's still going.
 */
 
-type PipelineTab = "arxiv" | "springer" | "semantic_scholar" | "extraction" | "embedding";
+type PipelineTab = "arxiv" | "springer" | "semantic_scholar" | "core" | "extraction" | "embedding";
 type Tab = PipelineTab | "stats";
 
 const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   arxiv: "arXiv",
   springer: "Springer Nature",
   semantic_scholar: "Semantic Scholar",
+  core: "CORE",
   extraction: "extraction",
   embedding: "embedding",
 };
@@ -67,6 +68,14 @@ const SEMANTIC_SCHOLAR_QUERY_OPTIONS = [
   { label: "Computer Vision", value: '"computer vision"' },
   { label: "Systems", value: '"distributed systems" | "computer systems"' },
   { label: "Artificial Intelligence", value: '"artificial intelligence"' },
+];
+
+const CORE_QUERY_OPTIONS = [
+  { label: "Machine Learning", value: "machine learning" },
+  { label: "NLP", value: "natural language processing" },
+  { label: "Computer Vision", value: "computer vision" },
+  { label: "Systems", value: "distributed systems OR computer systems" },
+  { label: "Artificial Intelligence", value: "artificial intelligence" },
 ];
 
 // Mirrors extraction/cli.py's EXTRACTOR_NAMES - kept as a literal list here
@@ -123,7 +132,7 @@ export default function AdminPipeline() {
         </p>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
           The corpus is built by a chain of stages: ingestion pulls raw papers in from an external
-          source (arXiv, Springer Nature, or Semantic Scholar), extraction pulls structured claims
+          source (arXiv, Springer Nature, Semantic Scholar, or CORE), extraction pulls structured claims
           and evidence out of each paper&apos;s text, and embedding turns that text into the
           vectors search and gap detection rely on. Each tab below runs and monitors one stage; a
           paper generally needs to pass through all three before it&apos;s fully usable elsewhere
@@ -257,6 +266,28 @@ export default function AdminPipeline() {
                     { name: "max_pages", label: "max pages", type: "number" },
                   ]}
                   onRun={(values) => adminApi.triggerSemanticScholarIngestion(values)}
+                  onStarted={reload}
+                />
+              )}
+
+              {tab === "core" && (
+                <RunSection
+                  title="CORE ingestion"
+                  pipelineKey="ingestion_core"
+                  runs={status.ingestion_runs.filter((run) => run.source === "core")}
+                  running={status.running.ingestion_core}
+                  fields={[
+                    {
+                      name: "query",
+                      label: "query",
+                      type: "select",
+                      options: CORE_QUERY_OPTIONS,
+                      placeholder: "machine learning OR artificial intelligence",
+                    },
+                    { name: "page_size", label: "page size", type: "number" },
+                    { name: "max_pages", label: "max pages", type: "number" },
+                  ]}
+                  onRun={(values) => adminApi.triggerCoreIngestion(values)}
                   onStarted={reload}
                 />
               )}

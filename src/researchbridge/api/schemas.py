@@ -313,8 +313,9 @@ class PipelineStatus(BaseModel):
     embedding_runs: list[PipelineRunOut]
     running: dict[str, bool]
     """Whether an admin-triggered subprocess is currently alive per pipeline
-    key ("ingestion_arxiv", "ingestion_springer", "extraction", "embedding") -
-    see pipeline_triggers.py. Independent of the *_runs history above: a run
+    key ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar",
+    "ingestion_core", "extraction", "embedding") - see pipeline_triggers.py.
+    Independent of the *_runs history above: a run
     row can say "running" from a crashed/killed process, this reflects only
     what this server process itself is still tracking."""
 
@@ -351,6 +352,12 @@ class SpringerIngestionTrigger(BaseModel):
 
 class SemanticScholarIngestionTrigger(BaseModel):
     query: str | None = None
+    max_pages: int | None = None
+
+
+class CoreIngestionTrigger(BaseModel):
+    query: str | None = None
+    page_size: int | None = None
     max_pages: int | None = None
 
 

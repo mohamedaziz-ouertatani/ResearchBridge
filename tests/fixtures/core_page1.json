@@ -1,0 +1,42 @@
+{
+  "totalHits": 3,
+  "limit": 2,
+  "offset": 0,
+  "results": [
+    {
+      "id": 123456789,
+      "doi": "10.1234/mlstudy-2026",
+      "title": "A Study of Machine Learning Techniques",
+      "abstract": "This paper studies machine learning techniques for classification.",
+      "authors": [
+        {"name": "Alice Example"},
+        {"name": "Bob Sample"}
+      ],
+      "yearPublished": 2026,
+      "publishedDate": "2026-01-15T00:00:00",
+      "language": {"code": "en", "name": "English"},
+      "downloadUrl": "https://core.ac.uk/download/123456789.pdf",
+      "sourceFulltextUrls": ["https://example.org/mlstudy-2026.pdf"],
+      "publisher": "Example University Press",
+      "documentType": "research",
+      "subjects": ["Computer Science", "Artificial Intelligence"]
+    },
+    {
+      "id": 987654321,
+      "doi": null,
+      "title": "Second Paper on Deep Learning",
+      "abstract": "A chapter about deep learning architectures.",
+      "authors": [
+        {"name": "Carol Person"}
+      ],
+      "yearPublished": 2025,
+      "publishedDate": null,
+      "language": {"code": "en", "name": "English"},
+      "downloadUrl": null,
+      "sourceFulltextUrls": ["https://example.org/dl-chapter.pdf"],
+      "publisher": "Example Publisher",
+      "documentType": "thesis",
+      "subjects": ["Computer Science"]
+    }
+  ]
+}

@@ -119,6 +119,7 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             title="Semantic Scholar"
             runs={status.ingestion_runs.filter((r) => r.source === "semantic_scholar")}
           />
+          <IngestionVolume title="CORE" runs={status.ingestion_runs.filter((r) => r.source === "core")} />
         </div>
       </StatGroup>
 

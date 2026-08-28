@@ -1,0 +1,24 @@
+{
+  "totalHits": 3,
+  "limit": 2,
+  "offset": 2,
+  "results": [
+    {
+      "id": 111222333,
+      "doi": "10.1234/thirdpaper-2026",
+      "title": "Third Paper on Systems",
+      "abstract": "A paper about distributed systems.",
+      "authors": [
+        {"name": "Dana Researcher"}
+      ],
+      "yearPublished": 2026,
+      "publishedDate": "2026-03-01T00:00:00",
+      "language": {"code": "en", "name": "English"},
+      "downloadUrl": "https://core.ac.uk/download/111222333.pdf",
+      "sourceFulltextUrls": [],
+      "publisher": "Example University Press",
+      "documentType": "research",
+      "subjects": ["Computer Science", "Distributed Systems"]
+    }
+  ]
+}
