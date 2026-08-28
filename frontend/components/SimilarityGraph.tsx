@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { ComponentType } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { assessmentApi, type GraphData, type GraphNode } from "@/lib/assessmentApi";
@@ -239,7 +240,12 @@ export function SimilarityGraph({ assessmentId }: { assessmentId: string }) {
 
           {selected && (
             <aside className="w-full shrink-0 border border-[var(--rule)] bg-[var(--panel)] p-4 sm:w-64">
-              <p className="text-[0.9375rem] leading-[1.5]">{selected.title}</p>
+              <Link
+                href={`/papers/${selected.id}`}
+                className="text-[0.9375rem] leading-[1.5] underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+              >
+                {selected.title}
+              </Link>
               <p className="eyebrow mt-3">
                 distance to input: {selected.distance_to_input?.toFixed(3) ?? "—"}
               </p>
