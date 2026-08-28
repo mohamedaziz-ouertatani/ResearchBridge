@@ -63,6 +63,12 @@ export type CorpusStats = {
   papers_by_source: Record<string, number>;
 };
 
+export type TrendsData = {
+  category: string;
+  years: number[];
+  series: Record<string, number[]>;
+};
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -88,6 +94,8 @@ async function get<T>(path: string, params?: Record<string, string | number | bo
 
 export const api = {
   stats: (params?: { year?: number }) => get<CorpusStats>("/api/stats", params),
+
+  trends: (category: string) => get<TrendsData>("/api/trends", { category }),
 
   papers: (params: {
     limit?: number;

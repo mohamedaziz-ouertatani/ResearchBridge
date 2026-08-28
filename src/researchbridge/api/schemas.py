@@ -296,6 +296,15 @@ class CorpusStats(BaseModel):
     papers_by_source: dict[str, int]
 
 
+class TrendsOut(BaseModel):
+    category: str
+    years: list[int]
+    series: dict[str, list[int]]
+    """claim_type -> counts, each list the same length as `years` and aligned
+    to it by index. Only claim_types with at least one non-stub claim in this
+    category appear as keys."""
+
+
 class PipelineRunOut(BaseModel):
     id: uuid.UUID
     status: str
