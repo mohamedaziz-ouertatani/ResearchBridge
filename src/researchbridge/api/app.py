@@ -18,7 +18,12 @@ from researchbridge.api.qa_routes import router as qa_router
 from researchbridge.api.routes import router
 from researchbridge.config import load_config
 
-DEV_FRONTEND_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+DEV_FRONTEND_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
 
 
 def create_app() -> FastAPI:
