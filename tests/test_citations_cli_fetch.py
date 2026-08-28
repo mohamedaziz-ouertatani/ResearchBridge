@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from researchbridge.citations.batch import BatchSummary
-from researchbridge.citations.cli_fetch import _build_summary_json, write_summary_json
+from researchbridge.citations.cli_fetch import SUMMARY_PATH_BY_SOURCE, _build_summary_json, summary_path_for, write_summary_json
 
 
 def test_build_summary_json_shapes_batch_summary() -> None:
@@ -28,3 +28,11 @@ def test_write_summary_json_creates_parent_dir_and_writes_valid_json(tmp_path) -
     written = json.loads(output_path.read_text())
     assert written["papers_seen"] == 3
     assert written["edges_created"] == 1
+
+
+def test_summary_path_for_gives_each_source_its_own_file() -> None:
+    """Semantic Scholar and CrossRef must not clobber each other's last-run
+    summary - they're independent sources with independent coverage."""
+    assert summary_path_for("semantic_scholar") != summary_path_for("crossref")
+    assert summary_path_for("semantic_scholar") == SUMMARY_PATH_BY_SOURCE["semantic_scholar"]
+    assert summary_path_for("crossref") == SUMMARY_PATH_BY_SOURCE["crossref"]

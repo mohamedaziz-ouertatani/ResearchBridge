@@ -26,7 +26,17 @@ from researchbridge.config import load_config
 from researchbridge.db.models import Paper
 from researchbridge.db.session import make_engine, make_session_factory
 
-DEFAULT_SUMMARY_PATH = Path("benchmark/citations_fetch_summary.json")
+SUMMARY_PATH_BY_SOURCE: dict[str, Path] = {
+    "semantic_scholar": Path("benchmark/citations_fetch_summary_semantic_scholar.json"),
+    "crossref": Path("benchmark/citations_fetch_summary_crossref.json"),
+}
+
+
+def summary_path_for(source: str) -> Path:
+    """Each source gets its own persisted summary file - a Semantic Scholar
+    run and a CrossRef run must not clobber each other's last-run stats,
+    since they're independent passes with independent coverage."""
+    return SUMMARY_PATH_BY_SOURCE[source]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -119,8 +129,9 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
     print(f"Edges created:          {summary.edges_created}")
     print(f"Edges already existed:  {summary.edges_already_existed}")
 
-    write_summary_json(DEFAULT_SUMMARY_PATH, summary)
-    print(f"\nWrote summary to {DEFAULT_SUMMARY_PATH}")
+    summary_path = summary_path_for(args.source)
+    write_summary_json(summary_path, summary)
+    print(f"\nWrote summary to {summary_path}")
 
 
 def _build_summary_json(summary: BatchSummary) -> dict[str, Any]:
