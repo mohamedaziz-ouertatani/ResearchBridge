@@ -29,6 +29,7 @@ const PRIMARY = [
 
 const INFRASTRUCTURE = [
   { href: "/corpus", label: "corpus" },
+  { href: "/trends", label: "trends" },
   { href: "/gaps", label: "gap review" },
   { href: "/annotate", label: "annotation workbench" },
   { href: "/admin", label: "pipeline status" },
