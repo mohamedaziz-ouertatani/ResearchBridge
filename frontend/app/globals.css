@@ -92,6 +92,20 @@ body {
   outline-offset: 2px;
 }
 
+/* --- scrollable-but-scrollbar-hidden: wide charts (trends) scroll via drag/
+   trackpad/arrow keys without a visible track cluttering the page --- */
+
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent; /* Chrome/Safari - some Chromium builds ignore display:none on scrollbars */
+}
+
 /* --- the corpus strip: real year distribution, doubles as a filter --- */
 
 .tickstrip {
