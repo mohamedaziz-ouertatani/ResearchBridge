@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { adminApi, type PipelineKey, type PipelineRun, type PipelineStatus } from "@/lib/adminApi";
+import {
+  adminApi,
+  type PipelineKey,
+  type PipelineRun,
+  type PipelineStatus,
+  type RetrievalEvalResult,
+} from "@/lib/adminApi";
 import { AdminStats } from "@/components/AdminStats";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
@@ -12,20 +18,25 @@ import { SkeletonStats } from "@/components/Skeleton";
   Pipeline status + triggers. IngestionRun/ExtractionRun/EmbeddingRun existed
   since the earliest migrations but were never exposed anywhere outside
   direct SQL; this page shows run history AND lets an operator start a new
-  run of any of the five pipelines (three ingestion sources, extraction,
-  embedding) as a background subprocess of the same CLI commands
+  run of most pipelines (four ingestion sources, extraction, embedding,
+  retrieval evaluation) as a background subprocess of the same CLI commands
   (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/rb-ingest-core/
-  rb-extract/rb-embed) - a button, not a new execution engine. Gap detection
-  stays a deliberate CLI-only step (see gaps_routes.py) - not triggerable
-  here, by design.
+  rb-extract/rb-embed/rb-retrieval-evaluate) - a button, not a new execution
+  engine. Gap detection stays a deliberate CLI-only step (see
+  gaps_routes.py) - not triggerable here, by design.
 
-  One pipeline is shown at a time via tabs rather than all six stacked or
-  gridded at once - each tab still carries a "running" dot even when not
+  Retrieval evaluation has no *_runs history table (it's a one-off
+  diagnostic, not a repeating pipeline stage - see RetrievalEvalOut's
+  docstring), so its tab shows only the live run controls plus the last
+  persisted result, not a run history list.
+
+  One pipeline is shown at a time via tabs rather than all of them stacked
+  or gridded at once - each tab still carries a "running" dot even when not
   selected, so switching away from a running pipeline doesn't hide that
   it's still going.
 */
 
-type PipelineTab = "arxiv" | "springer" | "semantic_scholar" | "core" | "extraction" | "embedding";
+type PipelineTab = "arxiv" | "springer" | "semantic_scholar" | "core" | "extraction" | "embedding" | "retrieval_eval";
 type Tab = PipelineTab | "stats";
 
 const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
@@ -35,10 +46,13 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   core: "CORE",
   extraction: "extraction",
   embedding: "embedding",
+  retrieval_eval: "retrieval eval",
 };
 
+const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", "core"];
+
 function runningKeyForTab(tab: PipelineTab): PipelineKey {
-  return tab === "extraction" || tab === "embedding" ? tab : (`ingestion_${tab}` as PipelineKey);
+  return INGESTION_TABS.includes(tab) ? (`ingestion_${tab}` as PipelineKey) : (tab as PipelineKey);
 }
 
 // Preset topics per source, matching the stratification buckets used
@@ -90,6 +104,7 @@ const EXTRACTOR_OPTIONS = [
 
 export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
+  const [retrievalEval, setRetrievalEval] = useState<RetrievalEvalResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("stats");
 
@@ -101,6 +116,7 @@ export default function AdminPipeline() {
         setError(null);
       })
       .catch(() => setError("Can't reach the API. Is it running on port 8000?"));
+    adminApi.retrievalEval().then(setRetrievalEval).catch(() => {});
   }
 
   // Auto-refresh so run history, "running now" dots, and the stats tab stay
@@ -327,6 +343,21 @@ export default function AdminPipeline() {
                   forceLabel="force re-embed"
                   forceWarning="This deletes every existing embedding for the current model, then re-embeds the whole corpus from scratch. This cannot be undone."
                 />
+              )}
+
+              {tab === "retrieval_eval" && (
+                <>
+                  <RunSection
+                    title="retrieval evaluation"
+                    pipelineKey="retrieval_eval"
+                    runs={[]}
+                    running={status.running.retrieval_eval}
+                    fields={[{ name: "k", label: "k", type: "number", placeholder: "10" }]}
+                    onRun={(values) => adminApi.triggerRetrievalEval(values)}
+                    onStarted={reload}
+                  />
+                  <RetrievalEvalResults result={retrievalEval} />
+                </>
               )}
 
               {tab === "stats" && <AdminStats status={status} />}
@@ -644,5 +675,62 @@ function RunSection({
         </ul>
       )}
     </section>
+  );
+}
+
+/** The last rb-retrieval-evaluate run's persisted metrics - never computed
+    live here, just read (see adminApi.retrievalEval). One table per query
+    set (self/topical), one row per baseline (tfidf/bm25/embedding/hybrid). */
+function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }) {
+  if (!result) return null;
+
+  if (!result.available) {
+    return (
+      <p className="mt-8 text-[0.9375rem] text-[var(--ink-soft)]">
+        Never run yet - click run to evaluate retrieval quality against the benchmark.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-8">
+      <p className="text-[0.8125rem] text-[var(--ink-faint)]">
+        Last run {result.generated_at ? new Date(result.generated_at).toLocaleString() : "—"}, k={result.k}
+      </p>
+      {Object.entries(result.query_sets ?? {}).map(([name, querySet]) => (
+        <div key={name}>
+          <span className="eyebrow">
+            {name} query set — {querySet.queries} quer{querySet.queries === 1 ? "y" : "ies"}
+            {querySet.skipped > 0 ? `, ${querySet.skipped} skipped` : ""}
+          </span>
+          {querySet.results.length === 0 ? (
+            <p className="mt-2 text-[0.8125rem] text-[var(--ink-faint)]">No usable queries for this set.</p>
+          ) : (
+            <table className="mt-3 w-full text-[0.8125rem]">
+              <thead>
+                <tr className="border-b border-[var(--rule)] text-left text-[var(--ink-faint)]">
+                  <th className="py-1 pr-4 font-normal">method</th>
+                  <th className="py-1 pr-4 font-normal">P@{result.k}</th>
+                  <th className="py-1 pr-4 font-normal">R@{result.k}</th>
+                  <th className="py-1 pr-4 font-normal">nDCG@{result.k}</th>
+                  <th className="py-1 font-normal">MRR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {querySet.results.map((row) => (
+                  <tr key={row.method} className="border-b border-[var(--rule-soft)]">
+                    <td className="py-1.5 pr-4 readout">{row.method}</td>
+                    <td className="py-1.5 pr-4 tabular-nums">{row.precision.toFixed(3)}</td>
+                    <td className="py-1.5 pr-4 tabular-nums">{row.recall.toFixed(3)}</td>
+                    <td className="py-1.5 pr-4 tabular-nums">{row.ndcg.toFixed(3)}</td>
+                    <td className="py-1.5 tabular-nums">{row.mrr.toFixed(3)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
