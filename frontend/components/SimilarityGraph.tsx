@@ -48,7 +48,7 @@ function loadForceGraph2D() {
 // node/link shape this component actually passes in - no behavior change.
 type ForceGraphInstance = {
   d3Force: (name: "link" | "charge" | "center" | string) =>
-    | { strength?: (v: number) => unknown; distance?: (v: number) => unknown }
+    | { strength?: (v: number) => unknown; distance?: (v: number | ((link: GraphLink) => number)) => unknown }
     | undefined;
 };
 
@@ -76,12 +76,19 @@ const ForceGraph2D = dynamic(loadForceGraph2D, {
 // right when the underlying force-graph instance mounts - same reasoning as
 // measuredContainerRef below.
 const CHARGE_STRENGTH = -200;
-const LINK_DISTANCE = 120;
+
+// Link length encodes the edge's real cosine distance, not a uniform
+// constant - a paper barely related to the input should visibly sit farther
+// out than a near-duplicate. MIN_LINK_DISTANCE keeps distance-0 edges from
+// collapsing nodes on top of each other; the scale spreads the practical
+// 0-1 distance range out to a readable radius.
+const MIN_LINK_DISTANCE = 40;
+const LINK_DISTANCE_SCALE = 300;
 
 function configureForces(instance: ForceGraphInstance | null) {
   if (!instance) return;
   instance.d3Force("charge")?.strength?.(CHARGE_STRENGTH);
-  instance.d3Force("link")?.distance?.(LINK_DISTANCE);
+  instance.d3Force("link")?.distance?.((link) => MIN_LINK_DISTANCE + link.distance * LINK_DISTANCE_SCALE);
 }
 
 /** Same "teal near, washed-out far" convention as ProximityGauge - this ramp
