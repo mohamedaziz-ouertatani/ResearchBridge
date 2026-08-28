@@ -2,31 +2,45 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { assessmentApi, type AssessmentSummary, type ReviewFilter } from "@/lib/assessmentApi";
+import {
+  assessmentApi,
+  type AssessmentSort,
+  type AssessmentSummary,
+  type CategoricalLevel,
+  type ReviewFilter,
+} from "@/lib/assessmentApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
 
 const FILTERS: ReviewFilter[] = ["needs_review", "reviewed", "all"];
+const LEVEL_OPTIONS: CategoricalLevel[] = ["high", "medium", "low", "not_assessed"];
+
+const SELECT_CLASS =
+  "eyebrow rounded-[2px] border border-[var(--rule)] bg-transparent px-2 py-1 text-[0.6875rem] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] focus:border-[var(--ink)] focus:outline-none";
 
 export default function AssessmentDashboard() {
   const [review, setReview] = useState<ReviewFilter>("needs_review");
+  const [sort, setSort] = useState<AssessmentSort>("newest");
+  const [novelty, setNovelty] = useState<CategoricalLevel | "">("");
+  const [feasibility, setFeasibility] = useState<CategoricalLevel | "">("");
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Resetting loading/error before a fetch keyed on `review` is intentional -
-    // not the accidental-derived-state case this rule otherwise targets.
+    // Resetting loading/error before a fetch keyed on the filters below is
+    // intentional - not the accidental-derived-state case this rule
+    // otherwise targets.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     assessmentApi
-      .list(review)
+      .list(review, { sort, novelty: novelty || undefined, feasibility: feasibility || undefined })
       .then((page) => setAssessments(page.items))
       .catch(() => setError("Couldn't load assessments."))
       .finally(() => setLoading(false));
-  }, [review]);
+  }, [review, sort, novelty, feasibility]);
 
   return (
     <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
@@ -63,6 +77,54 @@ export default function AssessmentDashboard() {
               {f.replace("_", " ")}
             </button>
           ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2">
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">sort</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as AssessmentSort)}
+              className={SELECT_CLASS}
+            >
+              <option value="newest">newest</option>
+              <option value="priority">priority</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">novelty</span>
+            <select
+              value={novelty}
+              onChange={(e) => setNovelty(e.target.value as CategoricalLevel | "")}
+              className={SELECT_CLASS}
+            >
+              <option value="">any</option>
+              {LEVEL_OPTIONS.map((level) => (
+                <option key={level} value={level}>
+                  {level.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">feasibility</span>
+            <select
+              value={feasibility}
+              onChange={(e) => setFeasibility(e.target.value as CategoricalLevel | "")}
+              className={SELECT_CLASS}
+            >
+              <option value="">any</option>
+              {LEVEL_OPTIONS.map((level) => (
+                <option key={level} value={level}>
+                  {level.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <InfoTooltip text={'"Priority" sorts by the recommendation the pipeline already computed (HIGH → MEDIUM → LOW → REQUIRES HUMAN REVIEW → INSUFFICIENT EVIDENCE), not a new invented score. Novelty/feasibility filters narrow the list to assessments at that categorical level.'} />
         </div>
 
         {loading && <SkeletonRows count={5} />}
@@ -134,6 +196,9 @@ function AssessmentRow({
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[0.8125rem] text-[var(--ink-soft)]">
           <span>{assessment.recommendation ?? "Not assessed"}</span>
           <span className="readout text-[var(--ink-faint)]">novelty: {assessment.novelty_level.replace("_", " ")}</span>
+          <span className="readout text-[var(--ink-faint)]">
+            feasibility: {assessment.technical_feasibility_level.replace("_", " ")}
+          </span>
           {assessment.confidence && (
             <span className="readout text-[var(--ink-faint)]">confidence: {assessment.confidence}</span>
           )}

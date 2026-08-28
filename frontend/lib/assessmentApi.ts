@@ -69,6 +69,7 @@ export type AssessmentSummary = {
   created_at: string;
   status: string;
   novelty_level: string;
+  technical_feasibility_level: string;
   recommendation: string | null;
   confidence: string | null;
   human_reviewed: boolean;
@@ -104,6 +105,8 @@ export type GraphData = {
 };
 
 export type ReviewFilter = "all" | "reviewed" | "needs_review";
+export type AssessmentSort = "newest" | "priority";
+export type CategoricalLevel = "high" | "medium" | "low" | "not_assessed";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
@@ -156,6 +159,14 @@ export const assessmentApi = {
 
   graph: (id: string) => request<GraphData>(`/api/assessments/${id}/graph`),
 
-  list: (review: ReviewFilter = "all") =>
-    request<AssessmentSummaryPage>(`/api/assessments?review=${review}&limit=50`),
+  list: (
+    review: ReviewFilter = "all",
+    options?: { sort?: AssessmentSort; novelty?: CategoricalLevel; feasibility?: CategoricalLevel },
+  ) => {
+    const params = new URLSearchParams({ review, limit: "50" });
+    if (options?.sort) params.set("sort", options.sort);
+    if (options?.novelty) params.set("novelty", options.novelty);
+    if (options?.feasibility) params.set("feasibility", options.feasibility);
+    return request<AssessmentSummaryPage>(`/api/assessments?${params.toString()}`);
+  },
 };
