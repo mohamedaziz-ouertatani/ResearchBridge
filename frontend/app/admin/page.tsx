@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   adminApi,
+  type CitationSourceSummary,
   type CitationsFetchResult,
   type PipelineKey,
   type PipelineRun,
@@ -111,6 +112,11 @@ const EXTRACTOR_OPTIONS = [
   { label: "semantic", value: "semantic" },
   { label: "heuristic", value: "heuristic" },
   { label: "stub (synthetic test data only)", value: "stub" },
+];
+
+const CITATION_SOURCE_OPTIONS = [
+  { label: "Semantic Scholar (default)", value: "semantic_scholar" },
+  { label: "CrossRef", value: "crossref" },
 ];
 
 export default function AdminPipeline() {
@@ -380,11 +386,19 @@ export default function AdminPipeline() {
                     pipelineKey="citations_fetch"
                     runs={[]}
                     running={status.running.citations_fetch}
-                    fields={[]}
+                    fields={[
+                      {
+                        name: "source",
+                        label: "source",
+                        type: "select",
+                        options: CITATION_SOURCE_OPTIONS,
+                        placeholder: "semantic_scholar",
+                      },
+                    ]}
                     onRun={(values) => adminApi.triggerCitationsFetch(values)}
                     onStarted={reload}
                     forceLabel="force refetch"
-                    forceWarning="This reprocesses every Semantic Scholar paper, including ones that already have citation edges, instead of only papers without any yet. It won't delete existing edges, but re-fetches from Semantic Scholar for the whole corpus again, which takes a long time and uses many more API calls."
+                    forceWarning="This reprocesses every paper eligible for the selected source, including ones that already have citation edges from it, instead of only papers without any yet. It won't delete existing edges, but re-fetches for the whole corpus again, which takes a long time and uses many more API calls."
                   />
                   <CitationsFetchResults result={citationsFetch} />
                 </>
@@ -765,31 +779,40 @@ function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }
   );
 }
 
-/** The last rb-citations-fetch --all run's persisted summary - never
-    triggers a fetch here, just reads (see adminApi.citationsFetch). */
+/** Each source's last rb-citations-fetch --all run's persisted summary -
+    never triggers a fetch here, just reads (see adminApi.citationsFetch).
+    Shown side by side since Semantic Scholar and CrossRef are independent
+    passes with independent coverage over the same corpus. */
 function CitationsFetchResults({ result }: { result: CitationsFetchResult | null }) {
   if (!result) return null;
 
-  if (!result.available) {
-    return (
-      <p className="mt-8 text-[0.9375rem] text-[var(--ink-soft)]">
-        Never run yet - click run to fetch citation edges from Semantic Scholar for every paper in
-        the corpus.
-      </p>
-    );
-  }
-
   return (
-    <div className="mt-8 space-y-3">
-      <p className="text-[0.8125rem] text-[var(--ink-faint)]">
-        Last run {result.generated_at ? new Date(result.generated_at).toLocaleString() : "—"}
-      </p>
-      <dl className="flex flex-wrap gap-x-10 gap-y-3">
-        <Stat label="papers seen" value={result.papers_seen ?? 0} small />
-        <Stat label="papers failed" value={result.papers_failed ?? 0} small />
-        <Stat label="edges created" value={result.edges_created ?? 0} small />
-        <Stat label="edges already existed" value={result.edges_already_existed ?? 0} small />
-      </dl>
+    <div className="mt-8 flex flex-wrap gap-x-16 gap-y-6">
+      <CitationSourceResult label="Semantic Scholar" summary={result.semantic_scholar} />
+      <CitationSourceResult label="CrossRef" summary={result.crossref} />
+    </div>
+  );
+}
+
+function CitationSourceResult({ label, summary }: { label: string; summary: CitationSourceSummary }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-[0.8125rem] font-medium text-[var(--ink)]">{label}</p>
+      {!summary.available ? (
+        <p className="text-[0.9375rem] text-[var(--ink-soft)]">Never run yet.</p>
+      ) : (
+        <>
+          <p className="text-[0.8125rem] text-[var(--ink-faint)]">
+            Last run {summary.generated_at ? new Date(summary.generated_at).toLocaleString() : "—"}
+          </p>
+          <dl className="flex flex-wrap gap-x-10 gap-y-3">
+            <Stat label="papers seen" value={summary.papers_seen ?? 0} small />
+            <Stat label="papers failed" value={summary.papers_failed ?? 0} small />
+            <Stat label="edges created" value={summary.edges_created ?? 0} small />
+            <Stat label="edges already existed" value={summary.edges_already_existed ?? 0} small />
+          </dl>
+        </>
+      )}
     </div>
   );
 }

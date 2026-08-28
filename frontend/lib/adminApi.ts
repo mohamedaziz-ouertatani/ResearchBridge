@@ -72,13 +72,18 @@ export type RetrievalEvalResult = {
   query_sets: Record<string, RetrievalEvalQuerySet> | null;
 };
 
-export type CitationsFetchResult = {
+export type CitationSourceSummary = {
   available: boolean;
   generated_at: string | null;
   papers_seen: number | null;
   papers_failed: number | null;
   edges_created: number | null;
   edges_already_existed: number | null;
+};
+
+export type CitationsFetchResult = {
+  semantic_scholar: CitationSourceSummary;
+  crossref: CitationSourceSummary;
 };
 
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
@@ -140,7 +145,7 @@ export const adminApi = {
       return response.json() as Promise<RetrievalEvalResult>;
     }),
 
-  triggerCitationsFetch: (params: { force?: boolean }) =>
+  triggerCitationsFetch: (params: { source?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/citations-fetch/run", params),
 
   citationsFetch: () =>
