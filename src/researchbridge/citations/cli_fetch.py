@@ -1,0 +1,96 @@
+"""Fetches citation edges for one Semantic Scholar paper, or every such paper
+with --all. Dry run by default: prints what it would create. --save persists
+PaperCitation rows.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+
+from sqlalchemy import select
+
+from researchbridge.citations.batch import run_all
+from researchbridge.citations.fetch import SemanticScholarCitationFetcher, persist_citation_edges, resolve_citations
+from researchbridge.config import load_config
+from researchbridge.db.models import Paper
+from researchbridge.db.session import make_engine, make_session_factory
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Fetch citation edges from Semantic Scholar.")
+    parser.add_argument("source_id", type=str, nargs="?", default=None, help="Semantic Scholar paperId of the seed paper (omit with --all)")
+    parser.add_argument("--all", action="store_true", help="run over every Semantic Scholar paper without existing outgoing edges")
+    parser.add_argument("--force", action="store_true", help="with --all, reprocess papers that already have outgoing edges")
+    parser.add_argument("--save", action="store_true", help="persist PaperCitation rows (default: dry run)")
+    return parser
+
+
+def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser | None = None) -> None:
+    parser = parser or build_parser()
+    if args.all and args.source_id:
+        parser.error("pass either a source_id or --all, not both")
+    if not args.all and not args.source_id:
+        parser.error("source_id is required unless --all is given")
+    if args.force and not args.all:
+        parser.error("--force only applies with --all")
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.WARNING)
+    load_config()
+
+    parser = build_parser()
+    args = parser.parse_args()
+    validate_args(args, parser)
+
+    session = make_session_factory(make_engine())()
+    try:
+        api_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
+        fetcher = SemanticScholarCitationFetcher(api_key=api_key)
+
+        if args.all:
+            _run_batch(session, fetcher, args)
+        else:
+            _run_single(session, fetcher, args)
+    finally:
+        session.close()
+
+
+def _run_single(session, fetcher, args: argparse.Namespace) -> None:
+    paper = session.execute(
+        select(Paper).where(Paper.source == "semantic_scholar", Paper.source_id == args.source_id)
+    ).scalar_one_or_none()
+    if paper is None:
+        print(f"No Semantic Scholar paper with id {args.source_id} in the corpus.")
+        return
+
+    payload = fetcher.fetch_raw(args.source_id)
+    resolution = resolve_citations(session, paper, payload)
+
+    print(f"Seed: {paper.title}")
+    print(f"Resolved edges: {len(resolution.edges)}")
+    print(f"Unresolved citing (outside corpus): {resolution.unresolved_citing}")
+    print(f"Unresolved cited (outside corpus): {resolution.unresolved_cited}")
+
+    if args.save:
+        created = persist_citation_edges(session, resolution)
+        session.commit()
+        print(f"Saved {created} new citation edge(s).")
+
+
+def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
+    mode = "saving" if args.save else "dry run"
+    print(f"Running citation fetch over every Semantic Scholar paper ({mode})...")
+
+    summary = run_all(session, fetcher, force=args.force, save=args.save)
+
+    print(f"Papers seen:            {summary.papers_seen}")
+    print(f"Papers failed:          {summary.papers_failed}")
+    print(f"Edges created:          {summary.edges_created}")
+    print(f"Edges already existed:  {summary.edges_already_existed}")
+
+
+if __name__ == "__main__":
+    main()

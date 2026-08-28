@@ -10,7 +10,17 @@ from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.db.models import EMBEDDING_DIM, Author, Embedding, Evidence, ExtractedClaim, Paper, PaperAuthor, PaperCategory
+from researchbridge.db.models import (
+    EMBEDDING_DIM,
+    Author,
+    Embedding,
+    Evidence,
+    ExtractedClaim,
+    Paper,
+    PaperAuthor,
+    PaperCategory,
+    PaperCitation,
+)
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
 
@@ -389,6 +399,41 @@ def test_similar_papers_409s_when_paper_has_no_embedding(client, session) -> Non
 
     assert response.status_code == 409
     assert "No embedding" in response.json()["detail"]
+
+
+def test_paper_citations_returns_cites_and_cited_by_edges(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    citing = _add_paper(session, "citing", title="Citing Paper")
+    cited = _add_paper(session, "cited", title="Cited Paper")
+    session.add(PaperCitation(citing_paper_id=citing.id, cited_paper_id=center.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=cited.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    node_ids = {n["id"] for n in body["nodes"]}
+    assert node_ids == {str(center.id), str(citing.id), str(cited.id)}
+    center_node = next(n for n in body["nodes"] if n["id"] == str(center.id))
+    assert center_node["type"] == "center"
+
+    edges = {(e["source"], e["target"], e["direction"]) for e in body["edges"]}
+    assert edges == {
+        (str(citing.id), str(center.id), "cited_by"),
+        (str(center.id), str(cited.id), "cites"),
+    }
+
+
+def test_paper_citations_empty_when_no_edges(client, session) -> None:
+    paper = _add_paper(session, "lonely")
+
+    body = client.get(f"/api/papers/{paper.id}/citations").json()
+
+    assert body["nodes"] == [{"id": str(paper.id), "type": "center", "title": paper.title}]
+    assert body["edges"] == []
+
+
+def test_paper_citations_404s_for_unknown_paper(client) -> None:
+    assert client.get(f"/api/papers/{uuid.uuid4()}/citations").status_code == 404
 
 
 def test_stats_reports_corpus_shape(client, session, embedder) -> None:

@@ -244,6 +244,23 @@ class SimilarityGraphOut(BaseModel):
     edges: list[GraphEdgeOut]
 
 
+class CitationNodeOut(BaseModel):
+    id: str
+    type: Literal["center", "paper"]
+    title: str
+
+
+class CitationEdgeOut(BaseModel):
+    source: str
+    target: str
+    direction: Literal["cites", "cited_by"]
+
+
+class CitationGraphOut(BaseModel):
+    nodes: list[CitationNodeOut]
+    edges: list[CitationEdgeOut]
+
+
 class ResearchAssessmentHistoryItem(BaseModel):
     """One entry in a research_input's assessment history (re-runs, Sec 2A).
 
