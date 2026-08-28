@@ -9,9 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit
+from researchbridge.api.schemas import CorpusStats, ExtractedClaimOut, PaperPage, PaperSummary, SearchHit, TrendsOut
 from researchbridge.api.serializers import to_claims, to_summaries, to_summary
-from researchbridge.db.models import Author, Embedding, ExtractedClaim, Paper, PaperAuthor, PaperCategory
+from researchbridge.db.models import Author, Embedding, Evidence, ExtractedClaim, Paper, PaperAuthor, PaperCategory
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.embedding.search import find_similar_to_paper, search_by_text
@@ -194,3 +194,43 @@ def corpus_stats(
         papers_by_category={category: count for category, count in category_rows},
         papers_by_source=dict(source_rows),
     )
+
+
+@router.get("/trends", response_model=TrendsOut)
+def trends(
+    category: str = Query(..., description="An ingested category, e.g. cs.LG"),
+    session: Session = Depends(get_session),
+) -> TrendsOut:
+    """Real counts of already-extracted claims per year within one category -
+    not an inferred pattern. See TrendsOut for the response shape."""
+    rows = session.execute(
+        select(
+            func.extract("year", Paper.publication_date),
+            ExtractedClaim.claim_type,
+            func.count(ExtractedClaim.id),
+        )
+        .join(PaperCategory, PaperCategory.paper_id == Paper.id)
+        .join(ExtractedClaim, ExtractedClaim.paper_id == Paper.id)
+        .join(Evidence, Evidence.id == ExtractedClaim.evidence_id)
+        .where(
+            PaperCategory.category == category,
+            Evidence.extraction_method != "stub",
+            Paper.publication_date.isnot(None),
+            Paper.excluded_at.is_(None),
+        )
+        .group_by(func.extract("year", Paper.publication_date), ExtractedClaim.claim_type)
+    ).all()
+
+    if not rows:
+        return TrendsOut(category=category, years=[], series={})
+
+    observed_years = sorted({int(year) for year, _, _ in rows})
+    years = list(range(observed_years[0], observed_years[-1] + 1))
+    year_index = {year: i for i, year in enumerate(years)}
+
+    series: dict[str, list[int]] = {}
+    for year, claim_type, count in rows:
+        counts = series.setdefault(claim_type, [0] * len(years))
+        counts[year_index[int(year)]] = count
+
+    return TrendsOut(category=category, years=years, series=series)

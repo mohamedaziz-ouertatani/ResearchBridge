@@ -438,3 +438,62 @@ def test_stats_excludes_excluded_papers_by_default(client, session, embedder) ->
     assert body["embedded_papers"] == 1
     assert body["papers_by_year"] == {"2019": 1}
     assert body["papers_by_category"]["cs.LG"] == 1
+
+
+def test_trends_returns_counts_by_year_and_claim_type(client, session) -> None:
+    p1 = _add_paper(session, "p1", year=2019, categories=("cs.LG",))
+    _add_claim(session, p1, "limitation", "evaluated offline only")
+    p2 = _add_paper(session, "p2", year=2019, categories=("cs.LG",))
+    _add_claim(session, p2, "method", "a transformer architecture")
+    p3 = _add_paper(session, "p3", year=2024, categories=("cs.LG",))
+    _add_claim(session, p3, "limitation", "small dataset")
+
+    body = client.get("/api/trends", params={"category": "cs.LG"}).json()
+
+    assert body["category"] == "cs.LG"
+    assert body["years"] == [2019, 2020, 2021, 2022, 2023, 2024]
+    assert body["series"]["limitation"] == [1, 0, 0, 0, 0, 1]
+    assert body["series"]["method"] == [1, 0, 0, 0, 0, 0]
+
+
+def test_trends_only_counts_claims_in_the_requested_category(client, session) -> None:
+    lg_paper = _add_paper(session, "p1", year=2020, categories=("cs.LG",))
+    _add_claim(session, lg_paper, "limitation", "evaluated offline only")
+    cl_paper = _add_paper(session, "p2", year=2020, categories=("cs.CL",))
+    _add_claim(session, cl_paper, "limitation", "small test set")
+
+    body = client.get("/api/trends", params={"category": "cs.LG"}).json()
+
+    assert body["series"]["limitation"] == [1]
+
+
+def test_trends_excludes_stub_claims(client, session) -> None:
+    paper = _add_paper(session, "p1", year=2020, categories=("cs.LG",))
+    _add_claim(session, paper, "limitation", "synthetic placeholder", extraction_method="stub")
+
+    body = client.get("/api/trends", params={"category": "cs.LG"}).json()
+
+    assert body["years"] == []
+    assert body["series"] == {}
+
+
+def test_trends_excludes_excluded_papers(client, session) -> None:
+    paper = _add_paper(session, "p1", year=2020, categories=("cs.LG",))
+    _add_claim(session, paper, "limitation", "evaluated offline only")
+    paper.excluded_at = datetime.now(timezone.utc)
+    session.commit()
+
+    body = client.get("/api/trends", params={"category": "cs.LG"}).json()
+
+    assert body["years"] == []
+    assert body["series"] == {}
+
+
+def test_trends_requires_category_param(client) -> None:
+    assert client.get("/api/trends").status_code == 422
+
+
+def test_trends_unknown_category_returns_empty(client) -> None:
+    body = client.get("/api/trends", params={"category": "cs.NOPE"}).json()
+
+    assert body == {"category": "cs.NOPE", "years": [], "series": {}}
