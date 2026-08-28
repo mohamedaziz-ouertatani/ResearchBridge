@@ -417,6 +417,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "extraction": False,
         "embedding": False,
         "retrieval_eval": False,
+        "citations_fetch": False,
     }
 
 
@@ -661,6 +662,86 @@ def test_get_retrieval_eval_returns_persisted_results_when_file_exists(client, m
     assert body["query_sets"]["self"]["results"][0]["method"] == "tfidf"
 
 
+def test_trigger_citations_fetch_calls_trigger_with_no_extra_flags_by_default(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/citations-fetch/run", json={})
+
+    assert calls == [("citations_fetch", "researchbridge.citations.cli_fetch", ["--all", "--save"])]
+
+
+def test_trigger_citations_fetch_passes_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/citations-fetch/run", json={"force": True})
+
+    assert calls == [("citations_fetch", "researchbridge.citations.cli_fetch", ["--all", "--save", "--force"])]
+
+
+def test_stop_citations_fetch_does_not_error_without_a_run_model(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    response = client.post("/api/admin/citations_fetch/stop")
+
+    assert response.status_code == 200
+    assert response.json() == {"stopped": True, "pipeline": "citations_fetch"}
+
+
+def test_get_citations_fetch_returns_unavailable_when_no_summary_file(client, monkeypatch, tmp_path) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "CITATIONS_FETCH_SUMMARY_PATH", tmp_path / "nonexistent.json")
+
+    body = client.get("/api/admin/citations-fetch").json()
+
+    assert body == {
+        "available": False,
+        "generated_at": None,
+        "papers_seen": None,
+        "papers_failed": None,
+        "edges_created": None,
+        "edges_already_existed": None,
+    }
+
+
+def test_get_citations_fetch_returns_persisted_summary_when_file_exists(client, monkeypatch, tmp_path) -> None:
+    import json
+
+    import researchbridge.api.admin_routes as routes_module
+
+    summary_path = tmp_path / "citations_fetch_summary.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-28T00:00:00+00:00",
+                "papers_seen": 100,
+                "papers_failed": 3,
+                "edges_created": 42,
+                "edges_already_existed": 7,
+            }
+        )
+    )
+    monkeypatch.setattr(routes_module, "CITATIONS_FETCH_SUMMARY_PATH", summary_path)
+
+    body = client.get("/api/admin/citations-fetch").json()
+
+    assert body["available"] is True
+    assert body["papers_seen"] == 100
+    assert body["edges_created"] == 42
+
+
 def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
     from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning
@@ -690,6 +771,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "extraction": True,
         "embedding": False,
         "retrieval_eval": False,
+        "citations_fetch": False,
     }
 
 
