@@ -9,6 +9,7 @@ import {
   type SearchHit,
 } from "@/lib/api";
 import { adminApi } from "@/lib/adminApi";
+import { CitationGraph } from "@/components/CitationGraph";
 import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
 import { PaperRow } from "@/components/PaperRow";
@@ -207,6 +208,8 @@ export default function PaperDetail({
               </ul>
             )}
           </section>
+
+          <CitationGraph paperId={id} />
         </article>
       )}
     </main>
