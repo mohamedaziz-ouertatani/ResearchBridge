@@ -23,9 +23,12 @@ saturate side by side is itself part of the honest story here.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from researchbridge.benchmark.cli_sample import DEFAULT_OUTPUT_DIR
 from researchbridge.config import load_config
@@ -42,6 +45,7 @@ from researchbridge.retrieval.topical_queries import DEFAULT_QUERIES_PATH, build
 
 DEFAULT_K = 10
 QUERY_SETS = ("self", "topical")
+DEFAULT_RESULTS_PATH = Path("benchmark/retrieval_eval_results.json")
 
 
 def main() -> None:
@@ -53,12 +57,14 @@ def main() -> None:
     parser.add_argument("--queries-file", type=Path, default=DEFAULT_QUERIES_PATH)
     parser.add_argument("--k", type=int, default=DEFAULT_K)
     parser.add_argument("--query-set", choices=[*QUERY_SETS, "both"], default="both")
+    parser.add_argument("--output-file", type=Path, default=DEFAULT_RESULTS_PATH)
     args = parser.parse_args()
 
     session = make_session_factory(make_engine())()
 
     try:
         embedder = SentenceTransformerEmbedder()
+        query_set_data: dict[str, dict[str, Any]] = {}
 
         for name in QUERY_SETS if args.query_set == "both" else (args.query_set,):
             judgments, skipped = (
@@ -71,6 +77,7 @@ def main() -> None:
                 print(f"Skipped {len(skipped)} unresolved judgment(s): {skipped}")
             if not judgments:
                 print("No usable queries - nothing to evaluate.")
+                query_set_data[name] = {"queries": 0, "skipped": len(skipped), "rows": []}
                 continue
             print(f"{len(judgments)} queries, k={args.k}\n")
 
@@ -85,6 +92,10 @@ def main() -> None:
                 retriever.fit(session)
                 rows.append((retriever.name, _evaluate(retriever, judgments, args.k)))
             _print_table(rows, args.k)
+            query_set_data[name] = {"queries": len(judgments), "skipped": len(skipped), "rows": rows}
+
+        write_results_json(args.output_file, query_set_data, args.k)
+        print(f"\nWrote results to {args.output_file}")
     finally:
         session.close()
 
@@ -102,6 +113,39 @@ def _evaluate(retriever: Retriever, judgments: list[QueryJudgment], k: int) -> d
 
     n = len(judgments)
     return {metric: total / n for metric, total in totals.items()}
+
+
+def _build_results_json(query_set_data: dict[str, dict[str, Any]], k: int) -> dict[str, Any]:
+    """Shapes accumulated per-query-set rows into the JSON the admin
+    dashboard reads (GET /api/admin/retrieval-eval) - a flat file, not a DB
+    table, since this is a one-off diagnostic run, not a repeating pipeline
+    stage (see rb-gaps-detect for the same "no run-history table" choice)."""
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "k": k,
+        "query_sets": {
+            name: {
+                "queries": data["queries"],
+                "skipped": data["skipped"],
+                "results": [
+                    {
+                        "method": method,
+                        "precision": metrics["precision"],
+                        "recall": metrics["recall"],
+                        "ndcg": metrics["ndcg"],
+                        "mrr": metrics["mrr"],
+                    }
+                    for method, metrics in data["rows"]
+                ],
+            }
+            for name, data in query_set_data.items()
+        },
+    }
+
+
+def write_results_json(path: Path, query_set_data: dict[str, dict[str, Any]], k: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_build_results_json(query_set_data, k), indent=2))
 
 
 def _print_table(rows: list[tuple[str, dict[str, float]]], k: int) -> None:
