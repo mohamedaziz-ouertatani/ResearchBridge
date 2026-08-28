@@ -23,6 +23,8 @@ from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_runn
 from researchbridge.api.schemas import (
     ArxivIngestionTrigger,
     AssessmentStats,
+    CitationsFetchOut,
+    CitationsFetchTrigger,
     CoreIngestionTrigger,
     EmbeddingTrigger,
     ExtractionTrigger,
@@ -39,6 +41,7 @@ from researchbridge.api.schemas import (
     SpringerIngestionTrigger,
 )
 from researchbridge.api.serializers import to_summary
+from researchbridge.citations.cli_fetch import DEFAULT_SUMMARY_PATH as CITATIONS_FETCH_SUMMARY_PATH
 from researchbridge.db.models import (
     CandidateGap,
     Embedding,
@@ -62,6 +65,7 @@ PIPELINE_KEYS = (
     "extraction",
     "embedding",
     "retrieval_eval",
+    "citations_fetch",
 )
 
 NOTIFICATION_RUNS_PER_TYPE = 15
@@ -444,4 +448,35 @@ def get_retrieval_eval() -> RetrievalEvalOut:
         generated_at=data["generated_at"],
         k=data["k"],
         query_sets=data["query_sets"],
+    )
+
+
+@router.post("/citations-fetch/run", response_model=PipelineTriggerOut)
+def trigger_citations_fetch(payload: CitationsFetchTrigger) -> PipelineTriggerOut:
+    args: list[str] = ["--all", "--save"]
+    if payload.force:
+        args += ["--force"]
+    return _trigger_or_409("citations_fetch", "researchbridge.citations.cli_fetch", args)
+
+
+@router.get("/citations-fetch", response_model=CitationsFetchOut)
+def get_citations_fetch() -> CitationsFetchOut:
+    """Reads the last rb-citations-fetch --all run's persisted summary (see
+    CITATIONS_FETCH_SUMMARY_PATH) - never triggers a fetch here, since a
+    real run walks every Semantic Scholar paper in the corpus against a
+    rate-limited external API."""
+    if not CITATIONS_FETCH_SUMMARY_PATH.exists():
+        return CitationsFetchOut(
+            available=False, generated_at=None, papers_seen=None, papers_failed=None,
+            edges_created=None, edges_already_existed=None,
+        )
+
+    data = json.loads(CITATIONS_FETCH_SUMMARY_PATH.read_text())
+    return CitationsFetchOut(
+        available=True,
+        generated_at=data["generated_at"],
+        papers_seen=data["papers_seen"],
+        papers_failed=data["papers_failed"],
+        edges_created=data["edges_created"],
+        edges_already_existed=data["edges_already_existed"],
     )

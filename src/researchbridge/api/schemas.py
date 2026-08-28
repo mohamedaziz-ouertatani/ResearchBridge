@@ -436,6 +436,22 @@ class RetrievalEvalOut(BaseModel):
     query_sets: dict[str, RetrievalEvalQuerySet] | None
 
 
+class CitationsFetchTrigger(BaseModel):
+    force: bool = False
+
+
+class CitationsFetchOut(BaseModel):
+    available: bool
+    """False when rb-citations-fetch --all has never been run - see
+    admin_routes.py's CITATIONS_FETCH_SUMMARY_PATH. No run-history table
+    for this, same reasoning as RetrievalEvalOut."""
+    generated_at: datetime | None
+    papers_seen: int | None
+    papers_failed: int | None
+    edges_created: int | None
+    edges_already_existed: int | None
+
+
 class PipelineStopOut(BaseModel):
     stopped: bool
     pipeline: str
