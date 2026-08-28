@@ -343,8 +343,8 @@ class PipelineStatus(BaseModel):
     running: dict[str, bool]
     """Whether an admin-triggered subprocess is currently alive per pipeline
     key ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar",
-    "ingestion_core", "extraction", "embedding") - see pipeline_triggers.py.
-    Independent of the *_runs history above: a run
+    "ingestion_core", "extraction", "embedding", "retrieval_eval") - see
+    pipeline_triggers.py. Independent of the *_runs history above: a run
     row can say "running" from a crashed/killed process, this reflects only
     what this server process itself is still tracking."""
 
@@ -401,10 +401,39 @@ class EmbeddingTrigger(BaseModel):
     force: bool = False
 
 
+class RetrievalEvalTrigger(BaseModel):
+    k: int | None = None
+
+
 class PipelineTriggerOut(BaseModel):
     started: bool
     pipeline: str
     log_file: str
+
+
+class RetrievalEvalMethodResult(BaseModel):
+    method: str
+    precision: float
+    recall: float
+    ndcg: float
+    mrr: float
+
+
+class RetrievalEvalQuerySet(BaseModel):
+    queries: int
+    skipped: int
+    results: list[RetrievalEvalMethodResult]
+
+
+class RetrievalEvalOut(BaseModel):
+    available: bool
+    """False when rb-retrieval-evaluate has never been run - see
+    admin_routes.py's RETRIEVAL_EVAL_RESULTS_PATH. No run-history table for
+    this (same choice as candidate-gap detection): it's a one-off
+    diagnostic, not a repeating pipeline stage."""
+    generated_at: datetime | None
+    k: int | None
+    query_sets: dict[str, RetrievalEvalQuerySet] | None
 
 
 class PipelineStopOut(BaseModel):

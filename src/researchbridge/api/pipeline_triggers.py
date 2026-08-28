@@ -3,7 +3,7 @@
 Reuses the existing CLI entry points as subprocesses rather than
 reimplementing pipeline-triggering logic in the API layer - the same
 `rb-ingest`/`rb-ingest-springer`/`rb-ingest-semantic-scholar`/
-`rb-ingest-core`/`rb-extract`/`rb-embed` commands an
+`rb-ingest-core`/`rb-extract`/`rb-embed`/`rb-retrieval-evaluate` commands an
 operator would run by hand, just launched from a button instead of a
 terminal. One subprocess per pipeline key at a time; a second trigger
 while one is running is refused rather than queued or duplicated.

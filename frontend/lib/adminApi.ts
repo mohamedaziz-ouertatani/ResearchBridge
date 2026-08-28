@@ -16,7 +16,8 @@ export type PipelineKey =
   | "ingestion_semantic_scholar"
   | "ingestion_core"
   | "extraction"
-  | "embedding";
+  | "embedding"
+  | "retrieval_eval";
 
 export type AssessmentStats = {
   total: number;
@@ -47,6 +48,27 @@ export type Notification = {
   severity: "info" | "error";
   message: string;
   created_at: string;
+};
+
+export type RetrievalEvalMethodResult = {
+  method: string;
+  precision: number;
+  recall: number;
+  ndcg: number;
+  mrr: number;
+};
+
+export type RetrievalEvalQuerySet = {
+  queries: number;
+  skipped: number;
+  results: RetrievalEvalMethodResult[];
+};
+
+export type RetrievalEvalResult = {
+  available: boolean;
+  generated_at: string | null;
+  k: number | null;
+  query_sets: Record<string, RetrievalEvalQuerySet> | null;
 };
 
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
@@ -98,6 +120,15 @@ export const adminApi = {
 
   triggerEmbedding: (params: { limit?: number; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/embedding/run", params),
+
+  triggerRetrievalEval: (params: { k?: number }) =>
+    post<PipelineTriggerResult>("/api/admin/retrieval-eval/run", params),
+
+  retrievalEval: () =>
+    fetch(`${API_BASE}/api/admin/retrieval-eval`, { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<RetrievalEvalResult>;
+    }),
 
   log: (key: PipelineKey, lines = 200) =>
     fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {

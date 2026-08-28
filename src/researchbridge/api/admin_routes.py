@@ -10,6 +10,7 @@ gaps_routes.py's detection step - this router only reads what already ran.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -32,6 +33,8 @@ from researchbridge.api.schemas import (
     PipelineStatus,
     PipelineStopOut,
     PipelineTriggerOut,
+    RetrievalEvalOut,
+    RetrievalEvalTrigger,
     SemanticScholarIngestionTrigger,
     SpringerIngestionTrigger,
 )
@@ -46,6 +49,7 @@ from researchbridge.db.models import (
     Paper,
     ResearchAssessment,
 )
+from researchbridge.retrieval.cli_evaluate import DEFAULT_RESULTS_PATH as RETRIEVAL_EVAL_RESULTS_PATH
 
 router = APIRouter(prefix="/api/admin")
 
@@ -57,6 +61,7 @@ PIPELINE_KEYS = (
     "ingestion_core",
     "extraction",
     "embedding",
+    "retrieval_eval",
 )
 
 NOTIFICATION_RUNS_PER_TYPE = 15
@@ -65,7 +70,10 @@ NOTIFICATION_LIMIT = 30
 # Which *_runs table (and, for ingestion, which source) a pipeline key's
 # in-progress row lives in - used only by stop_pipeline() to mark that row
 # "stopped" once the subprocess is killed, since the subprocess itself never
-# gets a chance to do that for us.
+# gets a chance to do that for us. "retrieval_eval" has no entry here - it's
+# a one-off diagnostic (see RetrievalEvalOut docstring), not a repeating
+# pipeline stage, so there's no *_runs row to mark; stop_pipeline() treats a
+# missing entry as "nothing to update in the DB" rather than erroring.
 RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
     "ingestion_arxiv": (IngestionRun, "arxiv"),
     "ingestion_springer": (IngestionRun, "springer"),
@@ -303,7 +311,11 @@ def stop_pipeline(key: str, session: Session = Depends(get_session)) -> Pipeline
     if not stopped:
         raise HTTPException(status_code=409, detail=f"{key} is not running")
 
-    model, source = RUN_MODEL_BY_KEY[key]
+    model_entry = RUN_MODEL_BY_KEY.get(key)
+    if model_entry is None:
+        return PipelineStopOut(stopped=True, pipeline=key)
+
+    model, source = model_entry
     query = select(model).where(model.status == "running")
     if source is not None:
         query = query.where(model.source == source)
@@ -407,3 +419,29 @@ def trigger_embedding(payload: EmbeddingTrigger) -> PipelineTriggerOut:
     if payload.force:
         args += ["--force"]
     return _trigger_or_409("embedding", "researchbridge.embedding.cli_embed", args)
+
+
+@router.post("/retrieval-eval/run", response_model=PipelineTriggerOut)
+def trigger_retrieval_eval(payload: RetrievalEvalTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.k is not None:
+        args += ["--k", str(payload.k)]
+    return _trigger_or_409("retrieval_eval", "researchbridge.retrieval.cli_evaluate", args)
+
+
+@router.get("/retrieval-eval", response_model=RetrievalEvalOut)
+def get_retrieval_eval() -> RetrievalEvalOut:
+    """Reads the last rb-retrieval-evaluate run's persisted results (see
+    RETRIEVAL_EVAL_RESULTS_PATH) - never computes them live, since a real
+    run loads an embedding model and fits four retrievers against the
+    whole corpus."""
+    if not RETRIEVAL_EVAL_RESULTS_PATH.exists():
+        return RetrievalEvalOut(available=False, generated_at=None, k=None, query_sets=None)
+
+    data = json.loads(RETRIEVAL_EVAL_RESULTS_PATH.read_text())
+    return RetrievalEvalOut(
+        available=True,
+        generated_at=data["generated_at"],
+        k=data["k"],
+        query_sets=data["query_sets"],
+    )
