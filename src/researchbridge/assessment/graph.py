@@ -93,24 +93,21 @@ def build_similarity_graph(
     claim_counts_by_paper = _claim_counts(session, [row.id for row in rows])
 
     paper_nodes: list[GraphNode] = []
-    vectors: dict[str, list[float]] = {}
     for row in rows:
         distance = 1.0 - _dot(query_vector, row.vector)
-        node_id = str(row.id)
-        vectors[node_id] = row.vector
         paper_nodes.append(
             GraphNode(
-                id=node_id, type="paper", title=row.title, distance_to_input=distance,
+                id=str(row.id), type="paper", title=row.title, distance_to_input=distance,
                 claim_counts=claim_counts_by_paper.get(row.id, {}),
             )
         )
 
+    # Star topology only: input<->paper edges, deliberately no paper<->paper
+    # pairwise edges - a full graph of C(n,2) cross-edges reads as noise once
+    # there are more than a handful of retrieved papers, and every distance
+    # a reader actually wants ("how close is this paper to what I proposed")
+    # is already on the input edge.
     edges = [GraphEdge(source="input", target=node.id, distance=node.distance_to_input) for node in paper_nodes]
-    node_ids = list(vectors.keys())
-    for i in range(len(node_ids)):
-        for j in range(i + 1, len(node_ids)):
-            distance = 1.0 - _dot(vectors[node_ids[i]], vectors[node_ids[j]])
-            edges.append(GraphEdge(source=node_ids[i], target=node_ids[j], distance=distance))
 
     return SimilarityGraph(nodes=[input_node, *paper_nodes], edges=edges)
 

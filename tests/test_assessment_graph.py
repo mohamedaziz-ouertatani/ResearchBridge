@@ -95,7 +95,7 @@ def test_input_to_paper_distance_is_zero_for_exact_text_match(session_factory) -
     session.close()
 
 
-def test_paper_to_paper_edges_are_symmetric(session_factory) -> None:
+def test_graph_is_star_topology_no_paper_to_paper_edges(session_factory) -> None:
     session = session_factory()
     embedder = FakeEmbedder()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")
@@ -108,10 +108,11 @@ def test_paper_to_paper_edges_are_symmetric(session_factory) -> None:
 
     paper_ids = [n.id for n in graph.nodes if n.type == "paper"]
     assert len(paper_ids) == 2
-    edge = next(e for e in graph.edges if {e.source, e.target} == set(paper_ids))
-    # only one edge per unordered pair - not a duplicate reverse edge
-    assert sum(1 for e in graph.edges if {e.source, e.target} == set(paper_ids)) == 1
-    assert 0.0 <= edge.distance <= 2.0
+    # exactly one edge per paper, and every edge originates from "input" -
+    # no paper<->paper edges at all
+    assert len(graph.edges) == 2
+    assert all(edge.source == "input" for edge in graph.edges)
+    assert {edge.target for edge in graph.edges} == set(paper_ids)
     session.close()
 
 
