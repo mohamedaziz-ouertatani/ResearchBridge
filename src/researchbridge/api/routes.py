@@ -142,28 +142,70 @@ def paper_citations(paper_id: uuid.UUID, session: Session = Depends(get_session)
     return _build_citation_graph(session, paper)
 
 
+MAX_CITATION_HOPS = 2
+
+
 def _build_citation_graph(session: Session, paper: Paper) -> CitationGraphOut:
-    cited_by_rows = session.execute(
-        select(PaperCitation.citing_paper_id, Paper.title)
-        .join(Paper, Paper.id == PaperCitation.citing_paper_id)
-        .where(PaperCitation.cited_paper_id == paper.id)
-    ).all()
-    cites_rows = session.execute(
-        select(PaperCitation.cited_paper_id, Paper.title)
-        .join(Paper, Paper.id == PaperCitation.cited_paper_id)
-        .where(PaperCitation.citing_paper_id == paper.id)
-    ).all()
+    """Breadth-first expansion up to MAX_CITATION_HOPS, not a recursive SQL
+    CTE - at a fixed depth this is simpler and gives per-node hop distance
+    for free.
 
-    nodes = [CitationNodeOut(id=str(paper.id), type="center", title=paper.title)]
-    edges = []
-    for citing_id, title in cited_by_rows:
-        nodes.append(CitationNodeOut(id=str(citing_id), type="paper", title=title))
-        edges.append(CitationEdgeOut(source=str(citing_id), target=str(paper.id), direction="cited_by"))
-    for cited_id, title in cites_rows:
-        nodes.append(CitationNodeOut(id=str(cited_id), type="paper", title=title))
-        edges.append(CitationEdgeOut(source=str(paper.id), target=str(cited_id), direction="cites"))
+    Ancestors (papers that transitively cite the center - "cited_by" edges)
+    and descendants (papers the center transitively cites - "cites" edges)
+    are walked as two separate chains, each with its own frontier, rather
+    than one mixed frontier. Keeping them separate is what makes "direction"
+    a stable per-edge label: a single shared frontier could let the same
+    literal edge be discovered from both sides at once (if both its
+    endpoints were in frontier together) and recorded twice under
+    conflicting direction labels. Each chain's own visited-set is the cycle
+    guard - a paper already visited is never re-expanded, so a cycle just
+    stops.
+    """
+    visited: dict[uuid.UUID, tuple[int, str, str]] = {paper.id: (0, "center", paper.title)}
+    edges: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
 
-    return CitationGraphOut(nodes=nodes, edges=edges)
+    ancestor_frontier = {paper.id}
+    for hop in range(1, MAX_CITATION_HOPS + 1):
+        if not ancestor_frontier:
+            break
+        next_frontier: set[uuid.UUID] = set()
+        for citing_id, cited_id, title in session.execute(
+            select(PaperCitation.citing_paper_id, PaperCitation.cited_paper_id, Paper.title)
+            .join(Paper, Paper.id == PaperCitation.citing_paper_id)
+            .where(PaperCitation.cited_paper_id.in_(ancestor_frontier))
+        ).all():
+            edges.add((citing_id, cited_id, "cited_by"))
+            if citing_id not in visited:
+                visited[citing_id] = (hop, "paper", title)
+                next_frontier.add(citing_id)
+        ancestor_frontier = next_frontier
+
+    descendant_frontier = {paper.id}
+    for hop in range(1, MAX_CITATION_HOPS + 1):
+        if not descendant_frontier:
+            break
+        next_frontier = set()
+        for cited_id, citing_id, title in session.execute(
+            select(PaperCitation.cited_paper_id, PaperCitation.citing_paper_id, Paper.title)
+            .join(Paper, Paper.id == PaperCitation.cited_paper_id)
+            .where(PaperCitation.citing_paper_id.in_(descendant_frontier))
+        ).all():
+            edges.add((citing_id, cited_id, "cites"))
+            if cited_id not in visited:
+                visited[cited_id] = (hop, "paper", title)
+                next_frontier.add(cited_id)
+        descendant_frontier = next_frontier
+
+    nodes = [
+        CitationNodeOut(id=str(pid), type=node_type, title=title, hop=hop)
+        for pid, (hop, node_type, title) in visited.items()
+    ]
+    edges_out = [
+        CitationEdgeOut(source=str(citing_id), target=str(cited_id), direction=direction)
+        for citing_id, cited_id, direction in edges
+    ]
+
+    return CitationGraphOut(nodes=nodes, edges=edges_out)
 
 
 @router.get("/search", response_model=list[SearchHit])

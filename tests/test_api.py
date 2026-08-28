@@ -415,6 +415,11 @@ def test_paper_citations_returns_cites_and_cited_by_edges(client, session) -> No
     assert node_ids == {str(center.id), str(citing.id), str(cited.id)}
     center_node = next(n for n in body["nodes"] if n["id"] == str(center.id))
     assert center_node["type"] == "center"
+    assert center_node["hop"] == 0
+    citing_node = next(n for n in body["nodes"] if n["id"] == str(citing.id))
+    assert citing_node["hop"] == 1
+    cited_node = next(n for n in body["nodes"] if n["id"] == str(cited.id))
+    assert cited_node["hop"] == 1
 
     edges = {(e["source"], e["target"], e["direction"]) for e in body["edges"]}
     assert edges == {
@@ -423,12 +428,79 @@ def test_paper_citations_returns_cites_and_cited_by_edges(client, session) -> No
     }
 
 
+def test_paper_citations_includes_second_hop_papers(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    hop1 = _add_paper(session, "hop1", title="Hop 1 Paper")
+    hop2 = _add_paper(session, "hop2", title="Hop 2 Paper")
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=hop1.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=hop1.id, cited_paper_id=hop2.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    node_by_id = {n["id"]: n for n in body["nodes"]}
+    assert node_by_id[str(hop2.id)]["hop"] == 2
+    edges = {(e["source"], e["target"], e["direction"]) for e in body["edges"]}
+    assert (str(hop1.id), str(hop2.id), "cites") in edges
+
+
+def test_paper_citations_stops_at_two_hops(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    hop1 = _add_paper(session, "hop1", title="Hop 1 Paper")
+    hop2 = _add_paper(session, "hop2", title="Hop 2 Paper")
+    hop3 = _add_paper(session, "hop3", title="Hop 3 Paper")
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=hop1.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=hop1.id, cited_paper_id=hop2.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=hop2.id, cited_paper_id=hop3.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    node_ids = {n["id"] for n in body["nodes"]}
+    assert str(hop3.id) not in node_ids
+
+
+def test_paper_citations_handles_a_cycle_without_hanging(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    a = _add_paper(session, "a", title="Paper A")
+    b = _add_paper(session, "b", title="Paper B")
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=a.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=a.id, cited_paper_id=b.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=b.id, cited_paper_id=a.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    node_ids = [n["id"] for n in body["nodes"]]
+    assert len(node_ids) == len(set(node_ids))  # no duplicate nodes despite the cycle
+
+
+def test_paper_citations_dedupes_edges_reached_via_multiple_paths(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    hop1a = _add_paper(session, "hop1a", title="Hop 1a Paper")
+    hop1b = _add_paper(session, "hop1b", title="Hop 1b Paper")
+    shared = _add_paper(session, "shared", title="Shared Hop 2 Paper")
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=hop1a.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=hop1b.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=hop1a.id, cited_paper_id=shared.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=hop1b.id, cited_paper_id=shared.id, source="semantic_scholar", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    node_ids = [n["id"] for n in body["nodes"]]
+    assert node_ids.count(str(shared.id)) == 1
+    edges = [(e["source"], e["target"], e["direction"]) for e in body["edges"]]
+    assert edges.count((str(hop1a.id), str(shared.id), "cites")) == 1
+    assert edges.count((str(hop1b.id), str(shared.id), "cites")) == 1
+
+
 def test_paper_citations_empty_when_no_edges(client, session) -> None:
     paper = _add_paper(session, "lonely")
 
     body = client.get(f"/api/papers/{paper.id}/citations").json()
 
-    assert body["nodes"] == [{"id": str(paper.id), "type": "center", "title": paper.title}]
+    assert body["nodes"] == [{"id": str(paper.id), "type": "center", "title": paper.title, "hop": 0}]
     assert body["edges"] == []
 
 

@@ -33,6 +33,8 @@ export type CitationNode = {
   id: string;
   type: "center" | "paper";
   title: string;
+  /** Citation distance from the center paper: 0 for the center itself, 1/2 for direct/second-hop citations. */
+  hop: number;
 };
 
 export type CitationEdge = {

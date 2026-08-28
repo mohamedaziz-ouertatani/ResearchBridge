@@ -248,6 +248,9 @@ class CitationNodeOut(BaseModel):
     id: str
     type: Literal["center", "paper"]
     title: str
+    hop: int
+    """Citation distance from the center paper: 0 for the center itself, 1/2
+    for direct/second-hop citations (see _build_citation_graph)."""
 
 
 class CitationEdgeOut(BaseModel):

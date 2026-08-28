@@ -49,6 +49,13 @@ function nodeTooltipLabel(node: CitationNode): string | HTMLElement {
   return el;
 }
 
+// Further hops fade out - same "further = fainter" convention SimilarityGraph
+// uses for embedding distance, keyed off integer hop instead of a continuous
+// value. --ink/--ink-soft/--ink-faint already form a 3-step ramp, one step
+// per hop (0/1/2), so no new color tokens are needed.
+const HOP_COLOR = ["var(--ink)", "var(--ink-soft)", "var(--ink-faint)"];
+const HOP_SIZE = [8, 5, 3];
+
 const GRAPH_HEIGHT = 420;
 
 export function CitationGraph({ paperId }: { paperId: string }) {
@@ -122,8 +129,8 @@ export function CitationGraph({ paperId }: { paperId: string }) {
                 graphData={graphData}
                 nodeId="id"
                 nodeLabel={nodeTooltipLabel}
-                nodeColor={(node: CitationNode) => (node.type === "center" ? "var(--ink)" : "var(--ink-soft)")}
-                nodeVal={(node: CitationNode) => (node.type === "center" ? 8 : 4)}
+                nodeColor={(node: CitationNode) => HOP_COLOR[node.hop] ?? "var(--ink-faint)"}
+                nodeVal={(node: CitationNode) => HOP_SIZE[node.hop] ?? 3}
                 linkColor={(link: GraphLink) => (link.direction === "cites" ? "var(--near)" : "var(--far)")}
                 linkDirectionalArrowLength={4}
                 linkDirectionalArrowRelPos={1}
