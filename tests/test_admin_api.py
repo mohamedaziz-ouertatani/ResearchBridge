@@ -416,6 +416,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "ingestion_core": False,
         "extraction": False,
         "embedding": False,
+        "retrieval_eval": False,
     }
 
 
@@ -580,6 +581,86 @@ def test_trigger_embedding_with_force_passes_force_flag(client, monkeypatch) -> 
     assert calls == [("embedding", "researchbridge.embedding.cli_embed", ["--limit", "5", "--force"])]
 
 
+def test_trigger_retrieval_eval_calls_trigger_with_no_extra_flags_by_default(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/retrieval-eval/run", json={})
+
+    assert calls == [("retrieval_eval", "researchbridge.retrieval.cli_evaluate", [])]
+
+
+def test_trigger_retrieval_eval_passes_k_override(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/retrieval-eval/run", json={"k": 5})
+
+    assert calls == [("retrieval_eval", "researchbridge.retrieval.cli_evaluate", ["--k", "5"])]
+
+
+def test_stop_retrieval_eval_does_not_error_without_a_run_model(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    response = client.post("/api/admin/retrieval_eval/stop")
+
+    assert response.status_code == 200
+    assert response.json() == {"stopped": True, "pipeline": "retrieval_eval"}
+
+
+def test_get_retrieval_eval_returns_unavailable_when_no_results_file(client, monkeypatch, tmp_path) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "RETRIEVAL_EVAL_RESULTS_PATH", tmp_path / "nonexistent.json")
+
+    body = client.get("/api/admin/retrieval-eval").json()
+
+    assert body == {"available": False, "generated_at": None, "k": None, "query_sets": None}
+
+
+def test_get_retrieval_eval_returns_persisted_results_when_file_exists(client, monkeypatch, tmp_path) -> None:
+    import json
+
+    import researchbridge.api.admin_routes as routes_module
+
+    results_path = tmp_path / "retrieval_eval_results.json"
+    results_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-28T00:00:00+00:00",
+                "k": 10,
+                "query_sets": {
+                    "self": {
+                        "queries": 5,
+                        "skipped": 0,
+                        "results": [
+                            {"method": "tfidf", "precision": 1.0, "recall": 1.0, "ndcg": 1.0, "mrr": 1.0},
+                        ],
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(routes_module, "RETRIEVAL_EVAL_RESULTS_PATH", results_path)
+
+    body = client.get("/api/admin/retrieval-eval").json()
+
+    assert body["available"] is True
+    assert body["k"] == 10
+    assert body["query_sets"]["self"]["queries"] == 5
+    assert body["query_sets"]["self"]["results"][0]["method"] == "tfidf"
+
+
 def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
     from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning
@@ -608,6 +689,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "ingestion_core": False,
         "extraction": True,
         "embedding": False,
+        "retrieval_eval": False,
     }
 
 
