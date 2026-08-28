@@ -36,3 +36,19 @@ def test_rejects_force_without_all() -> None:
 def test_accepts_force_with_all() -> None:
     args = build_parser().parse_args(["--all", "--force"])
     validate_args(args)  # must not raise
+
+
+def test_source_defaults_to_semantic_scholar() -> None:
+    args = build_parser().parse_args(["abc123"])
+    assert args.source == "semantic_scholar"
+
+
+def test_accepts_crossref_source() -> None:
+    args = build_parser().parse_args(["10.1000/abc", "--source", "crossref"])
+    validate_args(args)  # must not raise
+    assert args.source == "crossref"
+
+
+def test_rejects_unknown_source() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["abc123", "--source", "bogus"])
