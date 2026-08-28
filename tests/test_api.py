@@ -504,6 +504,20 @@ def test_paper_citations_empty_when_no_edges(client, session) -> None:
     assert body["edges"] == []
 
 
+def test_paper_citations_collapses_the_same_edge_from_multiple_sources(client, session) -> None:
+    center = _add_paper(session, "center", title="Center Paper")
+    cited = _add_paper(session, "cited", title="Cited Paper")
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=cited.id, source="semantic_scholar", confidence="high"))
+    session.add(PaperCitation(citing_paper_id=center.id, cited_paper_id=cited.id, source="crossref", confidence="high"))
+    session.commit()
+
+    body = client.get(f"/api/papers/{center.id}/citations").json()
+
+    matching = [e for e in body["edges"] if e["source"] == str(center.id) and e["target"] == str(cited.id)]
+    assert len(matching) == 1  # one visual edge, not two
+    assert sorted(matching[0]["sources"]) == ["crossref", "semantic_scholar"]
+
+
 def test_paper_citations_404s_for_unknown_paper(client) -> None:
     assert client.get(f"/api/papers/{uuid.uuid4()}/citations").status_code == 404
 

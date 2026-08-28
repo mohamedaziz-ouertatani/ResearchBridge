@@ -162,19 +162,23 @@ def _build_citation_graph(session: Session, paper: Paper) -> CitationGraphOut:
     stops.
     """
     visited: dict[uuid.UUID, tuple[int, str, str]] = {paper.id: (0, "center", paper.title)}
-    edges: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
+    # Keyed by (citing, cited, direction), not (citing, cited, direction, source):
+    # the same citing/cited pair asserted by two different sources (each its
+    # own PaperCitation row, per the (citing, cited, source) unique
+    # constraint) collapses into one visual edge, with both sources recorded.
+    edges: dict[tuple[uuid.UUID, uuid.UUID, str], set[str]] = {}
 
     ancestor_frontier = {paper.id}
     for hop in range(1, MAX_CITATION_HOPS + 1):
         if not ancestor_frontier:
             break
         next_frontier: set[uuid.UUID] = set()
-        for citing_id, cited_id, title in session.execute(
-            select(PaperCitation.citing_paper_id, PaperCitation.cited_paper_id, Paper.title)
+        for citing_id, cited_id, edge_source, title in session.execute(
+            select(PaperCitation.citing_paper_id, PaperCitation.cited_paper_id, PaperCitation.source, Paper.title)
             .join(Paper, Paper.id == PaperCitation.citing_paper_id)
             .where(PaperCitation.cited_paper_id.in_(ancestor_frontier))
         ).all():
-            edges.add((citing_id, cited_id, "cited_by"))
+            edges.setdefault((citing_id, cited_id, "cited_by"), set()).add(edge_source)
             if citing_id not in visited:
                 visited[citing_id] = (hop, "paper", title)
                 next_frontier.add(citing_id)
@@ -185,12 +189,12 @@ def _build_citation_graph(session: Session, paper: Paper) -> CitationGraphOut:
         if not descendant_frontier:
             break
         next_frontier = set()
-        for cited_id, citing_id, title in session.execute(
-            select(PaperCitation.cited_paper_id, PaperCitation.citing_paper_id, Paper.title)
+        for cited_id, citing_id, edge_source, title in session.execute(
+            select(PaperCitation.cited_paper_id, PaperCitation.citing_paper_id, PaperCitation.source, Paper.title)
             .join(Paper, Paper.id == PaperCitation.cited_paper_id)
             .where(PaperCitation.citing_paper_id.in_(descendant_frontier))
         ).all():
-            edges.add((citing_id, cited_id, "cites"))
+            edges.setdefault((citing_id, cited_id, "cites"), set()).add(edge_source)
             if cited_id not in visited:
                 visited[cited_id] = (hop, "paper", title)
                 next_frontier.add(cited_id)
@@ -201,8 +205,8 @@ def _build_citation_graph(session: Session, paper: Paper) -> CitationGraphOut:
         for pid, (hop, node_type, title) in visited.items()
     ]
     edges_out = [
-        CitationEdgeOut(source=str(citing_id), target=str(cited_id), direction=direction)
-        for citing_id, cited_id, direction in edges
+        CitationEdgeOut(source=str(citing_id), target=str(cited_id), direction=direction, sources=sorted(edge_sources))
+        for (citing_id, cited_id, direction), edge_sources in edges.items()
     ]
 
     return CitationGraphOut(nodes=nodes, edges=edges_out)

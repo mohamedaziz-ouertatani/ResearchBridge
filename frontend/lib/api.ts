@@ -41,6 +41,8 @@ export type CitationEdge = {
   source: string;
   target: string;
   direction: "cites" | "cited_by";
+  /** Which citation source(s) assert this edge, e.g. ["semantic_scholar"] or ["crossref"]. */
+  sources: string[];
 };
 
 export type CitationGraphData = {

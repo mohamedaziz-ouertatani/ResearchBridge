@@ -257,6 +257,12 @@ class CitationEdgeOut(BaseModel):
     source: str
     target: str
     direction: Literal["cites", "cited_by"]
+    sources: list[str]
+    """Which citation source(s) assert this edge (e.g. ["semantic_scholar"],
+    ["crossref"], or both) - one visual edge even when multiple sources
+    independently found the same citing/cited pair (see paper_citations'
+    (citing, cited, source) unique constraint, which stores one row per
+    source)."""
 
 
 class CitationGraphOut(BaseModel):
