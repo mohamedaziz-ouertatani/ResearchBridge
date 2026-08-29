@@ -366,3 +366,37 @@ def test_no_gap_found_is_not_closely_grounded(session_factory, embedder) -> None
     result = assess_research_gap(session_factory(), [], embedder)
 
     assert result.is_closely_grounded is False
+
+
+def test_status_is_not_assessed_when_no_relevant_papers_retrieved(session_factory, embedder) -> None:
+    session = session_factory()
+    result = assess_research_gap(session, [], embedder)
+    session.close()
+    assert result.status == "not_assessed"
+    assert result.text is None
+
+
+def test_status_is_not_found_when_relevant_papers_exist_but_nothing_matches(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1")
+    _claim(session, paper, "method", "an unrelated method")  # relevant paper, no gap-signaling claim
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.status == "not_found"
+    assert result.text is None
+
+
+def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.status == "found"
+    assert result.text is not None

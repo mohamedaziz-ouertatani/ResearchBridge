@@ -78,9 +78,15 @@ class GapAssessmentResult:
     candidate_gap_id: uuid.UUID | None
     evidence_ids: list[uuid.UUID]
     is_closely_grounded: bool = False
+    status: str = "not_assessed"  # "not_assessed" | "not_found" | "found"
 
 
-_NONE_RESULT = GapAssessmentResult(source=None, text=None, candidate_gap_id=None, evidence_ids=[])
+_NOT_ASSESSED_RESULT = GapAssessmentResult(
+    source=None, text=None, candidate_gap_id=None, evidence_ids=[], status="not_assessed"
+)
+_NOT_FOUND_RESULT = GapAssessmentResult(
+    source=None, text=None, candidate_gap_id=None, evidence_ids=[], status="not_found"
+)
 
 
 def assess_research_gap(
@@ -94,7 +100,7 @@ def assess_research_gap(
     distance, nearest-first (the order search_by_text already returns)."""
     relevant_paper_ids = [paper_id for paper_id, distance in papers_by_distance if distance <= RELEVANCE_DISTANCE]
     if not relevant_paper_ids:
-        return _NONE_RESULT
+        return _NOT_ASSESSED_RESULT
 
     result = _reuse_approved_candidate_gap(session, relevant_paper_ids)
     if result is None:
@@ -102,8 +108,9 @@ def assess_research_gap(
     if result is None:
         result = _inferred_cross_paper_gap(session, relevant_paper_ids, embedder, min_cluster_size, similarity_threshold)
     if result is None:
-        return _NONE_RESULT
+        return _NOT_FOUND_RESULT
 
+    result.status = "found"
     distance_by_paper = dict(papers_by_distance)
     result.is_closely_grounded = _any_evidence_paper_is_close(session, result.evidence_ids, distance_by_paper)
     return result
