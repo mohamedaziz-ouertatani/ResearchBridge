@@ -419,7 +419,10 @@ def test_rerun_picks_up_newly_ingested_evidence(client, session, embedder) -> No
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
-    assert created["potential_applications"] is None  # no evidence existed yet
+    # p1 was retrieved (relevant) but had no application claim yet - "no
+    # evidence" (empty list), distinct from "no relevant papers at all"
+    # (None) - see assessment/applications.py's status field
+    assert created["potential_applications"] == []
 
     # same title as the query text so the (hash-based) fake embedder places it
     # at distance 0.0, well within assess_applications' relevance gate

@@ -96,8 +96,8 @@ def build_assessment(
                 }
                 for app in applications.applications
             ]
-            if applications.applications
-            else None
+            if applications.status == "found"
+            else ([] if applications.status == "no_evidence" else None)
         ),
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,

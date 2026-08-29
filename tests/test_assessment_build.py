@@ -158,6 +158,25 @@ def test_assessment_defaults_unassessed_fields_rather_than_fabricating(session_f
     assert assessment.completed_at is not None
 
 
+def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have_no_application(
+    session_factory, embedder
+) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "method", "an unrelated method claim")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    # relevant paper WAS retrieved (near-exact title match) but stated no
+    # application claim - this must be distinguishable from "nothing relevant
+    # was retrieved at all", which stays None (see the pre-existing
+    # test_assessment_defaults_unassessed_fields_rather_than_fabricating)
+    assert assessment.potential_applications == []
+
+
 def test_document_input_uses_extracted_representation_as_the_query(session_factory, embedder, monkeypatch) -> None:
     session = session_factory()
     _paper(session, embedder, "p1", "graph transformers for fraud detection")
@@ -315,7 +334,11 @@ def test_applications_evidence_is_linked_with_role_application(session_factory, 
     assert {link.evidence_id for link in app_links} == {evidence_id}
 
 
-def test_potential_applications_stays_null_without_any_applications_claim(session_factory, embedder) -> None:
+def test_potential_applications_is_empty_list_without_any_applications_claim(session_factory, embedder) -> None:
+    # a relevant paper WAS retrieved, it just stated no application claim -
+    # distinct from no relevant papers at all, which stays None (see
+    # test_potential_applications_is_empty_list_not_null_when_relevant_papers_have_no_application
+    # and the not_assessed case covered elsewhere in this file)
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
     _claim(session, paper, "limitations", "some unrelated limitation")
@@ -325,7 +348,7 @@ def test_potential_applications_stays_null_without_any_applications_claim(sessio
     assessment = build_assessment(session, ri.id, embedder, top_k=5)
 
     session.close()
-    assert assessment.potential_applications is None
+    assert assessment.potential_applications == []
 
 
 def test_technical_feasibility_is_set_from_the_neighborhood(session_factory, embedder) -> None:

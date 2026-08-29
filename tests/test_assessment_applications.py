@@ -57,14 +57,17 @@ def test_returns_none_when_no_relevant_papers(session) -> None:
     assert result.applications is None
 
 
-def test_returns_none_when_no_applications_claims_exist(session) -> None:
+def test_returns_empty_list_when_no_applications_claims_exist(session) -> None:
+    # relevant papers WERE retrieved, they just stated no application claim -
+    # distinct from "no relevant papers at all", which stays None (status
+    # "not_assessed") - see test_status_no_evidence_when_relevant_papers_have_no_application_claim
     paper = _paper(session, "p1")
     _claim(session, paper, "limitations", "some limitation")
     session.commit()
 
     result = assess_applications(session, [(paper.id, NEAR)])
 
-    assert result.applications is None
+    assert result.applications == []
 
 
 def test_collects_application_from_a_relevant_paper(session) -> None:
@@ -103,7 +106,7 @@ def test_excludes_stub_claims(session) -> None:
 
     result = assess_applications(session, [(paper.id, NEAR)])
 
-    assert result.applications is None
+    assert result.applications == []
 
 
 def test_excludes_too_distant_papers(session) -> None:
@@ -118,3 +121,32 @@ def test_excludes_too_distant_papers(session) -> None:
     assert len(result.applications) == 1
     assert result.applications[0].application == "a real application"
     assert result.evidence_ids == [e_near]
+
+
+def test_status_not_assessed_when_no_relevant_papers(session) -> None:
+    result = assess_applications(session, [])
+    assert result.status == "not_assessed"
+    assert result.applications is None
+
+
+def test_status_no_evidence_when_relevant_papers_have_no_application_claim(session) -> None:
+    paper = _paper(session, "p1")
+    _claim(session, paper, "method", "an unrelated method")
+    session.commit()
+
+    result = assess_applications(session, [(paper.id, NEAR)])
+
+    assert result.status == "no_evidence"
+    assert result.applications == []
+
+
+def test_status_found_when_an_application_claim_exists(session) -> None:
+    paper = _paper(session, "p1")
+    _claim(session, paper, "applications", "used in real-time fraud monitoring")
+    session.commit()
+
+    result = assess_applications(session, [(paper.id, NEAR)])
+
+    assert result.status == "found"
+    assert result.applications is not None
+    assert len(result.applications) == 1

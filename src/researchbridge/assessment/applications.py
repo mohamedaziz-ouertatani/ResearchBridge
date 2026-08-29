@@ -41,9 +41,11 @@ class ApplicationRecord:
 class ApplicationsResult:
     applications: list[ApplicationRecord] | None
     evidence_ids: list[uuid.UUID]
+    status: str = "not_assessed"  # "not_assessed" | "no_evidence" | "found"
 
 
-_EMPTY_RESULT = ApplicationsResult(applications=None, evidence_ids=[])
+_NOT_ASSESSED_RESULT = ApplicationsResult(applications=None, evidence_ids=[], status="not_assessed")
+_NO_EVIDENCE_RESULT = ApplicationsResult(applications=[], evidence_ids=[], status="no_evidence")
 
 
 def assess_applications(session: Session, papers_by_distance: list[PaperWithDistance]) -> ApplicationsResult:
@@ -51,7 +53,7 @@ def assess_applications(session: Session, papers_by_distance: list[PaperWithDist
     distance, nearest-first (the order search_by_text already returns)."""
     relevant_paper_ids = [paper_id for paper_id, distance in papers_by_distance if distance <= RELEVANCE_DISTANCE]
     if not relevant_paper_ids:
-        return _EMPTY_RESULT
+        return _NOT_ASSESSED_RESULT
 
     rows = session.execute(
         select(ExtractedClaim.paper_id, ExtractedClaim.text, ExtractedClaim.evidence_id, Paper.title)
@@ -64,7 +66,7 @@ def assess_applications(session: Session, papers_by_distance: list[PaperWithDist
         )
     ).all()
     if not rows:
-        return _EMPTY_RESULT
+        return _NO_EVIDENCE_RESULT
 
     by_paper_id: dict[uuid.UUID, list[tuple[str, uuid.UUID, str]]] = {}
     for paper_id, text, evidence_id, title in rows:
@@ -79,4 +81,4 @@ def assess_applications(session: Session, papers_by_distance: list[PaperWithDist
             )
             evidence_ids.append(evidence_id)
 
-    return ApplicationsResult(applications=applications, evidence_ids=evidence_ids)
+    return ApplicationsResult(applications=applications, evidence_ids=evidence_ids, status="found")
