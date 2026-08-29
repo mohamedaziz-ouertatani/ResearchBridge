@@ -53,6 +53,7 @@ from researchbridge.connectors.base import (
     ConnectorFetchResult,
     NormalizedAuthor,
     NormalizedPaper,
+    clean_harvested_abstract,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ class SemanticScholarConnector:
             source=self.source_name,
             source_id=paper_id,
             title=record.get("title", ""),
-            abstract=record.get("abstract") or None,
+            abstract=clean_harvested_abstract(record.get("abstract")),
             publication_date=_parse_date(record.get("publicationDate")),
             authors=authors,
             categories=list(record.get("fieldsOfStudy") or []),

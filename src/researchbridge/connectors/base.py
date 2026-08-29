@@ -2,9 +2,27 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Protocol
+
+# Publisher-supplied abstracts (harvested by Semantic Scholar, CORE, and
+# fetched directly from Springer) sometimes embed each numeric expression
+# twice: a MathML/LaTeX-ish block (e.g. "$$99.88\%\!\pm \!0.22\%$$")
+# immediately followed by a plain-text rendering of the same value
+# ("99.88 % ± 0.22 %") - a JATS abstract-formatting artifact from the
+# originating publisher, not something any of these APIs intend. Verified
+# live against real Springer API responses. Strip the markup block and
+# keep only the plain-text rendering that follows.
+_MATHML_BLOCK_RE = re.compile(r"\$\$.*?\$\$\s*", re.DOTALL)
+
+
+def clean_harvested_abstract(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    cleaned = _MATHML_BLOCK_RE.sub("", raw).strip()
+    return cleaned or None
 
 
 @dataclass

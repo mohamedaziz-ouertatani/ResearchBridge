@@ -45,6 +45,7 @@ from researchbridge.connectors.base import (
     ConnectorFetchResult,
     NormalizedAuthor,
     NormalizedPaper,
+    clean_harvested_abstract,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ class SpringerConnector:
             source=self.source_name,
             source_id=doi,
             title=record.get("title", ""),
-            abstract=record.get("abstract") or None,
+            abstract=clean_harvested_abstract(record.get("abstract")),
             publication_date=_parse_date(record.get("onlineDate") or record.get("publicationDate")),
             authors=authors,
             categories=list(record.get("subjects", [])),
