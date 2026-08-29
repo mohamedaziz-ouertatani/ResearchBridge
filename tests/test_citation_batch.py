@@ -7,13 +7,20 @@ import pytest
 
 from researchbridge.citations.batch import BatchSummary, run_all
 from researchbridge.citations.fetch import RawCitationsPayload
-from researchbridge.db.models import Paper, PaperCitation
+from researchbridge.db.models import CitationFetchRun, Paper, PaperCitation
 
 
 @pytest.fixture()
 def session(session_factory):
+    from sqlalchemy import text
+
     s = session_factory()
+    # citation_fetch_runs isn't in conftest's TRUNCATE list
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    s.commit()
     yield s
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    s.commit()
     s.close()
 
 
@@ -57,6 +64,50 @@ def test_run_all_dry_run_does_not_persist(session) -> None:
 
     assert summary.edges_created == 1  # what WOULD be created
     assert session.query(PaperCitation).count() == 0  # nothing actually persisted
+
+
+def test_run_all_updates_the_passed_run_row_incrementally(session, monkeypatch) -> None:
+    """The CitationFetchRun row must reflect progress as papers are
+    processed, not only once the whole batch finishes - a long-running
+    fetch would otherwise show all-zeros the entire time it's running
+    (a real bug: the admin UI's live counts never moved)."""
+    a = _add_s2_paper(session, "a")
+    b = _add_s2_paper(session, "b")
+    fetcher = FakeFetcher(payloads={"a": RawCitationsPayload(cited_source_ids=["b"])})
+    run = CitationFetchRun(source="semantic_scholar", status="running")
+    session.add(run)
+    session.commit()
+
+    commits = []
+    real_commit = session.commit
+    monkeypatch.setattr(session, "commit", lambda: (commits.append(1), real_commit())[-1])
+
+    summary = run_all(session, fetcher, save=True, run=run)
+
+    # at least one commit per paper processed, not just one at the very end
+    assert len(commits) >= 2
+    assert run.papers_seen == summary.papers_seen == 2
+    assert run.edges_created == summary.edges_created == 1
+    assert run.edges_already_existed == summary.edges_already_existed == 0
+    assert run.papers_failed == summary.papers_failed == 0
+
+
+def test_run_all_updates_the_passed_run_row_on_a_failing_paper(session) -> None:
+    a = _add_s2_paper(session, "a")
+
+    class RaisingFetcher:
+        def fetch_raw(self, source_id: str) -> RawCitationsPayload:
+            raise RuntimeError("boom")
+
+    run = CitationFetchRun(source="semantic_scholar", status="running")
+    session.add(run)
+    session.commit()
+
+    run_all(session, RaisingFetcher(), save=True, run=run)
+
+    session.refresh(run)
+    assert run.papers_seen == 1
+    assert run.papers_failed == 1
 
 
 def test_run_all_ignores_non_semantic_scholar_papers(session) -> None:

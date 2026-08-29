@@ -127,7 +127,7 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
     session.commit()
 
     try:
-        summary = run_all(session, fetcher, source=args.source, force=args.force, save=args.save)
+        summary = run_all(session, fetcher, source=args.source, force=args.force, save=args.save, run=run)
     except Exception as exc:
         run.status = "failed"
         run.error_summary = str(exc)[:2000]
@@ -135,11 +135,9 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
         session.commit()
         raise
 
+    # run's counts are already kept current by run_all (see batch.py's
+    # _sync_run) - only the terminal status/finished_at need setting here.
     run.status = "completed"
-    run.papers_seen = summary.papers_seen
-    run.papers_failed = summary.papers_failed
-    run.edges_created = summary.edges_created
-    run.edges_already_existed = summary.edges_already_existed
     run.finished_at = datetime.now(UTC)
     session.commit()
 

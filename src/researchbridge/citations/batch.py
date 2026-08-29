@@ -20,7 +20,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from researchbridge.citations.fetch import persist_citation_edges, resolve_citations
-from researchbridge.db.models import Paper, PaperCitation
+from researchbridge.db.models import CitationFetchRun, Paper, PaperCitation
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,19 @@ class BatchSummary:
     edges_already_existed: int = 0
 
 
-def run_all(session: Session, fetcher, source: str = "semantic_scholar", force: bool = False, save: bool = False) -> BatchSummary:
+def run_all(
+    session: Session,
+    fetcher,
+    source: str = "semantic_scholar",
+    force: bool = False,
+    save: bool = False,
+    run: CitationFetchRun | None = None,
+) -> BatchSummary:
+    """run: an optional in-progress CitationFetchRun row to update after
+    every paper, not just once the whole batch finishes - without this, a
+    long-running fetch (rate-limited to 1-6s/request, easily tens of
+    thousands of papers) would show all-zeros in the admin UI the entire
+    time it's running, only jumping to real numbers at the very end."""
     summary = BatchSummary()
 
     for paper in _select_target_papers(session, source, force):
@@ -45,19 +57,31 @@ def run_all(session: Session, fetcher, source: str = "semantic_scholar", force: 
         except Exception:
             logger.exception("Citation fetch failed for paper %s", paper.id)
             summary.papers_failed += 1
+            _sync_run(session, run, summary)
             continue
 
         attempted = len(resolution.edges)
         if save:
             created = persist_citation_edges(session, resolution, source=source)
-            session.commit()
         else:
             created = attempted  # dry run: report what WOULD be created
 
         summary.edges_created += created
         summary.edges_already_existed += attempted - created
+        _sync_run(session, run, summary)
 
     return summary
+
+
+def _sync_run(session: Session, run: CitationFetchRun | None, summary: BatchSummary) -> None:
+    if run is None:
+        session.commit()  # still commit any edges persisted this iteration
+        return
+    run.papers_seen = summary.papers_seen
+    run.papers_failed = summary.papers_failed
+    run.edges_created = summary.edges_created
+    run.edges_already_existed = summary.edges_already_existed
+    session.commit()  # updates both the run row and any edges persisted this iteration
 
 
 def _select_target_papers(session: Session, source: str, force: bool) -> list[Paper]:
