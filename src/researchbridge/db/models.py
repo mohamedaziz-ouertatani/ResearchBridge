@@ -298,6 +298,15 @@ class CandidateGap(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    correctness_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    relevance_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    novelty_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    evidence_support_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usefulness_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Sec 44's five human-evaluation dimensions, each 0-3 (irrelevant/weak/
+    plausible/highly relevant) - enforced by ck_candidate_gaps_*_rating_range
+    (see migration 0012). Optional: a reviewer can approve/reject without
+    rating, same as review_note already being optional."""
 
 
 class CandidateGapEvidence(Base):

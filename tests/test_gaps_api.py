@@ -139,6 +139,51 @@ def test_review_gap_rejects_with_note(client, session) -> None:
     assert body["review_note"] == "too weak"
 
 
+def test_review_gap_saves_ratings(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+
+    body = client.put(
+        f"/api/gaps/{gap.id}",
+        json={
+            "status": "approved",
+            "correctness_rating": 3,
+            "relevance_rating": 2,
+            "novelty_rating": 3,
+            "evidence_support_rating": 1,
+            "usefulness_rating": 2,
+        },
+    ).json()
+
+    assert body["correctness_rating"] == 3
+    assert body["relevance_rating"] == 2
+    assert body["novelty_rating"] == 3
+    assert body["evidence_support_rating"] == 1
+    assert body["usefulness_rating"] == 2
+
+
+def test_review_gap_ratings_default_to_null(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+
+    body = client.put(f"/api/gaps/{gap.id}", json={"status": "approved"}).json()
+
+    assert body["correctness_rating"] is None
+    assert body["usefulness_rating"] is None
+
+
+def test_review_gap_rejects_out_of_range_rating(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+
+    response = client.put(f"/api/gaps/{gap.id}", json={"status": "approved", "correctness_rating": 5})
+
+    assert response.status_code == 422
+
+
 def test_review_gap_rejects_invalid_status(client, session) -> None:
     seed = _add_paper(session, "seed")
     other = _add_paper(session, "other")

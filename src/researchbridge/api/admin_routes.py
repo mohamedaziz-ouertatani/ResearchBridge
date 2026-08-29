@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_session
@@ -27,8 +27,12 @@ from researchbridge.api.schemas import (
     CitationsFetchOut,
     CitationsFetchTrigger,
     CoreIngestionTrigger,
+    CorpusHealth,
     EmbeddingTrigger,
+    ExtractionEvalOut,
+    ExtractionEvalTrigger,
     ExtractionTrigger,
+    GapReviewStats,
     Notification,
     PaperExclude,
     PaperSummary,
@@ -49,10 +53,13 @@ from researchbridge.db.models import (
     EmbeddingRun,
     ExtractedClaim,
     ExtractionRun,
+    IngestionError,
     IngestionRun,
     Paper,
+    PaperCitation,
     ResearchAssessment,
 )
+from researchbridge.extraction.cli_evaluate import DEFAULT_RESULTS_PATH as EXTRACTION_EVAL_RESULTS_PATH
 from researchbridge.retrieval.cli_evaluate import DEFAULT_RESULTS_PATH as RETRIEVAL_EVAL_RESULTS_PATH
 
 router = APIRouter(prefix="/api/admin")
@@ -66,6 +73,7 @@ PIPELINE_KEYS = (
     "extraction",
     "embedding",
     "retrieval_eval",
+    "extraction_eval",
     "citations_fetch",
 )
 
@@ -107,7 +115,10 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         papers_with_claims=papers_with_claims,
         papers_with_embeddings=papers_with_embeddings,
         papers_by_source=papers_by_source,
+        corpus_health=_corpus_health(session),
         assessment_stats=_assessment_stats(session),
+        gap_stats=_gap_stats(session),
+        ingestion_errors_by_type=_ingestion_errors_by_type(session),
         ingestion_runs=[
             _to_run(run, ("records_fetched", "records_inserted", "records_duplicate", "records_failed"))
             for run in _recent(session, IngestionRun)
@@ -245,6 +256,88 @@ def _embedding_message(run: EmbeddingRun) -> str:
     if run.status == "stopped":
         return f"Embedding run stopped{forced}: {run.papers_processed} processed so far"
     return f"Embedding run completed{forced}: {run.papers_processed} processed, {run.papers_skipped} skipped"
+
+
+def _corpus_health(session: Session) -> CorpusHealth:
+    """Cheap count queries flagging papers stuck mid-pipeline or unreachable
+    by a citation source - see CorpusHealth's field docstrings for what each
+    one means. No per-paper listing, matching this router's existing
+    "lightweight, not a dashboard" scope."""
+    missing_doi = session.execute(
+        select(func.count()).select_from(Paper).where(Paper.doi.is_(None))
+    ).scalar_one()
+
+    excluded = session.execute(
+        select(func.count()).select_from(Paper).where(Paper.excluded_at.is_not(None))
+    ).scalar_one()
+
+    has_embedding = exists().where(Embedding.paper_id == Paper.id)
+    claims_without_embeddings = session.execute(
+        select(func.count(func.distinct(ExtractedClaim.paper_id)))
+        .select_from(ExtractedClaim)
+        .join(Paper, Paper.id == ExtractedClaim.paper_id)
+        .where(~has_embedding)
+    ).scalar_one()
+
+    eligible_for_citations = Paper.doi.is_not(None) | (Paper.source == "semantic_scholar")
+    has_citation_edge = exists().where(PaperCitation.citing_paper_id == Paper.id)
+    no_citation_coverage = session.execute(
+        select(func.count()).select_from(Paper).where(eligible_for_citations, ~has_citation_edge)
+    ).scalar_one()
+
+    return CorpusHealth(
+        missing_doi=missing_doi,
+        excluded=excluded,
+        claims_without_embeddings=claims_without_embeddings,
+        no_citation_coverage=no_citation_coverage,
+    )
+
+
+def _gap_stats(session: Session) -> GapReviewStats:
+    """Same shape as _assessment_stats: a review queue's status breakdown,
+    grouped straight off CandidateGap.status (see that column's CHECK
+    constraint for the three valid values), plus the mean of each Sec 44
+    rating dimension across whatever gaps have been rated on it -
+    func.avg over a nullable column ignores NULLs on its own, which is
+    exactly "mean across gaps rated on this dimension"."""
+    counts = dict(
+        session.execute(select(CandidateGap.status, func.count()).group_by(CandidateGap.status)).all()
+    )
+    means = session.execute(
+        select(
+            func.avg(CandidateGap.correctness_rating),
+            func.avg(CandidateGap.relevance_rating),
+            func.avg(CandidateGap.novelty_rating),
+            func.avg(CandidateGap.evidence_support_rating),
+            func.avg(CandidateGap.usefulness_rating),
+        )
+    ).one()
+    return GapReviewStats(
+        pending=counts.get("pending", 0),
+        approved=counts.get("approved", 0),
+        rejected=counts.get("rejected", 0),
+        mean_correctness=float(means[0]) if means[0] is not None else None,
+        mean_relevance=float(means[1]) if means[1] is not None else None,
+        mean_novelty=float(means[2]) if means[2] is not None else None,
+        mean_evidence_support=float(means[3]) if means[3] is not None else None,
+        mean_usefulness=float(means[4]) if means[4] is not None else None,
+    )
+
+
+ERROR_SAMPLE_LIMIT = 500
+"""How many of the most recent ingestion_errors rows _ingestion_errors_by_type
+groups over - a sample for spotting what's failing lately, not an
+all-time count, so this stays cheap regardless of corpus age."""
+
+
+def _ingestion_errors_by_type(session: Session) -> dict[str, int]:
+    recent_ids = select(IngestionError.id).order_by(IngestionError.occurred_at.desc()).limit(ERROR_SAMPLE_LIMIT)
+    rows = session.execute(
+        select(IngestionError.error_type, func.count())
+        .where(IngestionError.id.in_(recent_ids))
+        .group_by(IngestionError.error_type)
+    ).all()
+    return dict(rows)
 
 
 def _assessment_stats(session: Session) -> AssessmentStats:
@@ -449,6 +542,35 @@ def get_retrieval_eval() -> RetrievalEvalOut:
         generated_at=data["generated_at"],
         k=data["k"],
         query_sets=data["query_sets"],
+    )
+
+
+@router.post("/extraction-eval/run", response_model=PipelineTriggerOut)
+def trigger_extraction_eval(payload: ExtractionEvalTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.threshold is not None:
+        args += ["--threshold", str(payload.threshold)]
+    if payload.extractor is not None:
+        args += ["--extractor", payload.extractor]
+    return _trigger_or_409("extraction_eval", "researchbridge.extraction.cli_evaluate", args)
+
+
+@router.get("/extraction-eval", response_model=ExtractionEvalOut)
+def get_extraction_eval() -> ExtractionEvalOut:
+    """Reads the last rb-extract-evaluate run's persisted results (see
+    EXTRACTION_EVAL_RESULTS_PATH) - never computes them live, since a real
+    run loads an embedding model and runs one or more extractors against
+    the whole benchmark."""
+    if not EXTRACTION_EVAL_RESULTS_PATH.exists():
+        return ExtractionEvalOut(available=False, generated_at=None, threshold=None, paper_count=None, extractors=None)
+
+    data = json.loads(EXTRACTION_EVAL_RESULTS_PATH.read_text())
+    return ExtractionEvalOut(
+        available=True,
+        generated_at=data["generated_at"],
+        threshold=data["threshold"],
+        paper_count=data["paper_count"],
+        extractors=data["extractors"],
     )
 
 

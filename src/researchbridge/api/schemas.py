@@ -131,6 +131,13 @@ class CandidateGapOut(BaseModel):
     similarity_threshold: float
     detection_method: str
     review_note: str | None
+    correctness_rating: int | None
+    relevance_rating: int | None
+    novelty_rating: int | None
+    evidence_support_rating: int | None
+    usefulness_rating: int | None
+    """Sec 44's five human-evaluation dimensions, 0-3 - see CandidateGap's
+    docstring. Optional even on a reviewed gap."""
     evidence: list[GapEvidenceOut]
     """Never presented as validated: gap_type is always "inference" (Sec 34),
     and status stays "pending" until a human reviews it here (Sec 35/44)."""
@@ -141,6 +148,11 @@ class CandidateGapOut(BaseModel):
 class CandidateGapReview(BaseModel):
     status: str
     review_note: str | None = None
+    correctness_rating: int | None = None
+    relevance_rating: int | None = None
+    novelty_rating: int | None = None
+    evidence_support_rating: int | None = None
+    usefulness_rating: int | None = None
 
 
 class CandidateGapPage(BaseModel):
@@ -337,12 +349,46 @@ class AssessmentStats(BaseModel):
     needs_review: int
 
 
+class CorpusHealth(BaseModel):
+    missing_doi: int
+    """Papers with no DOI - unreachable by the CrossRef citation pass."""
+    excluded: int
+    """Papers with excluded_at set (see PUT /api/admin/papers/{id}/exclude)."""
+    claims_without_embeddings: int
+    """Papers that have at least one ExtractedClaim but no Embedding yet -
+    stuck between the extraction and embedding pipeline stages."""
+    no_citation_coverage: int
+    """Papers eligible for at least one citation source (has a DOI, or
+    source="semantic_scholar") with zero outgoing PaperCitation edges from
+    any source yet."""
+
+
+class GapReviewStats(BaseModel):
+    pending: int
+    approved: int
+    rejected: int
+    mean_correctness: float | None
+    mean_relevance: float | None
+    mean_novelty: float | None
+    mean_evidence_support: float | None
+    mean_usefulness: float | None
+    """Mean of each Sec 44 rating dimension across gaps that have been rated
+    on it - None when nothing has a rating yet. This is the RQ3/RQ4 number:
+    how the reviewer scored candidate gaps, not just how many were approved."""
+
+
 class PipelineStatus(BaseModel):
     total_papers: int
     papers_with_claims: int
     papers_with_embeddings: int
     papers_by_source: dict[str, int]
+    corpus_health: CorpusHealth
     assessment_stats: AssessmentStats
+    gap_stats: GapReviewStats
+    ingestion_errors_by_type: dict[str, int]
+    """Grouped counts of the most recent ingestion errors (see
+    _ingestion_errors_by_type's ERROR_SAMPLE_LIMIT) - a sample for spotting
+    what's failing and why, not an exhaustive historical count."""
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]
@@ -440,6 +486,29 @@ class RetrievalEvalOut(BaseModel):
     generated_at: datetime | None
     k: int | None
     query_sets: dict[str, RetrievalEvalQuerySet] | None
+
+
+class ExtractionEvalTrigger(BaseModel):
+    threshold: float | None = None
+    extractor: str | None = None
+
+
+class ExtractionEvalFieldScore(BaseModel):
+    precision: float
+    recall: float
+    f1: float
+
+
+class ExtractionEvalOut(BaseModel):
+    available: bool
+    """False when rb-extract-evaluate has never been run - same one-off-
+    diagnostic, no-run-history-table choice as RetrievalEvalOut."""
+    generated_at: datetime | None
+    threshold: float | None
+    paper_count: int | None
+    extractors: dict[str, dict[str, ExtractionEvalFieldScore]] | None
+    """extractor name -> field name -> score, e.g.
+    {"hybrid": {"problem": {"precision": 0.8, ...}}}."""
 
 
 class CitationsFetchTrigger(BaseModel):

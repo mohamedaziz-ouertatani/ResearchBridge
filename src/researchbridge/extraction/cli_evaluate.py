@@ -22,8 +22,11 @@ field is finding what's NOT yet solved.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 
@@ -42,6 +45,7 @@ from researchbridge.extraction.semantic import SemanticExtractor
 from researchbridge.extraction.type_validation_evaluation import TypeValidationScore, evaluate_claim_type_validation
 
 EXTRACTORS = ("heuristic", "semantic", "hybrid")
+DEFAULT_RESULTS_PATH = Path("benchmark/extraction_eval_results.json")
 
 
 def main() -> None:
@@ -52,6 +56,7 @@ def main() -> None:
     parser.add_argument("--benchmark-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--threshold", type=float, default=DEFAULT_SIMILARITY_THRESHOLD)
     parser.add_argument("--extractor", choices=[*EXTRACTORS, "all"], default="all")
+    parser.add_argument("--output-file", type=Path, default=DEFAULT_RESULTS_PATH)
     args = parser.parse_args()
 
     session = make_session_factory(make_engine())()
@@ -80,14 +85,19 @@ def main() -> None:
 
         embedder = SentenceTransformerEmbedder()
         names = EXTRACTORS if args.extractor == "all" else (args.extractor,)
+        scores_by_extractor: dict[str, dict[str, FieldScore]] = {}
         for name in names:
             extractor = _make_extractor(name, embedder)
             scores = _evaluate_one(extractor, usable, papers_by_source_id, embedder, args.threshold)
+            scores_by_extractor[extractor.extraction_method] = scores
             print(f"\n=== {extractor.extraction_method} ({len(usable)} papers, threshold={args.threshold}) ===")
             _print_table(scores)
 
         print(f"\n=== claim-type validation ({len(usable)} papers, ground-truth only) ===")
         _print_type_validation_table(evaluate_claim_type_validation(usable))
+
+        write_results_json(args.output_file, scores_by_extractor, threshold=args.threshold, paper_count=len(usable))
+        print(f"\nWrote results to {args.output_file}")
     finally:
         session.close()
 
@@ -117,6 +127,34 @@ def _print_table(scores: dict[str, FieldScore]) -> None:
     print("-" * len(header))
     for field, s in scores.items():
         print(f"{field:<20}{s.precision:>12.3f}{s.recall:>10.3f}{s.f1:>10.3f}")
+
+
+def _build_results_json(
+    scores_by_extractor: dict[str, dict[str, FieldScore]], threshold: float, paper_count: int
+) -> dict[str, Any]:
+    """Shapes per-extractor field scores into the JSON the admin dashboard
+    reads (GET /api/admin/extraction-eval) - a flat file, not a DB table,
+    same "one-off diagnostic, not a repeating pipeline stage" choice as
+    retrieval/cli_evaluate.py's write_results_json."""
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "threshold": threshold,
+        "paper_count": paper_count,
+        "extractors": {
+            extractor_name: {
+                field: {"precision": score.precision, "recall": score.recall, "f1": score.f1}
+                for field, score in field_scores.items()
+            }
+            for extractor_name, field_scores in scores_by_extractor.items()
+        },
+    }
+
+
+def write_results_json(
+    path: Path, scores_by_extractor: dict[str, dict[str, FieldScore]], threshold: float, paper_count: int
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_build_results_json(scores_by_extractor, threshold, paper_count), indent=2))
 
 
 def _print_type_validation_table(scores: dict[str, TypeValidationScore]) -> None:

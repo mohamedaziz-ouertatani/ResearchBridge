@@ -135,6 +135,11 @@ def to_gaps(session: Session, gaps: Sequence[CandidateGap]) -> list[CandidateGap
             similarity_threshold=gap.similarity_threshold,
             detection_method=gap.detection_method,
             review_note=gap.review_note,
+            correctness_rating=gap.correctness_rating,
+            relevance_rating=gap.relevance_rating,
+            novelty_rating=gap.novelty_rating,
+            evidence_support_rating=gap.evidence_support_rating,
+            usefulness_rating=gap.usefulness_rating,
             evidence=evidence_by_gap.get(gap.id, []),
         )
         for gap in gaps

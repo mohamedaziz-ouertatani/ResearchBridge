@@ -20,8 +20,10 @@ from researchbridge.db.models import (
     Evidence,
     ExtractedClaim,
     ExtractionRun,
+    IngestionError,
     IngestionRun,
     Paper,
+    PaperCitation,
     ResearchAssessment,
     ResearchInput,
 )
@@ -75,11 +77,13 @@ def session(session_factory):
 
 
 def _add_paper(
-    session, embedder, source_id: str, embed: bool = False, claim: bool = False, source: str = "arxiv"
+    session, embedder, source_id: str, embed: bool = False, claim: bool = False, source: str = "arxiv",
+    doi: str | None = None, excluded: bool = False,
 ) -> Paper:
     paper = Paper(
         id=uuid.uuid4(), source=source, source_id=source_id, title=f"paper {source_id}", abstract="",
-        raw_metadata={}, ingestion_metadata={},
+        raw_metadata={}, ingestion_metadata={}, doi=doi,
+        excluded_at=datetime.now(timezone.utc) if excluded else None,
     )
     session.add(paper)
     session.flush()
@@ -112,6 +116,151 @@ def test_pipeline_status_reports_corpus_coverage(client, session, embedder) -> N
     assert body["total_papers"] == 3
     assert body["papers_with_embeddings"] == 2
     assert body["papers_with_claims"] == 1
+
+
+def test_pipeline_status_reports_corpus_health_missing_doi(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", doi="10.1/abc")
+    _add_paper(session, embedder, "p2", doi=None)
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["corpus_health"]["missing_doi"] == 1
+
+
+def test_pipeline_status_reports_corpus_health_excluded(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", excluded=True)
+    _add_paper(session, embedder, "p2", excluded=False)
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["corpus_health"]["excluded"] == 1
+
+
+def test_pipeline_status_reports_corpus_health_claims_without_embeddings(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", claim=True, embed=False)
+    _add_paper(session, embedder, "p2", claim=True, embed=True)
+    _add_paper(session, embedder, "p3", claim=False, embed=False)
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["corpus_health"]["claims_without_embeddings"] == 1
+
+
+def test_pipeline_status_reports_corpus_health_no_citation_coverage(client, session, embedder) -> None:
+    covered = _add_paper(session, embedder, "p1", doi="10.1/covered")
+    _add_paper(session, embedder, "p2", doi="10.1/uncovered")
+    uncovered_s2 = _add_paper(session, embedder, "p3", source="semantic_scholar")
+    # a paper with no DOI and not semantic_scholar-sourced isn't eligible for
+    # either citation source, so it shouldn't count as "no coverage"
+    _add_paper(session, embedder, "p4", source="core", doi=None)
+    session.flush()
+    session.add(
+        PaperCitation(
+            citing_paper_id=covered.id, cited_paper_id=covered.id, source="crossref", confidence="high",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["corpus_health"]["no_citation_coverage"] == 2  # p2 and p3
+    assert uncovered_s2.id  # sanity: fixture used
+
+
+def _add_gap(
+    session, embedder, status: str = "pending", correctness_rating: int | None = None,
+    relevance_rating: int | None = None, novelty_rating: int | None = None,
+    evidence_support_rating: int | None = None, usefulness_rating: int | None = None,
+) -> CandidateGap:
+    paper = _add_paper(session, embedder, f"gap-seed-{uuid.uuid4()}")
+    session.flush()
+    gap = CandidateGap(
+        seed_paper_id=paper.id, observation="a pattern", contributing_paper_count=3,
+        similarity_threshold=0.8, detection_method="embedding_cosine", status=status,
+        correctness_rating=correctness_rating, relevance_rating=relevance_rating,
+        novelty_rating=novelty_rating, evidence_support_rating=evidence_support_rating,
+        usefulness_rating=usefulness_rating,
+    )
+    session.add(gap)
+    session.flush()
+    return gap
+
+
+def test_pipeline_status_reports_gap_stats(client, session, embedder) -> None:
+    _add_gap(session, embedder, status="pending")
+    _add_gap(session, embedder, status="pending")
+    _add_gap(session, embedder, status="approved")
+    _add_gap(session, embedder, status="rejected")
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["gap_stats"]["pending"] == 2
+    assert body["gap_stats"]["approved"] == 1
+    assert body["gap_stats"]["rejected"] == 1
+
+
+def test_pipeline_status_gap_stats_zero_when_no_gaps(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["gap_stats"] == {
+        "pending": 0, "approved": 0, "rejected": 0,
+        "mean_correctness": None, "mean_relevance": None, "mean_novelty": None,
+        "mean_evidence_support": None, "mean_usefulness": None,
+    }
+
+
+def test_pipeline_status_reports_mean_gap_ratings(client, session, embedder) -> None:
+    _add_gap(session, embedder, status="approved", correctness_rating=3, relevance_rating=2)
+    _add_gap(session, embedder, status="approved", correctness_rating=1, relevance_rating=2)
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["gap_stats"]["mean_correctness"] == 2.0
+    assert body["gap_stats"]["mean_relevance"] == 2.0
+    assert body["gap_stats"]["mean_novelty"] is None
+
+
+def test_pipeline_status_reports_ingestion_errors_by_type(client, session) -> None:
+    run = IngestionRun(
+        source="arxiv", status="completed", started_at=datetime.now(timezone.utc),
+        records_fetched=3, records_inserted=1, records_duplicate=0, records_failed=2,
+    )
+    session.add(run)
+    session.flush()
+    session.add(
+        IngestionError(
+            ingestion_run_id=run.id, source="arxiv", raw_payload={}, error_type="validation",
+            error_detail="missing title",
+        )
+    )
+    session.add(
+        IngestionError(
+            ingestion_run_id=run.id, source="arxiv", raw_payload={}, error_type="validation",
+            error_detail="missing abstract",
+        )
+    )
+    session.add(
+        IngestionError(
+            ingestion_run_id=run.id, source="arxiv", raw_payload={}, error_type="network",
+            error_detail="timeout",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["ingestion_errors_by_type"] == {"validation": 2, "network": 1}
+
+
+def test_pipeline_status_ingestion_errors_by_type_empty_when_none(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["ingestion_errors_by_type"] == {}
 
 
 def test_pipeline_status_lists_recent_ingestion_runs(client, session) -> None:
@@ -417,6 +566,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "extraction": False,
         "embedding": False,
         "retrieval_eval": False,
+        "extraction_eval": False,
         "citations_fetch": False,
     }
 
@@ -662,6 +812,87 @@ def test_get_retrieval_eval_returns_persisted_results_when_file_exists(client, m
     assert body["query_sets"]["self"]["results"][0]["method"] == "tfidf"
 
 
+def test_trigger_extraction_eval_calls_trigger_with_no_extra_flags_by_default(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/extraction-eval/run", json={})
+
+    assert calls == [("extraction_eval", "researchbridge.extraction.cli_evaluate", [])]
+
+
+def test_trigger_extraction_eval_passes_threshold_and_extractor_overrides(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/extraction-eval/run", json={"threshold": 0.6, "extractor": "hybrid"})
+
+    assert calls == [
+        (
+            "extraction_eval",
+            "researchbridge.extraction.cli_evaluate",
+            ["--threshold", "0.6", "--extractor", "hybrid"],
+        )
+    ]
+
+
+def test_stop_extraction_eval_does_not_error_without_a_run_model(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    response = client.post("/api/admin/extraction_eval/stop")
+
+    assert response.status_code == 200
+    assert response.json() == {"stopped": True, "pipeline": "extraction_eval"}
+
+
+def test_get_extraction_eval_returns_unavailable_when_no_results_file(client, monkeypatch, tmp_path) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    monkeypatch.setattr(routes_module, "EXTRACTION_EVAL_RESULTS_PATH", tmp_path / "nonexistent.json")
+
+    body = client.get("/api/admin/extraction-eval").json()
+
+    assert body == {"available": False, "generated_at": None, "threshold": None, "paper_count": None, "extractors": None}
+
+
+def test_get_extraction_eval_returns_persisted_results_when_file_exists(client, monkeypatch, tmp_path) -> None:
+    import json
+
+    import researchbridge.api.admin_routes as routes_module
+
+    results_path = tmp_path / "extraction_eval_results.json"
+    results_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-28T00:00:00+00:00",
+                "threshold": 0.5,
+                "paper_count": 10,
+                "extractors": {
+                    "hybrid": {"problem": {"precision": 0.8, "recall": 0.7, "f1": 0.75}},
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(routes_module, "EXTRACTION_EVAL_RESULTS_PATH", results_path)
+
+    body = client.get("/api/admin/extraction-eval").json()
+
+    assert body["available"] is True
+    assert body["threshold"] == 0.5
+    assert body["paper_count"] == 10
+    assert body["extractors"]["hybrid"]["problem"]["f1"] == 0.75
+
+
 def test_trigger_citations_fetch_defaults_to_semantic_scholar(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
@@ -803,6 +1034,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "extraction": True,
         "embedding": False,
         "retrieval_eval": False,
+        "extraction_eval": False,
         "citations_fetch": False,
     }
 

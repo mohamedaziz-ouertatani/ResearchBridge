@@ -36,6 +36,13 @@ router = APIRouter(prefix="/api/gaps")
 MAX_LIMIT = 100
 VALID_STATUSES = {"pending", "approved", "rejected"}
 PIPELINE_KEY = "gaps"
+RATING_FIELDS = (
+    "correctness_rating",
+    "relevance_rating",
+    "novelty_rating",
+    "evidence_support_rating",
+    "usefulness_rating",
+)
 
 
 @router.get("", response_model=CandidateGapPage)
@@ -71,6 +78,11 @@ def review_gap(
     if payload.status not in VALID_STATUSES:
         raise HTTPException(status_code=422, detail=f"status must be one of {sorted(VALID_STATUSES)}")
 
+    for field in RATING_FIELDS:
+        rating = getattr(payload, field)
+        if rating is not None and not (0 <= rating <= 3):
+            raise HTTPException(status_code=422, detail=f"{field} must be between 0 and 3")
+
     gap = session.get(CandidateGap, gap_id)
     if gap is None:
         raise HTTPException(status_code=404, detail=f"No candidate gap with id {gap_id}")
@@ -78,6 +90,8 @@ def review_gap(
     gap.status = payload.status
     gap.review_note = payload.review_note
     gap.reviewed_at = None if payload.status == "pending" else datetime.now(timezone.utc)
+    for field in RATING_FIELDS:
+        setattr(gap, field, getattr(payload, field))
     session.commit()
 
     return to_gaps(session, [gap])[0]
