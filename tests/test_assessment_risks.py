@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 
+from researchbridge.assessment.coverage import DimensionCoverage
 from researchbridge.assessment.risks import assess_risks
 from researchbridge.db.models import Evidence, ExtractedClaim, Paper
 
@@ -117,3 +118,36 @@ def test_excludes_too_distant_papers(session) -> None:
     assert "a real limitation" in result.text
     assert "an irrelevant limitation" not in result.text
     assert result.evidence_ids == [e_near]
+
+
+def test_coverage_gaps_default_to_empty_when_not_provided(session) -> None:
+    result = assess_risks(session, [])
+    assert result.coverage_gaps == []
+
+
+def test_coverage_gaps_lists_not_found_and_weak_evidence_dimensions(session) -> None:
+    paper = _paper(session, "p1")
+    _claim(session, paper, "limitations", "does not handle streaming data")
+    session.commit()
+
+    coverages = [
+        DimensionCoverage(dimension="concept drift", status="not_found"),
+        DimensionCoverage(dimension="class imbalance", status="weak_evidence", evidence_ids=[uuid.uuid4()]),
+        DimensionCoverage(dimension="federated learning", status="established", evidence_ids=[uuid.uuid4()]),
+    ]
+
+    result = assess_risks(session, [(paper.id, NEAR)], dimension_coverages=coverages)
+
+    assert result.coverage_gaps == ["concept drift", "class imbalance"]
+
+
+def test_coverage_gaps_never_appear_inside_the_risk_text_itself(session) -> None:
+    paper = _paper(session, "p1")
+    _claim(session, paper, "limitations", "does not handle streaming data")
+    session.commit()
+
+    coverages = [DimensionCoverage(dimension="concept drift", status="not_found")]
+    result = assess_risks(session, [(paper.id, NEAR)], dimension_coverages=coverages)
+
+    # the coverage gap must never be silently promoted into a risk statement
+    assert "concept drift" not in (result.text or "")
