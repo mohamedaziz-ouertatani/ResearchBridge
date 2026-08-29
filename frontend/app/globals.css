@@ -88,6 +88,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* <select> otherwise renders with the OS/browser's own white background
+   and black text in dark mode - every select in the app is styled bare
+   (border-b + bg-transparent), which only ever looked right because
+   light mode's OS default happens to match. option elements are included
+   since some browsers (Firefox, Chrome on Windows) paint the dropdown
+   list from the OS default too, ignoring the select's own inherited color. */
+select,
+select option {
+  background: var(--panel);
+  color: var(--ink);
+}
+
 /* --- shared type roles ---------------------------------------------- */
 
 .eyebrow {
