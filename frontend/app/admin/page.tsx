@@ -423,7 +423,7 @@ export default function AdminPipeline() {
                   <RunSection
                     title="citation management"
                     pipelineKey="citations_fetch"
-                    runs={[]}
+                    runs={status.citation_fetch_runs}
                     running={status.running.citations_fetch}
                     fields={[
                       {
@@ -728,7 +728,14 @@ function RunSection({
           {runs.map((run) => (
             <li key={run.id} className="border-t border-[var(--rule-soft)] pt-4 first:border-t-0 first:pt-0">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="readout text-[0.875rem]">{run.status}</span>
+                <span className="readout inline-flex items-center gap-2 text-[0.875rem]">
+                  {run.status}
+                  {run.source && (
+                    <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+                      {run.source.replace(/_/g, " ")}
+                    </span>
+                  )}
+                </span>
                 <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
                   {new Date(run.started_at).toLocaleString()}
                   {run.finished_at

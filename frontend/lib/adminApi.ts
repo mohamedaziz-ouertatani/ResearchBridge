@@ -56,6 +56,7 @@ export type PipelineStatus = {
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];
+  citation_fetch_runs: PipelineRun[];
   running: Record<PipelineKey, boolean>;
 };
 
