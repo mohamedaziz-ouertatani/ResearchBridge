@@ -109,20 +109,6 @@ export type ExtractionEvalResult = {
   extractors: Record<string, Record<string, ExtractionEvalFieldScore>> | null;
 };
 
-export type CitationSourceSummary = {
-  available: boolean;
-  generated_at: string | null;
-  papers_seen: number | null;
-  papers_failed: number | null;
-  edges_created: number | null;
-  edges_already_existed: number | null;
-};
-
-export type CitationsFetchResult = {
-  semantic_scholar: CitationSourceSummary;
-  crossref: CitationSourceSummary;
-};
-
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -193,12 +179,6 @@ export const adminApi = {
 
   triggerCitationsFetch: (params: { source?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/citations-fetch/run", params),
-
-  citationsFetch: () =>
-    fetch(`${API_BASE}/api/admin/citations-fetch`, { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return response.json() as Promise<CitationsFetchResult>;
-    }),
 
   log: (key: PipelineKey, lines = 200) =>
     fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {

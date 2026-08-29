@@ -132,9 +132,9 @@ class PaperCitation(Base):
 
 class CitationFetchRun(Base):
     """One rb-citations-fetch --all run - same run-history shape as
-    IngestionRun/ExtractionRun/EmbeddingRun, so a failed or operator-stopped
-    fetch leaves a visible record instead of only the last-completed
-    summary file citations/cli_fetch.py already persists."""
+    IngestionRun/ExtractionRun/EmbeddingRun, updated incrementally as the
+    batch processes papers (see citations/batch.py's _sync_run) rather
+    than only once the whole run finishes."""
 
     __tablename__ = "citation_fetch_runs"
 

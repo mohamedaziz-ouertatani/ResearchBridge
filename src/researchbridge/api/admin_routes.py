@@ -23,8 +23,6 @@ from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_runn
 from researchbridge.api.schemas import (
     ArxivIngestionTrigger,
     AssessmentStats,
-    CitationSourceSummary,
-    CitationsFetchOut,
     CitationsFetchTrigger,
     CoreIngestionTrigger,
     CorpusHealth,
@@ -46,7 +44,6 @@ from researchbridge.api.schemas import (
     SpringerIngestionTrigger,
 )
 from researchbridge.api.serializers import to_summary
-from researchbridge.citations.cli_fetch import SUMMARY_PATH_BY_SOURCE as CITATIONS_FETCH_SUMMARY_PATHS
 from researchbridge.db.models import (
     CandidateGap,
     CitationFetchRun,
@@ -609,33 +606,3 @@ def trigger_citations_fetch(payload: CitationsFetchTrigger) -> PipelineTriggerOu
     if payload.force:
         args += ["--force"]
     return _trigger_or_409("citations_fetch", "researchbridge.citations.cli_fetch", args)
-
-
-@router.get("/citations-fetch", response_model=CitationsFetchOut)
-def get_citations_fetch() -> CitationsFetchOut:
-    """Reads each source's last rb-citations-fetch --all run's persisted
-    summary (see CITATIONS_FETCH_SUMMARY_PATHS) - never triggers a fetch
-    here, since a real run walks every eligible paper in the corpus
-    against a rate-limited external API."""
-    return CitationsFetchOut(
-        semantic_scholar=_read_citation_summary(CITATIONS_FETCH_SUMMARY_PATHS["semantic_scholar"]),
-        crossref=_read_citation_summary(CITATIONS_FETCH_SUMMARY_PATHS["crossref"]),
-    )
-
-
-def _read_citation_summary(path) -> CitationSourceSummary:
-    if not path.exists():
-        return CitationSourceSummary(
-            available=False, generated_at=None, papers_seen=None, papers_failed=None,
-            edges_created=None, edges_already_existed=None,
-        )
-
-    data = json.loads(path.read_text())
-    return CitationSourceSummary(
-        available=True,
-        generated_at=data["generated_at"],
-        papers_seen=data["papers_seen"],
-        papers_failed=data["papers_failed"],
-        edges_created=data["edges_created"],
-        edges_already_existed=data["edges_already_existed"],
-    )

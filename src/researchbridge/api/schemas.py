@@ -517,23 +517,6 @@ class CitationsFetchTrigger(BaseModel):
     force: bool = False
 
 
-class CitationSourceSummary(BaseModel):
-    available: bool
-    """False when rb-citations-fetch --all has never been run for this
-    source - see admin_routes.py's CITATIONS_FETCH_SUMMARY_PATHS. No
-    run-history table for this, same reasoning as RetrievalEvalOut."""
-    generated_at: datetime | None
-    papers_seen: int | None
-    papers_failed: int | None
-    edges_created: int | None
-    edges_already_existed: int | None
-
-
-class CitationsFetchOut(BaseModel):
-    semantic_scholar: CitationSourceSummary
-    crossref: CitationSourceSummary
-
-
 class PipelineStopOut(BaseModel):
     stopped: bool
     pipeline: str

@@ -989,58 +989,6 @@ def test_stop_citations_fetch_marks_the_running_row_stopped(client, session, mon
     assert run.finished_at is not None
 
 
-def test_get_citations_fetch_returns_unavailable_when_no_summary_files(client, monkeypatch, tmp_path) -> None:
-    import researchbridge.api.admin_routes as routes_module
-
-    monkeypatch.setattr(
-        routes_module,
-        "CITATIONS_FETCH_SUMMARY_PATHS",
-        {"semantic_scholar": tmp_path / "s2.json", "crossref": tmp_path / "crossref.json"},
-    )
-
-    body = client.get("/api/admin/citations-fetch").json()
-
-    unavailable = {
-        "available": False,
-        "generated_at": None,
-        "papers_seen": None,
-        "papers_failed": None,
-        "edges_created": None,
-        "edges_already_existed": None,
-    }
-    assert body == {"semantic_scholar": unavailable, "crossref": unavailable}
-
-
-def test_get_citations_fetch_returns_persisted_summary_per_source(client, monkeypatch, tmp_path) -> None:
-    import json
-
-    import researchbridge.api.admin_routes as routes_module
-
-    s2_path = tmp_path / "s2.json"
-    s2_path.write_text(
-        json.dumps(
-            {
-                "generated_at": "2026-08-28T00:00:00+00:00",
-                "papers_seen": 100,
-                "papers_failed": 3,
-                "edges_created": 42,
-                "edges_already_existed": 7,
-            }
-        )
-    )
-    crossref_path = tmp_path / "crossref.json"  # left absent - crossref never run yet
-    monkeypatch.setattr(
-        routes_module, "CITATIONS_FETCH_SUMMARY_PATHS", {"semantic_scholar": s2_path, "crossref": crossref_path}
-    )
-
-    body = client.get("/api/admin/citations-fetch").json()
-
-    assert body["semantic_scholar"]["available"] is True
-    assert body["semantic_scholar"]["papers_seen"] == 100
-    assert body["semantic_scholar"]["edges_created"] == 42
-    assert body["crossref"]["available"] is False
-
-
 def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
     from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning

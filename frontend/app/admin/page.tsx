@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   adminApi,
-  type CitationSourceSummary,
-  type CitationsFetchResult,
   type ExtractionEvalResult,
   type PipelineKey,
   type PipelineRun,
@@ -28,11 +26,13 @@ import { SkeletonStats } from "@/components/Skeleton";
   engine. Gap detection stays a deliberate CLI-only step (see
   gaps_routes.py) - not triggerable here, by design.
 
-  Retrieval evaluation and citation management have no *_runs history
-  table (both are one-off diagnostics/background jobs, not repeating
-  pipeline stages - see RetrievalEvalOut's/CitationsFetchOut's docstrings),
-  so their tabs show only the live run controls plus the last persisted
-  result, not a run history list.
+  Retrieval evaluation and extraction evaluation have no *_runs history
+  table (both are one-off diagnostics, not repeating pipeline stages -
+  see RetrievalEvalOut's/ExtractionEvalOut's docstrings), so their tabs
+  show only the live run controls plus the last persisted result, not a
+  run history list. Citation management used to work the same way but
+  now has a real citation_fetch_runs history table, same as ingestion/
+  extraction/embedding.
 
   One pipeline is shown at a time via tabs rather than all of them stacked
   or gridded at once - each tab still carries a "running" dot even when not
@@ -136,7 +136,6 @@ export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [retrievalEval, setRetrievalEval] = useState<RetrievalEvalResult | null>(null);
   const [extractionEval, setExtractionEval] = useState<ExtractionEvalResult | null>(null);
-  const [citationsFetch, setCitationsFetch] = useState<CitationsFetchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("stats");
 
@@ -150,7 +149,6 @@ export default function AdminPipeline() {
       .catch(() => setError("Can't reach the API. Is it running on port 8000?"));
     adminApi.retrievalEval().then(setRetrievalEval).catch(() => {});
     adminApi.extractionEval().then(setExtractionEval).catch(() => {});
-    adminApi.citationsFetch().then(setCitationsFetch).catch(() => {});
   }
 
   // Auto-refresh so run history, "running now" dots, and the stats tab stay
@@ -439,7 +437,6 @@ export default function AdminPipeline() {
                     forceLabel="force refetch"
                     forceWarning="This reprocesses every paper eligible for the selected source, including ones that already have citation edges from it, instead of only papers without any yet. It won't delete existing edges, but re-fetches for the whole corpus again, which takes a long time and uses many more API calls."
                   />
-                  <CitationsFetchResults result={citationsFetch} />
                 </>
               )}
 
@@ -874,40 +871,3 @@ function ExtractionEvalResults({ result }: { result: ExtractionEvalResult | null
   );
 }
 
-/** Each source's last rb-citations-fetch --all run's persisted summary -
-    never triggers a fetch here, just reads (see adminApi.citationsFetch).
-    Shown side by side since Semantic Scholar and CrossRef are independent
-    passes with independent coverage over the same corpus. */
-function CitationsFetchResults({ result }: { result: CitationsFetchResult | null }) {
-  if (!result) return null;
-
-  return (
-    <div className="mt-8 flex flex-wrap gap-x-16 gap-y-6">
-      <CitationSourceResult label="Semantic Scholar" summary={result.semantic_scholar} />
-      <CitationSourceResult label="CrossRef" summary={result.crossref} />
-    </div>
-  );
-}
-
-function CitationSourceResult({ label, summary }: { label: string; summary: CitationSourceSummary }) {
-  return (
-    <div className="space-y-3">
-      <p className="text-[0.8125rem] font-medium text-[var(--ink)]">{label}</p>
-      {!summary.available ? (
-        <p className="text-[0.9375rem] text-[var(--ink-soft)]">Never run yet.</p>
-      ) : (
-        <>
-          <p className="text-[0.8125rem] text-[var(--ink-faint)]">
-            Last run {summary.generated_at ? new Date(summary.generated_at).toLocaleString() : "—"}
-          </p>
-          <dl className="flex flex-wrap gap-x-10 gap-y-3">
-            <Stat label="papers seen" value={summary.papers_seen ?? 0} small />
-            <Stat label="papers failed" value={summary.papers_failed ?? 0} small />
-            <Stat label="edges created" value={summary.edges_created ?? 0} small />
-            <Stat label="edges already existed" value={summary.edges_already_existed ?? 0} small />
-          </dl>
-        </>
-      )}
-    </div>
-  );
-}
