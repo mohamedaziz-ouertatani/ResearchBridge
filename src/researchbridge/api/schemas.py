@@ -392,6 +392,7 @@ class PipelineStatus(BaseModel):
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]
+    citation_fetch_runs: list[PipelineRunOut]
     running: dict[str, bool]
     """Whether an admin-triggered subprocess is currently alive per pipeline
     key ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar",

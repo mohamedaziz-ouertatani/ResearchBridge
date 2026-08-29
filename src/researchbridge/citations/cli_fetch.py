@@ -23,7 +23,7 @@ from researchbridge.citations.fetch import (
     resolve_citations,
 )
 from researchbridge.config import load_config
-from researchbridge.db.models import Paper
+from researchbridge.db.models import CitationFetchRun, Paper
 from researchbridge.db.session import make_engine, make_session_factory
 
 SUMMARY_PATH_BY_SOURCE: dict[str, Path] = {
@@ -122,7 +122,26 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
     mode = "saving" if args.save else "dry run"
     print(f"Running citation fetch over every {args.source} paper ({mode})...")
 
-    summary = run_all(session, fetcher, source=args.source, force=args.force, save=args.save)
+    run = CitationFetchRun(source=args.source, status="running")
+    session.add(run)
+    session.commit()
+
+    try:
+        summary = run_all(session, fetcher, source=args.source, force=args.force, save=args.save)
+    except Exception as exc:
+        run.status = "failed"
+        run.error_summary = str(exc)[:2000]
+        run.finished_at = datetime.now(UTC)
+        session.commit()
+        raise
+
+    run.status = "completed"
+    run.papers_seen = summary.papers_seen
+    run.papers_failed = summary.papers_failed
+    run.edges_created = summary.edges_created
+    run.edges_already_existed = summary.edges_already_existed
+    run.finished_at = datetime.now(UTC)
+    session.commit()
 
     print(f"Papers seen:            {summary.papers_seen}")
     print(f"Papers failed:          {summary.papers_failed}")

@@ -49,6 +49,7 @@ from researchbridge.api.serializers import to_summary
 from researchbridge.citations.cli_fetch import SUMMARY_PATH_BY_SOURCE as CITATIONS_FETCH_SUMMARY_PATHS
 from researchbridge.db.models import (
     CandidateGap,
+    CitationFetchRun,
     Embedding,
     EmbeddingRun,
     ExtractedClaim,
@@ -94,6 +95,7 @@ RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
     "ingestion_core": (IngestionRun, "core"),
     "extraction": (ExtractionRun, None),
     "embedding": (EmbeddingRun, None),
+    "citations_fetch": (CitationFetchRun, None),
 }
 
 
@@ -126,6 +128,10 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         extraction_runs=[
             _to_run(run, ("papers_processed", "claims_created", "candidates_rejected"))
             for run in _recent(session, ExtractionRun)
+        ],
+        citation_fetch_runs=[
+            _to_run(run, ("papers_seen", "papers_failed", "edges_created", "edges_already_existed"))
+            for run in _recent(session, CitationFetchRun)
         ],
         embedding_runs=[
             _to_run(run, ("papers_processed", "papers_skipped")) for run in _recent(session, EmbeddingRun)

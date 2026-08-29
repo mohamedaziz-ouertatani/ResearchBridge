@@ -130,6 +130,26 @@ class PaperCitation(Base):
     confidence: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class CitationFetchRun(Base):
+    """One rb-citations-fetch --all run - same run-history shape as
+    IngestionRun/ExtractionRun/EmbeddingRun, so a failed or operator-stopped
+    fetch leaves a visible record instead of only the last-completed
+    summary file citations/cli_fetch.py already persists."""
+
+    __tablename__ = "citation_fetch_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    papers_seen: Mapped[int] = mapped_column(Integer, default=0)
+    papers_failed: Mapped[int] = mapped_column(Integer, default=0)
+    edges_created: Mapped[int] = mapped_column(Integer, default=0)
+    edges_already_existed: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class IngestionError(Base):
     __tablename__ = "ingestion_errors"
 

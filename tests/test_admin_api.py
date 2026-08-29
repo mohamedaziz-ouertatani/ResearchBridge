@@ -8,13 +8,14 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.db.models import (
     EMBEDDING_DIM,
     CandidateGap,
+    CitationFetchRun,
     Embedding,
     EmbeddingRun,
     Evidence,
@@ -72,7 +73,15 @@ def client(session_factory, embedder):
 @pytest.fixture()
 def session(session_factory):
     s = session_factory()
+    # citation_fetch_runs has no FK to papers, so conftest's per-test
+    # TRUNCATE ... CASCADE (which clears candidate_gaps for free via its
+    # seed_paper_id FK) never reaches it - clear it explicitly before AND
+    # after, since test order across files isn't guaranteed.
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    s.commit()
     yield s
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    s.commit()
     s.close()
 
 
@@ -317,6 +326,28 @@ def test_pipeline_status_lists_recent_embedding_runs(client, session) -> None:
     run = body["embedding_runs"][0]
     assert run["counts"]["papers_processed"] == 200
     assert run["counts"]["papers_skipped"] == 3
+
+
+def test_pipeline_status_lists_recent_citation_fetch_runs(client, session) -> None:
+    session.add(
+        CitationFetchRun(
+            source="crossref", status="completed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), papers_seen=100, papers_failed=3,
+            edges_created=42, edges_already_existed=7,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert len(body["citation_fetch_runs"]) == 1
+    run = body["citation_fetch_runs"][0]
+    assert run["source"] == "crossref"
+    assert run["status"] == "completed"
+    assert run["counts"]["papers_seen"] == 100
+    assert run["counts"]["papers_failed"] == 3
+    assert run["counts"]["edges_created"] == 42
+    assert run["counts"]["edges_already_existed"] == 7
 
 
 def test_pipeline_status_surfaces_error_summary(client, session) -> None:
@@ -942,15 +973,20 @@ def test_trigger_citations_fetch_passes_force_flag(client, monkeypatch) -> None:
     ]
 
 
-def test_stop_citations_fetch_does_not_error_without_a_run_model(client, monkeypatch) -> None:
+def test_stop_citations_fetch_marks_the_running_row_stopped(client, session, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
+    session.add(CitationFetchRun(source="crossref", status="running"))
+    session.commit()
     monkeypatch.setattr(routes_module, "stop", lambda key: True)
 
     response = client.post("/api/admin/citations_fetch/stop")
 
     assert response.status_code == 200
     assert response.json() == {"stopped": True, "pipeline": "citations_fetch"}
+    run = session.execute(select(CitationFetchRun)).scalar_one()
+    assert run.status == "stopped"
+    assert run.finished_at is not None
 
 
 def test_get_citations_fetch_returns_unavailable_when_no_summary_files(client, monkeypatch, tmp_path) -> None:
