@@ -1075,6 +1075,41 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
     }
 
 
+def test_notifications_includes_completed_citation_fetch_run(client, session) -> None:
+    session.add(
+        CitationFetchRun(
+            source="crossref", status="completed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), papers_seen=100, papers_failed=3,
+            edges_created=42, edges_already_existed=7,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert len(body) == 1
+    assert body[0]["type"] == "citations_fetch_completed"
+    assert body[0]["severity"] == "info"
+    assert "42 edges created" in body[0]["message"]
+    assert "crossref" in body[0]["message"]
+
+
+def test_notifications_includes_failed_citation_fetch_run(client, session) -> None:
+    session.add(
+        CitationFetchRun(
+            source="semantic_scholar", status="failed", started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc), error_summary="rate limited",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert body[0]["type"] == "citations_fetch_failed"
+    assert body[0]["severity"] == "error"
+    assert "rate limited" in body[0]["message"]
+
+
 def test_notifications_includes_completed_extraction_run(client, session) -> None:
     session.add(
         ExtractionRun(

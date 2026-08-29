@@ -187,6 +187,17 @@ def notifications(session: Session = Depends(get_session)) -> list[Notification]
             )
         )
 
+    for run in _recent_finished(session, CitationFetchRun):
+        items.append(
+            Notification(
+                id=f"run:{run.id}",
+                type=f"citations_fetch_{run.status}",
+                severity=_severity(run.status),
+                message=_citations_fetch_message(run),
+                created_at=run.finished_at or run.started_at,
+            )
+        )
+
     now = datetime.now(timezone.utc)
 
     needs_review = _assessment_stats(session).needs_review
@@ -262,6 +273,18 @@ def _embedding_message(run: EmbeddingRun) -> str:
     if run.status == "stopped":
         return f"Embedding run stopped{forced}: {run.papers_processed} processed so far"
     return f"Embedding run completed{forced}: {run.papers_processed} processed, {run.papers_skipped} skipped"
+
+
+def _citations_fetch_message(run: CitationFetchRun) -> str:
+    label = run.source.replace("_", " ")
+    if run.status == "failed":
+        return f"{label} citation fetch failed: {run.error_summary or 'unknown error'}"
+    if run.status == "stopped":
+        return f"{label} citation fetch stopped: {run.edges_created} edges created so far"
+    return (
+        f"{label} citation fetch completed: {run.edges_created} edges created, "
+        f"{run.edges_already_existed} already existed, {run.papers_failed} failed"
+    )
 
 
 def _corpus_health(session: Session) -> CorpusHealth:
