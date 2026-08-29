@@ -340,6 +340,7 @@ def _to_out(
 ) -> ResearchAssessmentOut:
     return ResearchAssessmentOut(
         id=assessment.id,
+        created_at=assessment.created_at,
         research_input=research_input,
         status=assessment.status,
         retrieved_paper_ids=assessment.retrieved_paper_ids,

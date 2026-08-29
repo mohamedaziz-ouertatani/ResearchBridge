@@ -184,12 +184,15 @@ class AssessmentEvidenceOut(BaseModel):
     paper_title: str
     text: str
     section: str | None
+    paper_url: str | None = None
+    paper_doi: str | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ResearchAssessmentOut(BaseModel):
     id: uuid.UUID
+    created_at: datetime | None = None
     research_input: ResearchInputOut
     status: str
     retrieved_paper_ids: list[str]

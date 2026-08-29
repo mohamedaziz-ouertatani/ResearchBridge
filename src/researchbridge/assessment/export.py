@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from researchbridge.api.schemas import AssessmentEvidenceOut, ResearchAssessmentOut
@@ -122,10 +123,46 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
     ]
 
 
-def _related_papers(assessment: ResearchAssessmentOut) -> list[str]:
-    seen: dict[str, str] = {}
+_LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
+
+
+def _level_dots(level: str | None) -> str | None:
+    """A filled/hollow-dot readout of a rule-based level (low/medium/high),
+    for skimming the eyebrow line without reading the word. Bullet (U+2022)
+    and middle dot (U+00B7) are both in WinAnsi/Latin-1, so they render in
+    every font this module uses - no risk of a missing glyph."""
+    rank = _LEVEL_RANK.get(level or "")
+    if rank is None:
+        return None
+    return "•" * rank + "·" * (3 - rank)
+
+
+@dataclass
+class RelatedPaper:
+    paper_id: str
+    title: str
+    link: str | None
+
+
+def _source_link(url: str | None, doi: str | None) -> str | None:
+    if url:
+        return url
+    if doi:
+        return f"https://doi.org/{doi}"
+    return None
+
+
+def _related_papers(assessment: ResearchAssessmentOut) -> list[RelatedPaper]:
+    """Every distinct paper cited as evidence, in first-seen order - this is
+    the report's reference list (rendered at the end), and also where each
+    evidence quote's citation looks up a link to hyperlink to."""
+    seen: dict[str, RelatedPaper] = {}
     for item in assessment.evidence:
-        seen[str(item.paper_id)] = item.paper_title
+        pid = str(item.paper_id)
+        if pid not in seen:
+            seen[pid] = RelatedPaper(
+                paper_id=pid, title=item.paper_title, link=_source_link(item.paper_url, item.paper_doi)
+            )
     return list(seen.values())
 
 
@@ -153,13 +190,18 @@ def _docx_bottom_border(paragraph, hex_color: str) -> None:
     p_pr.append(borders)
 
 
-def _docx_eyebrow(document, text: str, *, color: str = INK_FAINT):
+def _docx_eyebrow(document, text: str, *, color: str = INK_FAINT, heading: bool = False, dots: str | None = None):
     """A small uppercase label, standing in for the web report's `.eyebrow`
     class - Space Grotesk is referenced by name only (Word substitutes if a
-    reader doesn't have it installed), unlike the PDF path which embeds it."""
+    reader doesn't have it installed), unlike the PDF path which embeds it.
+
+    heading=True gives the paragraph Word's built-in "Heading 2" style on
+    top of the same direct run formatting - direct formatting always wins
+    visually, but the style is what makes the paragraph show up in Word's
+    Navigation pane, which is the report's table of contents."""
     from docx.shared import Pt
 
-    p = document.add_paragraph()
+    p = document.add_paragraph(style="Heading 2" if heading else None)
     p.paragraph_format.space_before = Pt(10)
     p.paragraph_format.space_after = Pt(2)
     run = p.add_run(text.upper())
@@ -167,7 +209,62 @@ def _docx_eyebrow(document, text: str, *, color: str = INK_FAINT):
     run.font.size = Pt(8.5)
     run.font.bold = True
     run.font.color.rgb = _docx_rgb(color)
+    if dots:
+        dots_run = p.add_run("  " + dots)
+        dots_run.font.name = "Source Serif 4"
+        dots_run.font.size = Pt(9)
+        dots_run.font.bold = False
+        dots_run.font.color.rgb = _docx_rgb(INK_SOFT)
     return p
+
+
+def _docx_hyperlink(paragraph, text: str, url: str, *, color: str = INK_SOFT, size_pt: float | None = None) -> None:
+    """python-docx has no hyperlink API, so this drops to the underlying
+    XML - the standard recipe for a `w:hyperlink` run pointing at an
+    external relationship (there's no flowable for one, same situation as
+    _docx_bottom_border above)."""
+    from docx.opc.constants import RELATIONSHIP_TYPE
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    r_id = paragraph.part.relate_to(url, RELATIONSHIP_TYPE.HYPERLINK, is_external=True)
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+
+    run = OxmlElement("w:r")
+    run_pr = OxmlElement("w:rPr")
+    color_el = OxmlElement("w:color")
+    color_el.set(qn("w:val"), color.lstrip("#"))
+    run_pr.append(color_el)
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    run_pr.append(underline)
+    if size_pt is not None:
+        size_el = OxmlElement("w:sz")
+        size_el.set(qn("w:val"), str(int(size_pt * 2)))
+        run_pr.append(size_el)
+    run.append(run_pr)
+
+    text_el = OxmlElement("w:t")
+    text_el.text = text
+    run.append(text_el)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+
+
+def _docx_footer(document, assessment: ResearchAssessmentOut, generated_at: datetime) -> None:
+    from docx.shared import Pt
+
+    section = document.sections[0]
+    section.footer.is_linked_to_previous = False
+    footer_p = section.footer.paragraphs[0]
+    run = footer_p.add_run(
+        f"Assessment {str(assessment.id)[:8]}  ·  Exported {generated_at:%Y-%m-%d %H:%M UTC}"
+    )
+    run.font.name = "Source Serif 4"
+    run.font.size = Pt(8)
+    run.font.color.rgb = _docx_rgb(INK_FAINT)
 
 
 def build_docx(assessment: ResearchAssessmentOut) -> bytes:
@@ -215,16 +312,14 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     input_type_run.font.color.rgb = _docx_rgb(INK_FAINT)
 
     related = _related_papers(assessment)
-    if related:
-        _docx_eyebrow(document, "related research")
-        for title_text in related:
-            document.add_paragraph(title_text, style="List Bullet")
+    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
 
     for section in build_report_sections(assessment):
         label = section.label
+        dots = _level_dots(section.level)
         if section.level:
             label += f"  ·  {section.level.replace('_', ' ')}"
-        _docx_eyebrow(document, label)
+        _docx_eyebrow(document, label, heading=True, dots=dots)
 
         if section.body:
             document.add_paragraph(section.body)
@@ -237,16 +332,37 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
         for item in section.evidence:
             p = document.add_paragraph()
             p.paragraph_format.left_indent = Pt(14)
-            quote_run = p.add_run(f"“{item.text}”")
+            quote_run = p.add_run(f"“{item.text}”  — ")
             quote_run.italic = True
             quote_run.font.color.rgb = _docx_rgb(INK_SOFT)
-            source_run = p.add_run(f"  — {item.paper_title}")
-            source_run.font.size = Pt(9)
-            source_run.font.color.rgb = _docx_rgb(INK_FAINT)
+            link = link_by_paper_id.get(str(item.paper_id))
+            if link:
+                _docx_hyperlink(p, item.paper_title, link, size_pt=9)
+            else:
+                source_run = p.add_run(item.paper_title)
+                source_run.font.size = Pt(9)
+                source_run.font.color.rgb = _docx_rgb(INK_FAINT)
             if item.section:
                 section_run = p.add_run(f" ({item.section})")
                 section_run.font.size = Pt(9)
                 section_run.font.color.rgb = _docx_rgb(INK_FAINT)
+
+    if related:
+        _docx_eyebrow(document, "references", heading=True)
+        for i, paper in enumerate(related, start=1):
+            p = document.add_paragraph()
+            p.paragraph_format.left_indent = Pt(14)
+            number_run = p.add_run(f"{i}. ")
+            number_run.font.size = Pt(9.5)
+            number_run.font.color.rgb = _docx_rgb(INK_FAINT)
+            if paper.link:
+                _docx_hyperlink(p, paper.title, paper.link, color=INK, size_pt=9.5)
+            else:
+                title_run = p.add_run(paper.title)
+                title_run.font.size = Pt(9.5)
+                title_run.font.color.rgb = _docx_rgb(INK)
+
+    _docx_footer(document, assessment, datetime.now(timezone.utc))
 
     buffer = io.BytesIO()
     document.save(buffer)
@@ -288,6 +404,12 @@ def _pdf_styles():
         "eyebrow": ParagraphStyle(
             "eyebrow", fontName="SpaceGrotesk-Bold", fontSize=9, textColor=INK_FAINT, spaceBefore=16, spaceAfter=4
         ),
+        # Same look as "eyebrow" - a distinct style name so afterFlowable
+        # (see _AssessmentDocTemplate) can tell a report section heading
+        # apart from a meta label like "Input" and only bookmark the former.
+        "section": ParagraphStyle(
+            "section", fontName="SpaceGrotesk-Bold", fontSize=9, textColor=INK_FAINT, spaceBefore=16, spaceAfter=4
+        ),
         "body": ParagraphStyle("body", fontName="SourceSerif4", fontSize=10.5, textColor=INK, leading=15),
         "reason": ParagraphStyle(
             "reason", fontName="SourceSerif4-Italic", fontSize=10, textColor=INK_FAINT, leading=14
@@ -310,31 +432,74 @@ def _pdf_styles():
     }
 
 
-def _pdf_footer(canvas, doc) -> None:
-    from reportlab.lib.colors import HexColor
+def _make_pdf_footer(assessment: ResearchAssessmentOut, generated_at: datetime):
+    """A page-number-and-provenance footer. Built as a closure (rather than
+    a plain onFirstPage/onLaterPages callback) because SimpleDocTemplate
+    only ever passes it (canvas, doc) - the assessment id and export
+    timestamp have to come from here instead."""
 
-    canvas.saveState()
-    canvas.setStrokeColor(HexColor(RULE))
-    canvas.setLineWidth(0.5)
-    canvas.line(doc.leftMargin, 0.6 * 72, doc.pagesize[0] - doc.rightMargin, 0.6 * 72)
-    canvas.setFont("SourceSerif4", 8)
-    canvas.setFillColor(HexColor(INK_FAINT))
-    canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 0.4 * 72, f"Page {canvas.getPageNumber()}")
-    canvas.restoreState()
+    def footer(canvas, doc) -> None:
+        from reportlab.lib.colors import HexColor
+
+        canvas.saveState()
+        canvas.setStrokeColor(HexColor(RULE))
+        canvas.setLineWidth(0.5)
+        canvas.line(doc.leftMargin, 0.6 * 72, doc.pagesize[0] - doc.rightMargin, 0.6 * 72)
+        canvas.setFont("SourceSerif4", 8)
+        canvas.setFillColor(HexColor(INK_FAINT))
+        canvas.drawString(
+            doc.leftMargin,
+            0.4 * 72,
+            f"Assessment {str(assessment.id)[:8]}  ·  Exported {generated_at:%Y-%m-%d %H:%M UTC}",
+        )
+        canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 0.4 * 72, f"Page {canvas.getPageNumber()}")
+        canvas.restoreState()
+
+    return footer
+
+
+class _AssessmentDocTemplate:
+    """Mixed in over SimpleDocTemplate (built lazily in build_pdf, since the
+    class itself is only importable once reportlab is) to add a PDF outline
+    (bookmarks) entry for each report section - the same "read structure I
+    already lay out" idea as the docx Heading 2 style in _docx_eyebrow."""
+
+    _bookmark_counter = 0
+
+    def afterFlowable(self, flowable) -> None:
+        style = getattr(flowable, "style", None)
+        if style is not None and style.name == "section":
+            key = f"section-{self._bookmark_counter}"
+            self._bookmark_counter += 1
+            self.canv.bookmarkPage(key)
+            self.canv.addOutlineEntry(flowable.getPlainText(), key, level=0, closed=False)
+
+
+def _pdf_link(text: str, url: str | None, *, color: str) -> str:
+    """reportlab's `<link>` tag (not HTML's `<a>`) is the documented way to
+    make part of a Paragraph clickable - it's the one markup tag guaranteed
+    to accept a `color` attribute across reportlab versions."""
+    escaped = _escape(text)
+    if not url:
+        return escaped
+    return f'<link href="{_escape(url)}" color="{color}">{escaped}</link>'
 
 
 def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     from reportlab.lib.colors import HexColor
     from reportlab.lib.pagesizes import LETTER
-    from reportlab.platypus import Paragraph, SimpleDocTemplate
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate
     from reportlab.platypus.flowables import HRFlowable
+
+    class _DocTemplate(_AssessmentDocTemplate, SimpleDocTemplate):
+        pass
 
     _register_pdf_fonts()
     styles = _pdf_styles()
     story = []
 
-    def para(text: str, style: str) -> None:
-        story.append(Paragraph(_escape(text), styles[style]))
+    def para(text: str, style: str, *, markup: str | None = None) -> None:
+        story.append(Paragraph(markup if markup is not None else _escape(text), styles[style]))
 
     def rule() -> None:
         story.append(HRFlowable(width="100%", thickness=0.75, color=HexColor(RULE), spaceBefore=6, spaceAfter=14))
@@ -352,17 +517,23 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     para(assessment.research_input.raw_text, "body")
     para(f"Type: {assessment.research_input.input_type}", "meta")
 
+    if assessment.research_gap_text:
+        para("Gap", "eyebrow")
+        para(assessment.research_gap_text.splitlines()[0], "body")
+
+    story.append(PageBreak())
+
     related = _related_papers(assessment)
-    if related:
-        para("Related research", "eyebrow")
-        for title in related:
-            para(title, "bullet")
+    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
 
     for section in build_report_sections(assessment):
-        heading = section.label
+        heading = _escape(section.label)
         if section.level:
             heading += f"  ·  {section.level.replace('_', ' ')}"
-        para(heading, "eyebrow")
+        dots = _level_dots(section.level)
+        if dots:
+            heading += f'  <font name="SourceSerif4" size="9" color="{INK_SOFT}">{dots}</font>'
+        para(section.label, "section", markup=heading)
 
         if section.body:
             para(section.body, "body")
@@ -370,15 +541,25 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
             para(section.unassessed_reason, "reason")
 
         for item in section.evidence:
-            suffix = f" ({item.section})" if item.section else ""
+            suffix = f" ({_escape(item.section)})" if item.section else ""
             para(f"“{item.text}”", "quote")
-            para(f"— {item.paper_title}{suffix}", "quote_source")
+            link = link_by_paper_id.get(str(item.paper_id))
+            source_markup = f"— {_pdf_link(item.paper_title, link, color=INK_FAINT)}{suffix}"
+            para(item.paper_title, "quote_source", markup=source_markup)
+
+    if related:
+        para("References", "section")
+        for i, paper in enumerate(related, start=1):
+            markup = f"{i}. {_pdf_link(paper.title, paper.link, color=INK)}"
+            para(paper.title, "bullet", markup=markup)
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = _DocTemplate(
         buffer, pagesize=LETTER, topMargin=0.9 * 72, bottomMargin=0.9 * 72, leftMargin=0.9 * 72, rightMargin=0.9 * 72
     )
-    doc.build(story, onFirstPage=_pdf_footer, onLaterPages=_pdf_footer)
+    generated_at = datetime.now(timezone.utc)
+    footer = _make_pdf_footer(assessment, generated_at)
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()
 
 

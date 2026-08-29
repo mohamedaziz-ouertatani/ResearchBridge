@@ -155,7 +155,7 @@ def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[A
     Ordered by role so the report can group without re-sorting.
     """
     rows = session.execute(
-        select(ResearchAssessmentEvidence.role, Evidence, Paper.title)
+        select(ResearchAssessmentEvidence.role, Evidence, Paper.title, Paper.url, Paper.doi)
         .join(Evidence, Evidence.id == ResearchAssessmentEvidence.evidence_id)
         .join(Paper, Paper.id == Evidence.paper_id)
         .where(ResearchAssessmentEvidence.research_assessment_id == assessment_id)
@@ -164,9 +164,15 @@ def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[A
 
     return [
         AssessmentEvidenceOut(
-            role=role, paper_id=evidence.paper_id, paper_title=title, text=evidence.text, section=evidence.section
+            role=role,
+            paper_id=evidence.paper_id,
+            paper_title=title,
+            text=evidence.text,
+            section=evidence.section,
+            paper_url=url,
+            paper_doi=doi,
         )
-        for role, evidence, title in rows
+        for role, evidence, title, url, doi in rows
     ]
 
 
