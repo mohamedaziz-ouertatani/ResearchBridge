@@ -38,11 +38,19 @@ import uuid
 from dataclasses import dataclass, field
 
 from researchbridge.assessment.dimensions import IdeaDimension
-from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
 from researchbridge.embedding.base import Embedder
 
 ClaimRecord = tuple[str, str, uuid.UUID]  # (claim_type, text, evidence_id)
 EvidencedPaper = tuple[str, float, list[ClaimRecord]]  # (paper_title, distance, claims)
+
+# Mirrors novelty.FAR_DISTANCE exactly (the same "genuinely related vs.
+# off-topic" boundary the rest of the assessment package reuses) -
+# duplicated as a literal rather than imported to avoid a circular import:
+# novelty.py imports DimensionCoverage from this module for its own
+# dimension-aware aggregate rule, so this module can't import back from
+# novelty.py. If novelty.FAR_DISTANCE's value is ever recalibrated, update
+# this constant too.
+RELEVANCE_DISTANCE = 0.65
 
 # First-pass value, same status as every other threshold in this package -
 # see the plan's Task 12 for the live-corpus calibration pass. Starting

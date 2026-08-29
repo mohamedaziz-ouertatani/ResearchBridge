@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from researchbridge.assessment.coverage import DimensionCoverage
 from researchbridge.assessment.novelty import assess_novelty
 
 
@@ -79,3 +80,74 @@ def test_evidence_ids_include_up_to_top_n_evidenced_papers() -> None:
     )
 
     assert len(result.evidence_ids) == 3  # top 3 only, per TOP_N_FOR_EVIDENCE
+
+
+def test_dimension_coverage_absent_keeps_legacy_nearest_distance_behavior() -> None:
+    # no dimension_coverages passed at all - identical to every pre-existing
+    # test in this file, confirming the parameter is truly additive
+    result = assess_novelty([("Existing Solution Paper", 0.1, _claims("tested only offline"))])
+    assert result.level == "low"
+    assert result.dimension_coverage == []
+
+
+def test_falls_back_to_nearest_distance_when_all_dimensions_not_assessed() -> None:
+    coverages = [DimensionCoverage(dimension="concept drift", status="not_assessed")]
+    result = assess_novelty(
+        [("Existing Solution Paper", 0.1, _claims("tested only offline"))], dimension_coverages=coverages
+    )
+    assert result.level == "low"  # legacy nearest-distance rule, unaffected by not_assessed-only coverage
+
+
+def test_low_novelty_when_most_dimensions_are_established() -> None:
+    coverages = [
+        DimensionCoverage(dimension="federated learning", status="established", evidence_ids=[uuid.uuid4()]),
+        DimensionCoverage(dimension="privacy preservation", status="established", evidence_ids=[uuid.uuid4()]),
+        DimensionCoverage(dimension="fraud detection", status="established", evidence_ids=[uuid.uuid4()]),
+    ]
+    result = assess_novelty(
+        [("Somewhat Related Paper", 0.5, _claims("a moderately related claim"))], dimension_coverages=coverages
+    )
+    assert result.level == "low"
+
+
+def test_high_novelty_when_most_dimensions_are_not_found() -> None:
+    coverages = [
+        DimensionCoverage(dimension="concept drift", status="not_found"),
+        DimensionCoverage(dimension="class imbalance", status="not_found"),
+        DimensionCoverage(dimension="cross-bank setting", status="weak_evidence", evidence_ids=[uuid.uuid4()]),
+    ]
+    result = assess_novelty(
+        [("Somewhat Related Paper", 0.5, _claims("a moderately related claim"))], dimension_coverages=coverages
+    )
+    assert result.level == "high"
+
+
+def test_high_novelty_reasoning_still_never_claims_absolute_novelty_with_coverage() -> None:
+    coverages = [DimensionCoverage(dimension="concept drift", status="not_found")]
+    result = assess_novelty(
+        [("Distant Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages
+    )
+    lowered = result.reasoning.lower()
+    assert "this idea is novel" not in lowered
+    assert "genuinely novel" not in lowered
+
+
+def test_reasoning_includes_a_dimension_coverage_block() -> None:
+    coverages = [
+        DimensionCoverage(dimension="concept drift", status="not_found"),
+        DimensionCoverage(dimension="federated learning", status="established", evidence_ids=[uuid.uuid4()]),
+    ]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+
+    assert "Dimension coverage:" in result.reasoning
+    assert "concept drift -> not_found" in result.reasoning
+    assert "federated learning -> established" in result.reasoning
+
+
+def test_medium_novelty_when_coverage_is_mixed() -> None:
+    coverages = [
+        DimensionCoverage(dimension="a", status="established", evidence_ids=[uuid.uuid4()]),
+        DimensionCoverage(dimension="b", status="not_found"),
+    ]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+    assert result.level == "medium"
