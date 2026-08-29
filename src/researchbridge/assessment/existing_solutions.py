@@ -38,7 +38,7 @@ PaperClaims = tuple[str, list[ClaimRecord]]  # (paper_title, claims)
 # order sections are printed in, and the order the user's five questions
 # were asked in (problems, then approaches, then limitations).
 _SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("problems_addressed", "Problems already addressed", ("problem", "main_contribution")),
+    ("problems_addressed", "Problems already addressed", ("problem",)),
     ("existing_approaches", "Existing approaches / methods used", ("method", "dataset")),
     ("limitations", "Limitations that remain", ("limitations",)),
 )

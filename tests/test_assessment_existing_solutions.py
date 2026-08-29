@@ -78,3 +78,14 @@ def test_multiple_papers_are_merged_within_each_section() -> None:
     assert result.text is not None
     assert '"Paper A": Problem A text.' in result.text
     assert '"Paper B": Problem B text.' in result.text
+
+
+def test_main_contribution_claims_are_not_classified_as_problems() -> None:
+    # a paper's own contribution ("we show that X improves Y") describes
+    # what the paper CONTRIBUTES, not a problem it addresses - putting it
+    # under "Problems already addressed" was a section-mapping bug
+    papers = [("Paper A", [("main_contribution", "We show that our method improves accuracy by 12%.", _uid())])]
+
+    result = build_existing_solutions(papers)
+
+    assert result.text is None or "Problems already addressed" not in result.text
