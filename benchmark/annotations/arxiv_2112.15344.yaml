@@ -28,14 +28,16 @@ main_contribution: The paper introduces CoarsePoint as a new vision task and set
   for object localization under coarse point supervision, and proposes the point self-refinement approach
   that iteratively promotes coarse point labels toward more semantically stable/discriminative locations
   (e.g., the head), narrowing the performance gap with precise bounding-box supervision.
-results: CoarsePoint with self-refinement achieves comparable performance to precise bounding-box-based
-  methods while saving up to 80% of annotation cost (and 66% versus precise-point annotation). On VisDrone-Person,
-  self-refinement improved AP_all(1.0) and AP_normal(1.0) by 8.82 and 42.9 points respectively under RepPoints+RepPoints,
+results: CoarsePoint with self-refinement achieves comparable object localization performance to precise
+  bounding-box-based methods while saving up to 80% of annotation cost/time. On VisDrone-Person, self-refinement
+  improved AP_all(1.0) and AP_normal(1.0) by 8.82 and 42.9 points respectively under RepPoints+RepPoints,
   and by 13.2/24.2 points under RepPoints+Sparse-RCNN; on TinyPerson with Faster-RCNN as both estimator
   and locator, AP_all(1.0) improved by 20.27 points and AP_small(1.0) by 32.28 points. More refinement
   iterations and larger initial pseudo-box sizes both improved performance, with diminishing returns as
-  iterations increased. Manual annotation timing showed coarse points took 1.8s versus 5.3s for precision
-  points and 9.4s for bounding boxes, losing only 5.4/0.4 AP points respectively.
+  iterations increased (e.g., on TinyPerson with an 8x8 initial box, AP_all(1.0) rose from 21.4 with no
+  refinement to 62.8 after 3 iterations). The self-refinement process also reduces the number of false
+  positives and, as measured by heatmaps of labeled-point position within the object box, reduces the
+  variance of the point distribution, concentrating labels on stronger semantic regions such as the head.
 limitations: ''
 applications: The paper frames tiny person/pedestrian localization for visual surveillance, driving assistance,
   and mobile robotics as the target applications, and specifically targets scenarios where objects are
@@ -52,12 +54,16 @@ key_evidence:
 - text: Experimental results show that our approach has achieved comparable object localization performance
     while saving up to 80% of annotation cost.
   section: Abstract
-- text: We propose a CoarsePoint vision task, and under the relaxed point supervision, we set the ﬁrst
+- text: We propose a CoarsePoint vision task, and under the relaxed point supervision, we set the first
     solid baseline for object localization;
   section: Introduction
-- text: It only lost 5, 0.4 points of AP all 1.0 while saving the annotation cost up to 80% and 66% in
-    comparison with bounding-box and precision point correspondingly.
+- text: The annotation of the coarse point is quite efficient, and it just needs to click on the object.
+    Under such annotation, our proposed self-refinement algorithm can still achieve excellent localization
+    performance while saving much annotation time up to 80%.
   section: Results
-- text: self-reﬁnement improves AP all 1.0 and AP normal 1.0 by 8.82 and 42.9 points respectively under
-    RP+RP conditions.
+- text: 'self-refinement improves \(AP_{1.0}^{all}\) and \(AP_{1.0}^{normal}\) by 8.82 and 42.9 points
+    respectively under RP+RP conditions.'
+  section: Results
+- text: Fig. 7 shows that the self-refinement significantly reduces the number of false positives, leading
+    to the improvement of the network's discriminative ability.
   section: Results

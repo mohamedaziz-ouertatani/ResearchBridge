@@ -51,14 +51,15 @@ key_evidence:
     of revealing the coupled electro-thermal properties of atomically-resolved nano-transistors, has been
     improved by up to two orders of magnitude through a data centric reorganization of the application.
   section: Abstract
-- text: Record ab initio dissipative quantum transport simulation in devices made of ≥10,000 atoms (10×
-    improvement w.r.t. state-of-the-art). Double precision performance of 85.45 Pflop/s on 4,560 nodes
-    of Summit (27,360 GPUs), and mixed precision of 90.89 Pflop/s.
-  section: Justification for Prize
+- text: We propose a paradigm change by rewriting the quantum transport problem as implemented in OMEN
+    from a data-centric perspective.
+  section: Innovations realized
+- text: Sustained performance of 85.45 Pflop/s (42.55% of supercomputer peak) is achieved in double precision
+  section: Extreme-Scale Runs
 - text: Through modeling made possible by a data-centric intermediate representation, and graph transformations
     of the underlying macro- and micro- dataflow, this work is the first to introduce communication-avoiding
     principles to a full application.
-  section: Discussion
+  section: Conclusion
 - text: Current research in nano-transistors, LIBs, and PCRAM cells, to cite a few applications, is expected
     to benefit from the improvements that have been made to the electro-thermal model of OMEN.
   section: Discussion

@@ -46,15 +46,15 @@ research_gap:
     selection specifically via a genetic algorithm as an alternative automated search technique.
   remaining: ''
 key_evidence:
-- text: Here, we introduced a genetic algorithm based technique to reduce the eﬀorts of ﬁnding the optimal
+- text: Here, we introduced a genetic algorithm based technique to reduce the efforts of finding the optimal
     combination of a hyper-parameter (kernel size) of a convolutional neural network based architecture.
   section: Abstract
-- text: In case of multi-scaling, the network gives a better performance than all of these three ﬁxed-scaled
+- text: In case of multi-scaling, the network gives a better performance than all of these three fixed-scaled
     kernels.
   section: Results
 - text: This genetic algorithm based neural architecture search methodology opens a new area of research
     towards pattern recognition including other domains.
   section: Conclusion
-- text: The best recognition accuracy achieved on these three diﬀerent datasets using our proposed methodology
-    is presented in Table 4 .
+- text: The best recognition accuracy achieved on these three different datasets using our proposed methodology
+    is presented in Table 4.
   section: Results

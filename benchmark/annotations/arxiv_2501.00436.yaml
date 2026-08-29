@@ -25,7 +25,9 @@ method: The authors formally define quantization of an objective function via a 
   property from local minima. The approach is validated empirically by comparing convergence performance
   against simulated annealing (SA) and quantum annealing (QA) on standard nonlinear optimization benchmark
   functions.
-dataset: ''
+dataset: No real-world dataset; four standard continuous nonlinear optimization benchmark functions with
+  known global minima are used to compare convergence performance -- Xin-She Yang N4, Salomon, Drop-Wave,
+  and Shaffer N2 (per Table 1).
 main_contribution: The paper provides an intuitive analysis deriving a stochastic differential equation
   (overdamped Langevin dynamics) for quantization-based optimization and, building on the associated Fokker-Planck
   equation, constructs a Witten-Laplacian to give a combined thermodynamic and quantum mechanical account

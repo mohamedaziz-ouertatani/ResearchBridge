@@ -53,39 +53,18 @@ research_gap:
     unifying embedding, pair-aware reasoning, and ranking within a single co-optimized MLLM.
   remaining: ''
 key_evidence:
-- text: 'existing CoT-based embedding methods
-
-    (Lan et al. 2026; Jiang et al. 2026; He et al. 2026) usu-
-
-    ally adopt an item-wise self-reflective reasoning paradigm,
-
-    where the model independently describes the query or can-
-
-    didate.'
+- text: existing CoT methods typically use item-wise reasoning over queries and candidates in isolation,
+    providing no explicit evidence to distinguish a positive from a semantically confusable hard negative.
+  section: Abstract
+- text: we design a Pair-Aware Discriminative CoT paradigm that takes positive and hard-negative query-candidate
+    pairs as reasoning inputs, encouraging the model to explicitly compare matching and discrepancy evidence
+    and to produce a deterministic ranking judgment.
   section: Introduction
-- text: 'we design a Pair-Aware
-
-    Discriminative CoT paradigm that takes positive and hard-
-
-    negative query–candidate pairs as reasoning inputs, encour-
-
-    aging the model to explicitly compare matching and discrep-
-
-    ancy evidence and to produce a deterministic ranking judg-
-
-    ment.'
-  section: Introduction
-- text: 'As an inference-time score fusion, UMER-
-
-    H improves the overall score from 63.1 for UMER-E and
-
-    63.9 for UMER-R to 65.5.'
-  section: Results
-- text: 'It achieves the best
-
-    embedding-only score of 63.1 with zero reasoning tokens,
-
-    yielding query/indexing speedups of 118.6×/99.6× over
-
-    UME-R1 and 3.9×/3.1× over PLUME.'
-  section: Results
+- text: As an inference-time score fusion, UMER-H improves the overall score from 63.1 for UMER-E and
+    63.9 for UMER-R to 65.5.
+  section: Experiments and Results
+- text: It achieves the best embedding-only score of 63.1 with zero reasoning tokens
+  section: Accuracy-Efficiency Tradeoff
+- text: UMER-E increases the task-macro-averaged positive-to-hard-negative cosine margin from 5.24 to
+    6.80 points.
+  section: In-Depth Analysis

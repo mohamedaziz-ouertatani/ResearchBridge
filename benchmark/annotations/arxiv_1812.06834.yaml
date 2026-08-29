@@ -27,7 +27,14 @@ results: As a tutorial/survey, it does not report new experimental results; inst
   (e.g. EM update equations for a Naive Bayes model) and discusses parameter-efficiency comparisons, e.g.
   that a deep categorical sentence model requires O(Kd^2+Vd) parameters versus O(KV) (or O(KVT) with position-specific
   distributions) for the shallow Naive Bayes model.
-limitations: ''
+limitations: The tutorial explicitly restricts its scope to latent variable models expressible as directed
+  graphical models, learned mostly through variational inference; it states it does not cover (or only
+  briefly touches on) undirected graphical models such as restricted Boltzmann Machines and Markov random
+  fields, posterior inference based on Markov chain Monte Carlo sampling, spectral learning of latent variable
+  models, and non-likelihood-based approaches such as generative adversarial networks. It also notes that
+  training implicit (adversarially trained) generative models of text remains a largely open problem, and
+  that evaluation of such implicit models is difficult since, unlike explicit generative models, their log
+  likelihood cannot be tractably estimated.
 applications: Discussed application areas for latent variable models include document clustering (unsupervised
   document classification), mixture-of-experts models for ensembling (e.g. neural machine translation
   and diverse image captioning), topic modeling, sentence generation, unsupervised part-of-speech tagging
@@ -38,7 +45,10 @@ research_gap:
     make posterior inference intractable and complicate backpropagation, by organizing and explaining
     the variational inference machinery (including amortized/neural inference) that makes learning such
     models feasible.
-  remaining: ''
+  remaining: The tutorial states that undirected graphical models, posterior inference through Markov chain
+    Monte Carlo, spectral learning of latent variable models, and non-likelihood-based approaches were not
+    covered, and that the intersection of latent variable models and deep learning remains an exciting avenue
+    for much future work.
 key_evidence:
 - text: 'While these “deep latent variable” models provide a rich, ﬂexible framework for modeling many
     real-world phenomena, difﬁculties exist: deep pa-
@@ -65,3 +75,7 @@ key_evidence:
 
     latent variable models with tractable posterior inference.'
   section: Method
+- text: We again emphasize that many important areas were not covered in the tutorial. Notably we have
+    not covered undirected graphical models, posterior inference through Markov chain Monte Carlo, spectral
+    learning of latent variable models, and non-likelihood-based approaches.
+  section: Conclusion

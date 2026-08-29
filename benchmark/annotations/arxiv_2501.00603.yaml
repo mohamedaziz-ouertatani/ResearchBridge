@@ -32,7 +32,12 @@ results: On ImageNet 256x256 at 400K iterations, DiC models outperform equivalen
   reaches FID 2.25 at 256x256 (batch 256 x 2M iterations) comparable to DiT-XL/2's FID 2.27 (256x7M) with
   far higher throughput (160.8 vs 66.8). On 512x512, DiC-XL/DiC-H outperform DiT-XL/2 in FID/IS while
   requiring fewer FLOPs after Winograd acceleration.
-limitations: ''
+limitations: The authors acknowledge they are aware of potentially better activation functions than GELU
+  but stick with GELU for simplicity. In the appendix they also note difficulty in fairly comparing DiC
+  to other large/pixel-space diffusion architectures (Simple Diffusion, RIN, EDM2, HDiT), since those
+  methods target a different (mostly pixel-space) setting and require far larger training budgets, and
+  that when they align such baselines to DiC's setting, methods like RIN and EDM2 converge slowly or HDiT
+  fails to converge at all.
 applications: The authors motivate the work for real-time, resource-constrained diffusion-based image
   (and by extension video) generation applications where large-scale transformer-based diffusion models
   are impractical due to substantial inference time costs; DiC's speed advantage is presented as making
@@ -42,7 +47,9 @@ research_gap:
     which may hinder their scalability in complex generative tasks; the paper addresses this by showing
     that an hourglass architecture plus sparse skips and conditioning redesign lets pure Conv3x3 models
     scale competitively with transformer-based diffusion models.
-  remaining: ''
+  remaining: The authors frame convolution as an aspect always neglected in diffusion model design and
+    state they hope this work could inspire further exploration into the use of convolutions in diffusion
+    models, without specifying concrete follow-on directions beyond this general call.
 key_evidence:
 - text: 'Unfortunately, diffusion models incorporating self-
 
@@ -76,3 +83,5 @@ key_evidence:
 
     advantage.'
   section: Results
+- text: We are aware of potentially better activations [31, 44], but we stick to GeLU for simplicity.
+  section: Method

@@ -68,8 +68,8 @@ key_evidence:
     tonal coarticulation patterns well but fail to consistently apply the Tone-3 sandhi rule to novel
     sentences.
   section: Abstract
-- text: The ﬁndings closely mirror those obtained from native speakers [14] even in ﬁne-grained details,
-    suggesting that these coarticulatory patterns are learned and faithfully reproduced in TTS models
+- text: The findings closely mirror those obtained from native speakers [14] even in fine-grained details,
+    suggesting that these contradictory patterns are learned and faithfully reproduced in TTS models
     in novel sentences.
   section: Results
 - text: These results suggest that Tacotron 2 models, though capable of generating highly natural speech

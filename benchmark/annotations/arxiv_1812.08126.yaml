@@ -34,7 +34,12 @@ results: 'The contrastive specificity-trained models (CDP and CCos) achieve the 
   metrics the models show only a slight decrease relative to baseline (e.g. CIDEr 0.980 vs baseline 1.036)
   while remaining competitive, and specificity metrics (recall@1/5/10, mean rank) improve most for the
   contrastive variants (e.g. CDP mean rank 32.79 vs baseline 39.25).'
-limitations: ''
+limitations: The improvement in diversity and specificity comes with a slight decrease on standard
+  n-gram text metrics relative to the MLE baseline (e.g. CIDEr 0.980 vs 1.036), and the resulting
+  vocabulary size, while larger than the baseline, is still lower than the previously reported best
+  diversity-focused model (Shetty et al.). A qualitative failure case is also reported in which the
+  contrastive models over-prioritize specificity over relevance, focusing on a more unique but less
+  salient object (a wooden structure) while omitting a common but more relevant one (a skateboard).
 applications: ''
 research_gap:
   addressed: Prior GAN-based approaches to diverse captioning (e.g. joint adversarial training) suffer

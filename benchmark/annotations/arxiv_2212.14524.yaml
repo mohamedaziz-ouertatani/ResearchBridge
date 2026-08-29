@@ -52,6 +52,6 @@ key_evidence:
     leads to too many hyper-ball, so we propose a more effective improvement method to determine
 
     the optimal cluster number for data sets containing noises and clusters with arbitrary shapes.'
-  section: Method
+  section: 1 The process of generating hyper-ball
 - text: HCV I(Ck) = com(Ck)/sep(Ck).
-  section: Method
+  section: 2 The cluster internal evaluation index based on hyper-ball

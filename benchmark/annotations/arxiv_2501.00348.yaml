@@ -19,26 +19,31 @@ method: 'The authors propose two techniques built on the SNN-Delays baseline: (1
   the frequency information of multiple time points within each group into a single new time point (implemented
   as TR-with-overlap and TR-without-overlap variants), inspired by hierarchical temporal processing of
   speech in the human brain, so shallow layers learn on smaller time scales and deep layers learn on larger
-  time scales; and (2) Non-Aligned Residual (NAR), a residual-connection method that allows features with
-  different temporal lengths to be combined, resolving the mismatch that normally prevents residual connections
-  between sub-modules with differing output time lengths.'
-dataset: Spiking Speech Commands (SSC), Spiking Heidelberg Digits (SHD), and Google Speech Commands v0.02
-  (GSC, a non-spiking dataset).
+  time scales; and (2) Non-Aligned Residual (NAR), a residual-connection method that pads the shorter of
+  two time-mismatched feature sequences with zeros on the right, allowing residual connections between
+  sub-modules whose outputs have different temporal lengths -- something the SNN-Delays baseline''s padding
+  scheme normally prevents.'
+dataset: Spiking Speech Commands (SSC) and Spiking Heidelberg Digits (SHD, ~10k spoken-digit recordings
+  0-9 from 12 speakers, spiking versions), and the non-spiking Google Speech Commands v0.02 (GSC, 35
+  categories spoken by 1864 speakers, released under CC BY 4.0); SSC is derived from GSC via an artificial
+  inner-ear/auditory-pathway model.
 main_contribution: A novel Temporal Reconstruction (TR) method that lets SNNs learn multi-time-scale information
   from audio spectrograms by analogy with hierarchical brain processing of speech, and a novel Non-Aligned
   Residual (NAR) method that enables residual connections between speech data of different temporal lengths
   -- both applied on top of an SNN-Delays baseline and validated across spiking and non-spiking speech
   datasets.
 results: The proposed methods achieve a new state-of-the-art (SOTA) test classification accuracy of 81.02%
-  on SSC and 96.04% on SHD among all SNN models. On the non-spiking GSC dataset, the method achieves 95.63%
-  (also reported as 95.62% in the ablation table) test accuracy, surpassing the original SNN-Delays baseline.
-  The combination of NAR and TR (specifically TR without overlap, per the ablation) gives the best results,
-  TR outperforms a simple 1D max-pooling alternative under the same settings, and the proposed methods
-  also increase model throughput/processing speed and reduce energy consumption.
+  on SSC (a 0.33-point gain over the SNN-Delays(3L-2KC) baseline's 80.69%) and 96.04% on SHD (a 0.94-point
+  gain over the SNN-Delays baseline's 95.07%) among all SNN models. On the non-spiking GSC dataset, the
+  method reaches 95.62%-95.63% test accuracy, surpassing the original SNN-Delays baseline (95.35% on the
+  3L-2KC variant). Ablations show NAR combined with TR-without-overlap (TR-no) gives the best results on
+  SHD and GSC, NAR with TR-with-overlap (TR-o) gives the best result on SSC, TR consistently outperforms
+  a 1D max-pooling alternative under the same settings, and the proposed methods also increase model
+  throughput and reduce energy consumption in most configurations (e.g., STSC-SNN*+ours reaches 37216.90
+  samples/s vs. 30419.62 for the baseline on SHD).
 limitations: ''
 applications: Speech/audio classification tasks using spiking neural networks, with benefits of improved
-  processing speed and reduced energy consumption, relevant to energy-efficient neuromorphic computing
-  applications.
+  processing speed and reduced energy consumption relevant to energy-efficient neuromorphic computing.
 research_gap:
   addressed: Prior SNN speech-classification models used a single temporal resolution and lacked a way
     to apply residual connections when sub-module outputs have different time lengths; the paper explicitly
@@ -46,37 +51,17 @@ research_gap:
     multiple temporal scales for speech classification problems,' and addresses this with TR and NAR.
   remaining: ''
 key_evidence:
-- text: 'Recently, it can be noticed that most models based
-
-    on spiking neural networks (SNNs) only use a same level temporal
-
-    resolution to deal with speech classification problems, which
-
-    makes these models cannot learn the information of input data
-
-    at different temporal scales.'
+- text: Recently, it can be noticed that most models based on spiking neural networks (SNNs) only use a
+    same level temporal resolution to deal with speech classification problems, which makes these models
+    cannot learn the information of input data at different temporal scales.
   section: Abstract
-- text: 'we have achieved the state-of-the-art
-
-    (SOTA) result 81.02% on SSC for the test classification accuracy
-
-    of all SNN models, and we have obtained the SOTA result
-
-    96.04% on SHD for the classification accuracy of all models.'
+- text: we have achieved the state-of-the-art (SOTA) result 81.02% on SSC for the test classification
+    accuracy of all SNN models, and we have obtained the SOTA result 96.04% on SHD for the classification
+    accuracy of all models.
   section: Abstract
-- text: 'However, as far as we
-
-    know, there have few works that use SNN models to deal
-
-    with the information of multiple temporal scales for speech
-
-    classification problems.'
-  section: Related Works
-- text: 'By using TR, we enable the model to learn
-
-    information about the input data on a smaller time scale at the
-
-    shallow layers and learn it on a larger time scale at the deep
-
-    layers.'
+- text: However, as far as we know, there have few works that use SNN models to deal with the information
+    of multiple temporal scales for speech classification problems.
+  section: Related works
+- text: By using TR, we enable the model to learn information about the input data on a smaller time scale
+    at the shallow layers and learn it on a larger time scale at the deep layers.
   section: Conclusion

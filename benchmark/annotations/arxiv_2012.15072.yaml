@@ -14,14 +14,14 @@ problem: Existing stereo image-based 3D object detection methods that follow the
 research_question: Can an efficient and accurate 3D object detector be built from stereo images using
   an intermediate 3D representation that does not require depth-map, instance-mask, or CAD-model supervision,
   while achieving true real-time performance?
-method: 'The authors propose RTS3D, which builds a 4D feature-consistency embedding (FCE) space as an
-  intermediate 3D representation: a fast monocular 3D detector (KM3D-Net or CenterNet) generates an initial
+method: The authors propose RTS3D, which builds a 4D feature-consistency embedding (FCE) space as an
+  intermediate 3D representation - a fast monocular 3D detector (KM3D-Net or CenterNet) generates an initial
   coarse latent 3D box/grid, multi-scale ResNet18 features from the left and right stereo images are warped/back-projected
   onto this grid, and a semantic-guided Radial Basis Function (RBF) combines texture and semantic cues
   per voxel to encode feature consistency while filtering noise. A structure-aware attention (StrAA) module
-  further filters spatial noise using a bird''s-eye-view-style 2D convolution, and a PointNet-like network
+  further filters spatial noise using a bird's-eye-view-style 2D convolution, and a PointNet-like network
   with MLPs predicts the final 3D bounding box and confidence; the process can be iterated to refine the
-  latent space.'
+  latent space.
 dataset: KITTI 3D object detection benchmark (7481 training stereo images, 7518 test stereo images, split
   into 3712 train / remaining val images following prior protocol).
 main_contribution: A novel 4D feature-consistency embedding (FCE) space as an intermediate representation
@@ -48,7 +48,7 @@ research_gap:
   remaining: The authors note that smoothing detection results between adjacent frames is a straightforward
     way to further improve accuracy and speed, which is what they plan to do in future work.
 key_evidence:
-- text: Experiments on the KITTI benchmark show that RTS3D is the ﬁrst true real-time system (FPS>24)
+- text: Experiments on the KITTI benchmark show that RTS3D is the first true real-time system (FPS-24)
     for stereo image 3D detection meanwhile achieves 10% improvement in average precision comparing with
     the previous state-of-the-art method.
   section: Abstract
@@ -56,7 +56,7 @@ key_evidence:
     named FCE space.
   section: Introduction
 - text: we can observe that our RTS3D is the fastest running speed while our accuracy outperforms all
-    image-only methods. Speciﬁcally, without extra labels helping, RTS3D is 10 times faster than the existing
+    image-only methods. Specifically, without extra labels helping, RTS3D is 10 times faster than the existing
     SOTA work Stereo RCNN while achieves 10% improvement in AP3D and APBEV for the moderate setting accuracy.
   section: Results
 - text: One of the most straightforward methods conceivable is to smooth the detection results between

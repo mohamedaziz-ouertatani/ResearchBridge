@@ -15,47 +15,66 @@ research_question: Given a known but partial objective for a Markov decision pro
 method: The authors formulate 'diverse stochastic planning' as a constrained nonlinear optimization problem
   over sets of policies for an infinite-horizon MDP, characterizing each policy's behavior via its state-action
   occupancy measure, and defining diversity as the sum of pairwise Jensen-Shannon divergences between
-  occupancy measures. The objective combines total expected reward and diversity via a tradeoff parameter,
-  and by using the dual of the average-cost linear program the problem is recast as a constrained optimization
-  that can be solved efficiently with the Frank-Wolfe algorithm; they prove the algorithm converges to
-  a stationary point and compare it against projected gradient ascent (PGA) with a Sequential Least Squares
-  Programming projection step.
+  occupancy measures. The objective linearly combines the normalized total expected reward and normalized
+  diversity via a tradeoff parameter lambda, and by using the dual of the average-cost linear program the
+  problem is recast as a constrained optimization with linear constraints; they solve it with the Frank-Wolfe
+  (FW) algorithm, proving non-asymptotic convergence to a stationary point (also proving Lipschitz continuity
+  of the objective's gradient), and compare FW against projected gradient ascent (PGA), which uses Sequential
+  Least Squares Programming to solve its projection step at each iteration.
 dataset: No external dataset; evaluation uses synthetic two-dimensional 19x19 grid-world navigation environments
-  (a four-room grid world and a nine-room grid world) with obstacles, walls, doors linking rooms, and
-  stochastic transitions controlled by a 'correct transition' hyperparameter.
+  (a four-room grid world made of four 8x8 rooms, and a nine-room grid world made of nine 5x5 rooms) with
+  randomized obstacles, walls, doors linking rooms, and stochastic transitions controlled by a 'correct
+  transition' hyperparameter (alpha).
 main_contribution: The paper introduces the diverse stochastic planning problem formulation for MDPs based
   on occupancy-measure behavior characterization and Jensen-Shannon divergence diversity, proposes a Frank-Wolfe-based
   solution with proven convergence to a stationary point, and empirically shows the Frank-Wolfe approach
-  outperforms projected gradient ascent in both solution quality and runtime.
-results: On the four-room grid world (lambda=8, k=2, alpha=.95), Frank-Wolfe (FW) achieved average reward
-  per policy of 13.24 and diversity 0.50 in 26.90 seconds, versus PGA's -39.02 reward, 0.34 diversity,
-  and 1488.76 seconds, showing FW is both faster and higher quality. Increasing the tradeoff parameter
-  and the return-set size increases policy diversity up to a limit set by the environment's structure
-  (e.g., number of distinct door/room combinations), after which reward drops sharply; performance was
-  also characterized as a function of the stochasticity ('correct transition') parameter.
-limitations: ''
+  outperforms projected gradient ascent in both solution quality and computational efficiency.
+results: On the four-room grid world (lambda=8, k=2, alpha=.95, averaged over ten trials), FW is clearly
+  superior to PGA in both performance and computational efficiency, because PGA's per-iteration constrained
+  least-squares projection is unstable and expensive while FW only requires solving a linear program per
+  iteration that stays feasible by construction. As the tradeoff parameter lambda increases in the nine-room
+  world (k=6, alpha=.95), average pairwise diversity rises markedly while average reward per policy decreases
+  slightly until falling sharply around lambda=8, the point at which some trials find high-diversity policies
+  that no longer reach the goal. Increasing the return-set size k similarly increases diversity up to a
+  limit tied to the number of meaningfully distinct door/room combinations available in the environment,
+  after which added policies become near-duplicates. Varying the correct-transition parameter alpha in
+  the four-room world shows near-maximal diversity but low reward at low alpha, diversity reaching a minimum
+  around alpha=.8, then diversity rising again as stochasticity decreases further.
+limitations: The optimization problem is nonlinear and nonconcave and does not have a unique global solution
+  (e.g., any permutation of the k policies in an optimal solution is itself optimal), so the proposed methods
+  are only guaranteed to converge to a stationary/local point rather than a global optimum; the paper notes
+  that even with high tradeoff-parameter values, the configuration of doors and obstacles in the environment
+  can limit the number of meaningfully distinct near-optimal policies that can be found, and some pairs
+  of "diverse" policies found in practice remain relatively similar because the method only finds a local
+  minimum of the loss landscape.
 applications: Human-robot interaction and collaborative systems where a set of candidate near-optimal
   behaviors can be presented to a human to select according to unknown preferences; the authors also suggest
-  example domains such as a robot vacuum or guard robot for the grid-world design.
+  example domains such as a robot vacuum or guard robot for the grid-world design, and propose future use
+  in generating effective collaboration between groups of autonomous agents.
 research_gap:
   addressed: Prior quality-diversity (QD) work in reinforcement learning and planning used domain-dependent
-    or ad hoc behavior characterizations (e.g., action sequences, state trajectories, or Euclidean distance);
+    or ad hoc behavior characterizations (e.g., action sequences, state trajectories, or Euclidean distance
+    between visited points) and often relied on greedy strategies without general near-optimality guarantees;
     this paper instead uses state-action occupancy measures, a domain-independent characterization that
-    fully encapsulates a policy's dynamics, combined with a solution algorithm with guaranteed convergence
-    to a local minimum.
-  remaining: An interesting future extension of our approach would be investigating the utility of these
+    fully encapsulates a policy's dynamics, combined with a non-greedy solution algorithm with guaranteed
+    convergence to a stationary point.
+  remaining: An interesting future extension of the approach would be investigating the utility of these
     near-optimal diverse strategies in generating effective collaboration between groups of autonomous
     agents.
 key_evidence:
-- text: Motivated by this challenge, we formulate a problem, called diverse stochastic planning, that
-    aims to generate a set of representative — small and diverse — behaviors that are near-optimal with
+- text: Motivated by this challenge, we formulate a problem, called _diverse stochastic planning_, that
+    aims to generate a set of representative -- small and diverse -- behaviors that are near-optimal with
     respect to the known objective.
   section: Abstract
 - text: FW is clearly superior to PGA in both performance and computational efficiency.
-  section: Results
+  section: Frank-Wolfe and Projected Gradient Ascent
+- text: The reformulated version is a constrained optimization problem with linear constraints and a nonlinear
+    (and nonconcave) objective function. In general, this problem does not have a unique global solution.
+  section: Proposed Solution
+- text: This can be explained by the fact that our approach finds only a local minimum in the loss landscape,
+    and by the fact that even with high values of \(\lambda\) the configuration of the doors and obstacles
+    can limit the number of meaningfully distinct near-optimal policies.
+  section: Role of the Tradeoff Parameter
 - text: An interesting future extension of our approach would be investigating the utility of these near-optimal
     diverse strategies in generating effective collaboration between groups of autonomous agents.
   section: Conclusion and Future Work
-- text: We use this characterization to define the diversity of a set of policies through the pairwise
-    Jensen-Shannon divergences between the occupancy measures.
-  section: Introduction

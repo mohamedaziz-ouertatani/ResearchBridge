@@ -70,7 +70,7 @@ key_evidence:
     respect to micro and macro averaged metrics; a quantitative
 
     indication that these samples contain meaningful information.'
-  section: Results
+  section: Data Augmentation Experiments
 - text: 'This analysis depends on the behaviour of the classiﬁer, so
 
     future work should explore the effect of different classiﬁer

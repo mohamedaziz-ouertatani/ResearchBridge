@@ -41,7 +41,9 @@ results: Under TFS, Claude Sonnet 4.5, gpt-o3, and glm-4.6 scored highest (71.6,
   Time Efficiency but hurt its score on Dual Serial tasks. qwen3-235b-a22b-instruct-2507 had the highest
   Token Efficiency, and TEFS generally increased with model scale (with a dip at Qwen 2.5 32B) and decreased
   as the number of distractor tools increased.
-limitations: ''
+limitations: The authors note that their Time Efficiency measurements are subject to external factors such
+  as network latency and regional variations, which may lead to discrepancies when the evaluation is
+  reproduced; they mitigate this by using official APIs wherever possible, but do not eliminate the confound.
 applications: Evaluating and comparing the tool-use/planning capabilities of LLM-based agents that interact
   with external tools via the Model Context Protocol, informing model selection and highlighting parallel-tool-invocation
   deficiencies for real-world agent deployment.
@@ -83,3 +85,7 @@ key_evidence:
 
     Face [MCPHackathon, 2025].'
   section: Introduction
+- text: These results are subject to external factors such as network latency and regional variations,
+    which may lead to discrepancies during reproduction. To ensure result stability, the evaluation
+    utilizes official APIs wherever possible.
+  section: Main Results

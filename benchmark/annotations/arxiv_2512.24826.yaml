@@ -9,34 +9,41 @@ year: 2025
 url: https://arxiv.org/abs/2512.24826v1
 problem: Vision-language models (VLMs) trained on 2D visual inputs face a dimensional shift when reasoning
   about 3D scenes, since they must process a sequence of discrete 2D viewpoints; poorly chosen camera
-  viewpoints hide object features (e.g. rock textures relevant to planetary science) and hurt VLM accuracy,
-  but training data and compute for 3D-aware finetuning are scarce.
+  viewpoints hide object features (e.g. rock textures relevant to planetary geological analysis of Mars
+  rover imagery) and hurt VLM accuracy, but cross-modal training data with 3D visual inputs and domain-relevant
+  3D assets are scarce, so finetuning to close this gap is often impractical.
 research_question: Can an in-scene camera controller be trained online, without access to VLM parameters
   or finetuning, to select viewpoint sequences that improve a 2D-trained VLM's accuracy on 3D multi-object
   scenes, by optimizing a multivariate mutual information estimate of scene information versus model correctness?
 method: The authors propose MI-ZO, an algorithm that estimates multivariate mutual information (multi-information)
-  between a weighted mixture of visual/textual entropy sources and VLM correctness labels, using active
-  regret minimisation implemented via zeroth-order (derivative-free) optimisation to iteratively adjust
-  mixture weights so that redundancy between sources is reduced. This MI-ZO measure feeds a lightweight
-  controller (polynomial regression with least-squares approximation and an interaction matrix) that predicts
-  a sequence of camera rotation/zoom actions for an in-scene camera, without backpropagating through or
-  finetuning the VLM.
+  between a weighted mixture distribution of visual/textual entropy sources and VLM correctness labels,
+  using active regret minimisation implemented via zeroth-order (derivative-free) optimisation to iteratively
+  adjust the mixture weights so that redundancy between sources is reduced (framed as maximizing separation
+  of a hyperplane between 'additive' and 'reductive' information units). This MI-ZO measure feeds a lightweight
+  controller (polynomial regression with least-squares approximation and an interaction matrix, denoted
+  Poly+ZO+MI) that predicts a sequence of camera rotation/zoom actions for an in-scene camera over successive
+  conversation rounds, without backpropagating through or finetuning the VLM.
 dataset: 'A custom diagnostic called UC-3DS-MI (Uniform and Complex 3D Scenes for Multi-information),
-  and three newly introduced cross-modal benchmarks: GeoProperties-3DS (Mars rover-derived 3D rock/outcrop
-  models with textual summaries), FeatureID-3DS (3D scenes with world features like ''ladder''/''doorway''),
-  and PartialView-3DS (two-object scenes with occlusion by a partition). VLMs tested: Video-LLaMA-13B
-  and Chat-UniVi-13B.'
+  and three newly introduced cross-modal benchmarks: GeoProperties-3DS (five Mars rover-derived 3D rock/outcrop
+  models per scene set with a textual summary matching only one scene), FeatureID-3DS (3D scenes with
+  world features like ''ladder''/''doorway'', evaluated with restricted camera-action budgets of 5 and
+  8), and PartialView-3DS (two-object scenes with occlusion by a partition, 8 camera actions per round,
+  5 candidate descriptions per turn). VLMs tested: Video-LLaMA-13B (with Llama 2 decoding) and Chat-UniVi-13B
+  (with Vicuna-13B v1.5).'
 main_contribution: A new zeroth-order multivariate mutual information estimation method (MI-ZO) with active
   regret minimisation for n>2 variables, and a compute-efficient adaptive control framework that uses
   this measure to steer an in-scene camera for 2D VLMs analyzing 3D scenes without any VLM finetuning
   or gradient access; also three new cross-modal 3D-scene benchmarks and the UC-3DS-MI diagnostic.
-results: On GeoProperties-3DS, the best MI-ar variant (GH-LEDar) reduced balanced error rate to 40.4%
-  for Video-LLaMA-13B (a -21.0pp change from the no-control baseline of 59.8% and 61.3%), outperforming
-  standard control baselines like PID (57.2%), Linear+SGD (55.8%), RBF Network (55.1%), and Extended Kalman
-  (54.5%). On FeatureID-3DS with only 5 camera actions, GH-LEDar raised Video-LLaMA-13B accuracy to 30.9%
-  (+10.3pp) versus 23.6% (+3.1pp) for the Poly+ZO+MI baseline without the MI metric. On PartialView-3DS
-  with 8 actions, GH-LEDar reached 39.3% accuracy (+21.0pp) for Video-LLaMA-13B, again exceeding all other
-  control methods tested.
+results: On GeoProperties-3DS, the best MI-ar variant (GH-LEDar) reduced balanced error rate (BER@8) to
+  40.4% for Video-LLaMA-13B (a -21.0pp change from the no-control baseline of 59.8%) and to 42.2% for
+  Chat-UniVi-13B (-20.4pp from 61.3%), outperforming standard control baselines PID (57.2%), Linear+SGD
+  (55.8%), RBF Network (55.1%), and Extended Kalman (54.5%), and outperforming the plain Poly+ZO+MI controller
+  without active regret (53.8%). On FeatureID-3DS with only 5 camera actions, GH-LEDar raised Video-LLaMA-13B
+  accuracy (Acc@5) to 30.9% (+10.3pp) and GO-LED-OLar to 31.4% (+14.3pp), versus 23.6% (+3.1pp) for Poly+ZO+MI
+  without the MI-ar metric; with 8 actions GH-LEDar reached 53.3% (+27.2pp). On PartialView-3DS with 8
+  actions, GH-LEDar reached 39.3% accuracy (+21.0pp) for Video-LLaMA-13B and 35.3% (+20.2pp) for Chat-UniVi-13B,
+  again exceeding all other control methods tested. An ablation on colour-space sources (Table 3) found
+  a ceiling effect - extending the best measure beyond 5 sources gave no further error-rate improvement.
 limitations: ''
 applications: Applications explicitly discussed include scientific analysis such as planetary science/geological
   analysis of Mars rover imagery, generating and evaluating 3D virtual environment assets (e.g. buildings
@@ -56,10 +63,11 @@ key_evidence:
 - text: The problem is that mutual information provides no theoretical guarantees of optimality when the
     number of variables or individual measurements exceeds two.
   section: Problem
-- text: Our controller with 𝐺𝑂-𝐿𝐸𝐷-𝑂𝐿ar reduces the BER on the GeoProperties-3DS benchmark (see the results
-    in Table 2). Performance on all runs where Poly+ZO+MI is enhanced with our MI measurements exceeds
-    the reduction in errors attained by the highest ranked standard control method.
-  section: Results
+- text: Our controller with \(GO\text{-}LED\text{-}OL_{\text{ar}}\) reduces the BER on the GeoProperties-3DS
+    benchmark (see the results in Table 2). Performance on all runs where Poly+ZO+MI is enhanced with
+    our MI measurements exceeds the reduction in errors attained by the highest ranked standard control
+    method.
+  section: Cross-Modal Reasoning on Visual Properties
 - text: In this paper, we propose a novel multi-information estimation method and efficient derivative-free
     control to predict camera actions that provide optimal sequences of views on 3D scenes.
   section: Conclusion

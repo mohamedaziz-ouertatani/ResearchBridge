@@ -18,9 +18,9 @@ method: The authors propose EpmVG (Empowering Pre-trained Model for Visual Groun
   a cross-modal fusion transformer, and a prediction module. They add a Cross-modal Distillation (CD)
   module that uses a frozen CLIP model's image encoder and text encoder to produce global image ([DIE])
   and text ([DTE]) embeddings as soft labels; these are adaptive-average-pooled to match the dimension
-  of the model's own global visual token (p'1_v) and global textual token (p'1_l), and a cosine distillation
-  loss constrains the model's tokens to align with CLIP's embeddings. This distillation loss is combined
-  with the standard smooth-L1 and GIoU bounding-box regression losses for end-to-end training.
+  of the model's own global visual token and global textual token, and a cosine distillation loss constrains
+  the model's tokens to align with CLIP's embeddings. This distillation loss is combined with the standard
+  smooth-L1 and GIoU bounding-box regression losses for end-to-end training.
 dataset: 'Five visual grounding benchmarks: ReferItGame, Flickr30K Entities, RefCOCO, RefCOCO+, and RefCOCOg,
   using TransVG (ResNet-50/ResNet-101 backbones) and QRNet (Swin-S backbone) as the base visual grounding
   models, with CLIP as the frozen teacher for distillation.'
@@ -29,12 +29,17 @@ main_contribution: The paper identifies the single-modal pre-training domain gap
   transfers CLIP's image-text consistency knowledge directly into the global visual and linguistic tokens
   of a visual grounding model, showing this framework is model-agnostic (applied to both TransVG and QRNet)
   and yields consistent accuracy gains.
-results: EpmVG improves top-1 accuracy over its non-distilled baselines across all five datasets, e.g.,
-  TransVG (ResNet-50) rises from 69.76% to 70.65% on ReferItGame and from 80.49%/83.28%/75.24% to 83.39%/86.20%/78.98%
-  on RefCOCO val/testA/testB. Applied to QRNet (Swin-S), EpmVG reaches 75.84%/83.14% versus QRNet's 74.61%/81.95%
-  on ReferItGame/Flickr30K. On RefCOCO and RefCOCO+ the method gains 3.36%-4.99% absolute improvement
-  on testA and 0.56%-4.31% on testB over prior state-of-the-art, and gains 4.09% on RefCOCOg, outperforming
-  prior one-stage and two-stage state-of-the-art methods.
+results: EpmVG improves accuracy over its non-distilled TransVG/QRNet baselines across all five datasets.
+  For TransVG with ResNet-50 backbone, distillation raises RefCOCO+ val/testA/testB from 66.39/70.55/57.66
+  to 69.67/74.70/59.87, and RefCOCOg val-g/val-u/test-u from 66.35/67.93/67.44 to 71.61/71.92/71.40. Applied
+  to QRNet (Swin-S), EpmVG improves RefCOCO+ val/testA/testB from 72.94/76.17/63.81 to 76.45/81.16/68.12.
+  On ReferItGame/Flickr30K (Acc@0.5), EpmVG with Swin-S backbone reaches 75.84/83.14, versus QRNet's 74.61/81.95
+  and TransVG(Swin)'s 70.86/78.18. Compared with prior state-of-the-art on RefCOCO (val/testA/testB 87.04/89.21/82.90),
+  EpmVG gains 3.36%-4.99% absolute improvement on testA and 0.56%-4.31% on testB across RefCOCO/RefCOCO+,
+  and 4.09% on RefCOCOg test-u. Ablations show cosine distillation loss outperforms L1 loss (83.39/86.20/78.98
+  vs 82.43/84.81/77.43 on RefCOCO), removing text-modality distillation drops performance by 13.11/25.28/24.65
+  points, removing image-modality distillation drops it by 10.64/23.83/23.75 points, and freezing the
+  CLIP teacher outperforms leaving it unfrozen (83.39/86.20/78.98 vs 83.03/85.27/78.04).
 limitations: The authors explicitly state that because the pre-trained CLIP model used for distillation
   has a significantly larger parameter size than the visual grounding model, training requires waiting
   for the teacher model's inference, resulting in slower training speed after distillation compared to

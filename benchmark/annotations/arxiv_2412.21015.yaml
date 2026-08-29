@@ -60,7 +60,7 @@ key_evidence:
     map reasoning datasets.
   section: Abstract
 - text: In MapEval-Textual, two human evaluators, who were not involved in the annotation process, answered
-    the same 300 MCQs, achieving an average accuracy of 86.67%—more than 20% higher than the top-performing
+    the same 300 MCQs, achieving an average accuracy of 86.67%--more than 20% higher than the top-performing
     models
   section: Results
 - text: The platform utilizes several paid map APIs, which may incur costs based on usage.

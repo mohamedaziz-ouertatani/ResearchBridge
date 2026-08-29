@@ -23,7 +23,11 @@ method: The authors build a four-layer computational model (Head Direction Cell,
   Maze), using a Spatial Aliasing Index (SAI, cosine similarity of place-cell activation vectors between
   distant bins) and its mean (MSAI) as the evaluation metric, averaged over five independent trials per
   condition.
-dataset: ''
+dataset: No external dataset or benchmark; evaluation uses self-generated simulation data from three custom
+  20m x 20m Webots environments (Open, Cross with a symmetric central obstacle, and Maze), using a Roomba-like
+  robot agent with a compass and a 720-beam, 25m-range rangefinder. Five trials with grid cells and five
+  without were run per environment (30 trials total), each with a training phase to 95% area coverage
+  (0.5m bins) and an evaluation phase to 99% coverage (0.2m bins).
 main_contribution: The paper's main contribution is adding a grid cell (GC) layer -- providing a metric,
   path-integration-based spatial coordinate system complementary to boundary-based representations --
   to a hippocampal place-cell model, and empirically demonstrating that this substantially reduces spatial
@@ -35,8 +39,15 @@ results: Adding grid cells reduced the Mean Spatial Aliasing Index (MSAI, x10^-4
   largest improvement occurred in the Cross environment, which has the highest rotational/visual symmetry,
   while the Maze environment showed more variable improvement due to repeated corridor patterns causing
   residual similarity between distant locations.
-limitations: ''
-applications: ''
+limitations: In the Maze environment, although grid cells mitigate much of the BVC-induced aliasing, repeated
+  corridor patterns still cause distant locations to retain moderate similarity in their place-cell representations,
+  producing a higher and more variable MSAI (1.3 +/- 2.2) than in the Open or Cross environments. The grid
+  cells are constructed analytically via cosine interference rather than emerging from a dynamical mechanism
+  (e.g., an attractor network), so the model does not establish whether a more biologically plausible grid-cell
+  implementation would trade off differently between aliasing mitigation and stability.
+applications: The authors frame the model as a step toward more robust, biologically grounded spatial
+  representations for realistic robot navigation settings, and note that the simulator used is part of
+  a larger hippocampal-system simulation platform for the Webots environment intended for public release.
 research_gap:
   addressed: Prior work in the authors' group showed that 3-dimensional structure of the environment can
     help mitigate spatial aliasing when available; this paper addresses the same problem with a more robust
@@ -47,37 +58,22 @@ research_gap:
     aliasing mitigation and stability, including implementing 3D attractor-based grid cells (with corresponding
     3D BVCs, place cells, and head direction cells) and testing in varied, real-world environments.
 key_evidence:
-- text: 'We integrate multiple modules
-
-    of analytically constructed grid cells with BVC-driven place cells
-
-    and show that this leads to a 94–99% reduction in spatial aliasing
-
-    relative to a BVC-only baseline across three environments'
+- text: We integrate multiple modules of analytically constructed grid cells with BVC-driven place cells
+    and show that this leads to a 94-99% reduction in spatial aliasing relative to a BVC-only baseline
+    across three environments
   section: Abstract
-- text: 'Adding a source of path integration signals to the model,
-
-    namely grid cells, substantially improves the disambiguation
-
-    of these perceptually similar regions, as evidenced by a re-
-
-    duction of approximately 99.3% in the averaged Mean Spatial
-
-    Aliasing Index (MSAI) in five trials in the Cross environment.'
+- text: Adding a source of path integration signals to the model, namely grid cells, substantially improves
+    the disambiguation of these perceptually similar regions, as evidenced by a reduction of approximately
+    99.3% in the averaged Mean Spatial Aliasing Index (MSAI) in five trials in the Cross environment.
   section: Results & Discussion
-- text: 'Future work will investigate the use of an attractor-based grid
-
-    cell model and whether its biological plausibility introduces
-
-    different trade-offs in aliasing mitigation and stability.'
+- text: Future work will investigate the use of an attractor-based grid cell model and whether its biological
+    plausibility introduces different trade-offs in aliasing mitigation and stability.
   section: Conclusion & Future Work
-- text: 'The main contribution of this work is the addition of the GC
-
-    layer, which provides a metric spatial coordinate system that
-
-    complements the boundary-based representations and enables
-
-    stable place field formation in environments with geometric
-
-    ambiguity.'
+- text: The main contribution of this work is the addition of the GC layer, which provides a metric spatial
+    coordinate system that complements the boundary-based representations and enables stable place field
+    formation in environments with geometric ambiguity.
   section: Model Architecture
+- text: although grid cells mitigate much of the BVC-induced aliasing, corridors introduce repeated spatial
+    patterns, which can cause distant locations to retain moderate similarity in their place-cell representations,
+    contributing to higher and more variable MSAI values.
+  section: Results & Discussion

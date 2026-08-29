@@ -8,78 +8,70 @@ year: 2019
 url: https://arxiv.org/abs/2001.00098v2
 problem: Despite the practical success of training neural networks with non-convex first-order methods
   like gradient descent, a rigorous theoretical understanding of why these methods reliably find global
-  (or near-global) minima is lacking, because the loss landscape of neural networks is high-dimensional,
-  non-convex, and highly nonlinear.
+  minima is lacking, because the loss landscape of neural networks is high-dimensional, non-convex, and
+  highly nonlinear, and training such networks (with non-linear activations) is known to be NP-hard in
+  general.
 research_question: Under what conditions does the mean-squared-error loss landscape of (single-layer and
   deep) neural networks with quadratic activation functions avoid spurious local minima and bad saddle
-  points, so that gradient descent is guaranteed to converge to a global minimum, without restrictive
-  assumptions on the data distribution or the sign structure of the output weights?
-method: 'The authors analyze quadratic-linear (QL) networks -- networks with quadratic activation layers
-  each followed by a trainable linear layer -- and study the empirical risk landscape L(lambda, Q). They
-  prove existence of spurious local minima in the unmodified landscape, then propose two modifications
-  that eliminate them without changing the global minimum''s objective value: (1) adding the norm of the
-  training data as an extra fixed regressor/neuron (''Added Norm'', parameter alpha), which amounts to
-  a data-normalization trick, and (2) adding an orthogonality penalty on the weight matrix Q (gamma||QQ^T
-  - I||^2_Fro) that forces Q toward a full-rank/unitary matrix. They prove that for k >= d hidden neurons,
-  these modified landscapes have no spurious local minima and all saddle points have a negative curvature
-  direction with probability one under random initialization, extend this to multivariate outputs, and
-  extend it inductively to deep overparameterized QL networks of arbitrary depth.'
-dataset: 'Synthetic data sets (Gaussian inputs with planted diagonal, planted i.i.d. Gaussian, and non-planted/independent
-  output-generation models) and the MNIST handwritten digit dataset (used for binary classification tasks:
-  4 vs. 7 and 3 vs. 8 digit pairs, projected onto the first 10 principal components).'
+  points, so that gradient descent is guaranteed to converge to a global minimum, without the restrictive
+  assumptions on the number of neurons or the sign structure of the output weights required by prior work?
+method: 'The authors analyze quadratic-linear (QL) networks -- networks with a quadratic activation layer
+  followed by a trainable linear layer -- and study the empirical risk landscape L(lambda, Q). They first
+  prove by construction (Example 2.1) that this unmodified landscape has spurious local minima. They then
+  propose a modified objective L(alpha, lambda, Q) with two possible changes that do not alter the global
+  minimum''s objective value: (1) adding the norm of the training data as an extra fixed regressor (parameter
+  alpha), i.e. a data-normalization trick, and (2) adding an orthogonality penalty on the weight matrix
+  Q, gamma||QQ^T - I||^2_Fro, that regularizes the symmetric factorization toward the eigenvalue decomposition.
+  They state these modifications allow proving no spurious local minima for k >= d hidden neurons, extend
+  the argument to deep overparameterized QL networks, and note the results are independent of data distribution.'
+dataset: Not stated in the portion of the paper covered by this fulltext extraction. The available .nougat.md
+  file for this paper is truncated partway through Section 3.1 (Modified Landscape) and does not include
+  an Experiments/Results section; the abstract only states that the theoretical results are "empirically
+  demonstrate[d]" for "these problems" without naming a dataset in the extracted text.
 main_contribution: A theoretical characterization of the loss landscape of quadratic neural networks that
-  removes the restrictive assumptions of prior work (e.g., requiring k >= 2d hidden units or a pre-fixed
-  output sign structure), proving no spurious local minima for k >= d via two distribution-independent
-  landscape modifications (data-norm regressor and orthogonality penalty), and extending these landscape
-  guarantees for the first time to deep, overparameterized quadratic networks with multivariate outputs.
-results: The paper proves that for two-layer QL networks with k >= d hidden units, gradient descent converges
-  with probability one to a global minimum under either the added-norm or orthogonality-penalty modification,
-  closing the gap between prior results requiring k >= 2d and the k = d lower bound. Experiments on synthetic
-  data (input dimension d=10, N=1500 samples, 100 trials per setting) confirm that unmodified quadratic
-  networks get stuck in spurious local minima while the Added Norm and Orthogonality Penalty variants
-  reliably reach the global minimum once k >= d. On MNIST binary classification (3 vs. 8 and 4 vs. 7,
-  d=11 after PCA), deep QL networks with two layers reach the global optimum and achieve high training/generalization
-  classification accuracy even though the theoretical threshold h1 = d^2 = 121 is not needed in practice
-  -- convergence occurs at much smaller h1.
-limitations: The results do not make any statements on the uniqueness of the solution when the global
-  minimum is not unique -- gradient descent is only guaranteed to converge to some global minimum, not
-  a particular or structured one. The paper also notes it is 'in a sense futile to look for implicit regularizations
-  in the general overparameterized case if the eigenvalue structure is not known a priori,' and that the
-  experiments reaching global optima at h1 much less than d^2 is a phenomenon 'which our theory does not
-  explain.'
+  removes restrictive assumptions of prior work by proving no spurious local minima for k >= d hidden
+  units (rather than the k >= 2d required previously) via two distribution-independent landscape modifications
+  (a data-norm regressor and an orthogonality penalty), and extending these landscape guarantees to deep,
+  overparameterized quadratic networks.
+results: Within the portion of the paper covered by this extraction (through Section 3.1), the paper's
+  results are stated as theoretical guarantees rather than reported experimental numbers. It proves that
+  the unmodified two-layer QL landscape contains spurious local minima (Example 2.1), and states that with
+  either the Added Norm or the orthogonality-penalty modification, spurious local minima and bad saddle
+  points can be escaped with probability one under random initialization once k >= d, closing the gap
+  with prior work that required k >= 2d. The abstract additionally claims deep overparameterized QL networks
+  benefit from similar landscape properties and that convergence to a global minimum is empirically demonstrated,
+  but the extracted fulltext is truncated before the experiments/results section, so no numerical results
+  could be verified from this file.
+limitations: The paper itself notes that all two-layer neural networks with polynomial activation functions,
+  including QNNs, do not enjoy the same universal approximation theorems as two-layer networks with sigmoid
+  or ReLU activations, meaning increasing the number of neurons in a two-layer QNN beyond k=d does not
+  add any expressive power.
 applications: The primary application noted is providing conditions under which stochastic gradient descent
   is guaranteed to converge to a global minimizer for quadratic networks; the paper also notes relevance
   to theoretical neuroscience, since a quadratic response to a low-dimensional projection is the standard
   model used for complex cells in the visual cortex.
 research_gap:
-  addressed: Prior work (e.g. Soltanolkotabi et al.) proved no-spurious-local-minima results only for
-    k >= 2d hidden units or under restrictive sign-structure/positivity assumptions on the output weights
-    and did not consider deep networks or multivariate outputs; this paper closes the gap down to k =
-    d and extends the guarantees to deep, overparameterized, multivariate-output quadratic networks.
-  remaining: The main remaining open question is how to perform a similar landscape analysis for network
-    architectures of more practical interest, such as other non-linearities (tanh, ReLU) and convolutional
-    neural networks; the paper notes a possible polynomial/Taylor-expansion approach exists but 'how best
-    implement this idea remains an open problem' and such networks will likely require new landscape-analysis
-    approaches. The existence of spurious local valleys for d <= k <= 2d is also noted as 'still an open
-    question.'
+  addressed: Prior work (Soltanolkotabi et al., cited as [5]) proved no-spurious-local-minima results only
+    for k >= 2d hidden units (or under a fixed sign structure matching a planted ground truth), and other
+    prior work ([27], [28]) either restricted to positive semidefinite matrices or only ruled out spurious
+    local valleys rather than local minima, with none considering deep networks or multivariate outputs;
+    this paper closes the gap down to k = d and extends the guarantees to deep, overparameterized quadratic
+    networks.
+  remaining: The paper states that the existence of spurious local valleys for d <= k <= 2d "is still an
+    open question."
 key_evidence:
-- text: We prove existence of spurious local minima and saddle points which can be escaped easily with
-    probability one when the number of neurons is greater than or equal to the input dimension and the
-    norm of the training samples is used as a regressor.
+- text: Despite their practical success, a theoretical understanding of the loss landscape of neural networks
+    has proven challenging due to the high-dimensional, non-convex, and highly nonlinear structure of such
+    models.
   section: Abstract
-- text: 'Our theoretical results
-
-    are independent of data distribution and ﬁll the existing gap in theory for two-layer quadratic
-
-    neural networks.'
+- text: However, when the number of hidden neurons \(k\) is greater than or equal to \(d\) these local
+    minima can be easily escaped by adding the norm of the training data as a regressor.
+  section: Introduction
+- text: Finally, we empirically demonstrate convergence to a global minimum for these problems.
   section: Abstract
-- text: 'The main remaining open question of this paper and the associated line of research is how perform
-
-    a similar landscape analysis on network architectures of more practical interest.'
-  section: Conclusions and Future Work
-- text: 'Our results do not make any statements on the uniqueness of the solution; in particular if the
-
-    global minimum is not unique, Theorem 3.1 suggests convergence of gradient descent to one of the
-
-    solutions but not a particular or structured one.'
-  section: Conclusions and Future Work
+- text: it is important to acknowledge that all two layer neural networks with polynomial activation functions
+    including QNNs do not enjoy the same universal approximation theorems as two-layer neural networks with
+    sigmoid or ReLU activations
+  section: Introduction
+- text: The existence of spurious local valleys for \(d\leq k\leq 2d\) is still an open question.
+  section: Local Minima of L(lambda, Q)

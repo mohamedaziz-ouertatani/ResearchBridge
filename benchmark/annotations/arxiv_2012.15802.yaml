@@ -48,16 +48,18 @@ research_gap:
     a matching Omega(d^2) lower bound.
   remaining: ''
 key_evidence:
-- text: Our main result is that the sample complexity of covariance testing dramatically increases in
-    the contaminated setting. In particular, we prove a sample complexity lower bound of Ω(d2) for ǫ an
-    arbitrarily small constant and γ = 1/2.
-  section: Abstract
-- text: This answers the open question posed in [CRZ16b].
+- text: In sharp contrast to the sample complexity of robust learning (which is fairly well-understood
+    for several natural settings), the sample complexity of robust testing in high dimensions is poorly
+    understood.
+  section: Introduction
+- text: Our main result (Theorem 1) is that for \(\epsilon\) an arbitrarily small positive constant and
+    \(\gamma=1/2\), robust covariance testing requires \(\Omega(d^{2})\) samples.
   section: Introduction
 - text: In summary, our result shows that there is a quadratic gap between the sample complexity of testing
-    and robust testing for the covariance. Notably, such a sample complexity gap does not exist for the
-    problems of learning and robustly learning the covariance.
+    and robust testing for the covariance.
   section: Introduction
-- text: “Much work is still needed to gain fundamental understanding of robust estimation under ǫ-contamination
-    model or other reasonable models.”
+- text: This answers the open question posed in [17].
+  section: Introduction
+- text: 'Much work is still needed to gain fundamental understanding of robust estimation under \(\epsilon\)-contamination
+    model or other reasonable models.'
   section: Introduction

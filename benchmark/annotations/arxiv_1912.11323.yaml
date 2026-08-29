@@ -64,4 +64,4 @@ key_evidence:
   section: Results
 - text: Note that this data suffers from selection bias because games were only recorded if they ended,
     while humans tend to quit games when they are losing badly.
-  section: Discussion
+  section: Results

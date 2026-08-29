@@ -61,17 +61,17 @@ research_gap:
     graphs, and will incorporate dynamic program analysis (runtime instrumentation and dynamic tracing)
     to address static-analysis gaps and enable diagnosis of concurrency bugs.
 key_evidence:
-- text: Compared to state-of-the-art ReAct baselines, PRAXIS improves RCA accuracy by up to 6.3× while
+- text: Compared to state-of-the-art ReAct baselines, Praxis improves RCA accuracy by up to 6.3× while
     reducing token consumption by 5.3×.
   section: Abstract
-- text: PRAXIS achieved a root-cause reasoning accuracy of 61.5% and a root-cause identification accuracy
+- text: Praxis achieved a root-cause reasoning accuracy of 61.5% and a root-cause identification accuracy
     of 73.9%, an increase of 6.3× and 3.4×, respectively, over state-of-the-art ReAct baselines
   section: Introduction
-- text: PRAXIS's effectiveness is contingent on the availability and quality of observability data to
-    anchor its PDG traversal. Sparse or ambiguous traces, logs, metrics, or events can limit PRAXIS's
+- text: Praxis's effectiveness is contingent on the availability and quality of observability data to
+    anchor its PDG traversal. Sparse or ambiguous traces, logs, metrics, or events can limit Praxis's
     ability to accurately align runtime error signals with corresponding dependency paths to traverse.
-  section: Discussion
-- text: Future iterations of PRAXIS will be extended to diagnose resource-, infrastructure-, and deployment-related
+  section: Discussions and Future Work
+- text: Future iterations of Praxis will be extended to diagnose resource-, infrastructure-, and deployment-related
     incidents by augmenting the current dependency graphs with resource/infrastructure and deployment-manifest
     graphs that explicitly capture those dependencies.
-  section: Discussion
+  section: Discussions and Future Work

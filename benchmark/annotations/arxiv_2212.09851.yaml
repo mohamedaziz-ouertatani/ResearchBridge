@@ -30,37 +30,49 @@ main_contribution: The paper's specific new contribution is the PathCAS primitiv
   are both relatively easy to prove correct and empirically competitive with the fastest known handcrafted
   concurrent search trees.
 results: 'PathCAS-based trees are highly competitive across read-heavy to update-heavy workloads: the
-  unbalanced BST implementation outperforms the state of the art in unbalanced BSTs, and the balanced
-  AVL implementation matches the fastest known balanced BST in read-mostly workloads. Compared to MCMS
-  (a prior KCAS-based middle-ground approach), PathCAS is orders of magnitude faster, e.g., at 100% searches
-  and 100,000 keys with HTM, MCMS achieves 0.4M ops/sec at 48 threads versus 77M ops/sec for PathCAS,
-  and PathCAS is thousands of times faster than MCMS at 190 threads.'
-limitations: The paper notes it focuses only on two tree data structures in this work, though it claims
-  (without full detail) that PathCAS can be applied to (a,b)-trees, lists, hash-tables, hash-lists, stacks,
-  queues, skip-lists and dynamic graph connectivity structures, and states it plans to share more of these
-  implementations as future work. It also notes vexec can fail spuriously and that avoiding vexec failures
-  altogether is impossible.
+  unbalanced BST implementation (int-bst-pathcas) outperforms the state of the art in unbalanced BSTs
+  (it has the smallest cycle count per operation and the fewest last-level cache misses of the unbalanced
+  trees compared), and the balanced AVL implementation (int-avl-pathcas) is competitive with the fastest
+  known balanced BST (pext-avl-occ) in read-mostly workloads and is at most 20% slower than the fastest
+  algorithm in the 100% update workload. On the Intel system with hardware transactional memory support,
+  the PathCAS trees outperform the next fastest algorithm, TLE, by nearly 2x. The paper also implements
+  and evaluates an internal BST built on MCMS (a prior KCAS-based middle-ground primitive) for comparison,
+  but the specific numeric results of that comparison are not present in the fulltext excerpt available
+  (the "Comparison with MCMS" section is cut off before reporting results); the paper states more broadly
+  that known middle-ground techniques such as MCMS "often fail to scale in the context of high-performance
+  data structures."'
+limitations: 'PathCAS is explicitly less expressive than full transactional memory: it does not guarantee
+  opacity and has a bounded read-set (exceeding the read-set size triggers an assertion in the implementation).
+  The paper also states that avoiding vexec failures altogether is impossible, and only mitigates (rather
+  than eliminates) spurious failures via the "strong vexec" fallback path. Several technical details --
+  a detailed discussion of correctness bugs found in prior lock-based/lock-free BST implementations, full
+  correctness proofs and details of the AVL tree extension, treatment of version-number wrapping, further
+  experimental results (including on Intel systems and additional algorithms/workloads), and details of
+  bugs found in the original MCMS implementation -- are explicitly deferred to "the full version of this
+  paper" rather than included here.'
 applications: Concurrent search data structures such as binary search trees and AVL trees for use in multithreaded/shared-memory
-  systems; the authors also mention having implemented (a,b)-trees, lists, hash-tables, hash-lists, stacks,
-  queues, skip-lists, and dynamic graph connectivity data structures using the same PathCAS approach.
+  systems.
 research_gap:
   addressed: Prior middle-ground techniques between fine-grained handcrafted designs and transactional
     memory (such as MCMS) often fail to scale for high-performance search data structures because their
     software fallback path writes to the entire search path, causing contention and cascading hardware-transaction
     aborts; PathCAS avoids this overhead while still simplifying correctness arguments relative to fine-grained
     designs.
-  remaining: The authors plan to share implementations of additional PathCAS-based data structures (a,b)-trees,
-    lists, hash-tables, hash-lists, stacks, queues, skip-lists, and dynamic graph connectivity structures)
-    as future work, beyond the two trees presented in this paper.
+  remaining: 'The paper repeatedly defers material to "the full version of this paper" rather than stating
+    open problems as future work: this includes a detailed discussion of correctness bugs identified in
+    prior BST implementations, complete correctness proofs and details of the AVL rebalancing extension,
+    treatment of version-number wrapping, additional experiments (including Intel results and further
+    algorithms/workloads), and details of bugs found in the original MCMS implementation.'
 key_evidence:
 - text: In this paper, we explore this middle ground, and present PathCAS, a primitive that combines ideas
     from multi-word CAS (KCAS) and transactional memory approaches, while carefully avoiding overhead.
   section: Abstract
-- text: We find that the resulting tree is orders of magnitude slower than our PathCAS tree. For example,
-    for 100% searches and 100,000 keys, on a system with hardware TM, the throughput of the MCMS tree
-    is 0.4M at 48 threads, whereas the throughput of PathCAS is 77M.
-  section: Results
-- text: However, we plan to share more of our implementations as part of future work.
-  section: Conclusion
+- text: We find that PathCAS data structures are highly competitive, across the range from read-heavy
+    to update-heavy workloads. In particular, our unbalanced BST implementation manages to outperform
+    the state-of-the-art in unbalanced BSTs, and our balanced implementation matches the performance of
+    the fastest known balanced BST in read-mostly workloads.
+  section: Introduction
+- text: It is impossible to avoid _vexec_ failures altogether.
+  section: Avoiding spurious failures
 - text: PathCAS does not guarantee opacity, and (2) PathCAS has a bounded read-set.
   section: Introduction

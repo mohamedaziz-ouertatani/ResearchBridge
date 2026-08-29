@@ -58,9 +58,9 @@ key_evidence:
 
     pose of data augmentation, to which we re-
 
-    fer as “Learning to INterpolate for Data Aug-
+    fer as "Learning to INterpolate for Data Aug-
 
-    mentation” (LINDA), that does not require
+    mentation" (LINDA), that does not require
 
     any heuristics nor manually crafted resources'
   section: Abstract

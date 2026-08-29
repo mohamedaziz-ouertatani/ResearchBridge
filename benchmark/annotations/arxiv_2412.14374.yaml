@@ -38,14 +38,21 @@ results: JaxPP's pipeline parallelism improved hardware utilization by up to 1.1
   JaxPP does not). Weak-scaling experiments on GPT-3 175B from 64 to 1024 GPUs achieved 92.87% scaling
   efficiency, comparable to JAX FSDP's 93.97%. On Llama2 70B (8 nodes), JaxPP matched JAX FSDP but reached
   only 83.2% of NeMo's throughput.
-limitations: ''
+limitations: The paper notes that JaxPP uses no custom kernels except for the attention APIs from cuDNN,
+  whereas NeMo leverages several high-performance custom kernels that greatly improve end-to-end performance;
+  as a result, JaxPP reaches only 91.4% of NeMo's throughput on GPT-3 175B and 83.2% on Llama2 70B. The
+  paper also notes that splitting the training step into multiple XLA SPMD tasks can incur dispatch overhead,
+  and that using smaller pipeline stages or smaller microbatches can hurt device utilization once tasks
+  become too small.
 applications: ''
 research_gap:
   addressed: GSPMD can encode only one restrictive variant of pipeline parallelism (assuming homogeneous
     stages and strict per-iteration synchronization), which forbids different rematerialization strategies
     per stage and precludes schedules like 1F1B/Interleaved 1F1B that require an MPMD paradigm; JaxPP
     addresses this by adding a user-facing MPMD scheduling layer on top of GSPMD.
-  remaining: ''
+  remaining: The paper notes that while its implementation builds on top of JAX and XLA, the same core
+    ideas could be leveraged to implement similar transformations as an MLIR dialect and build an MPMD
+    runtime on other technologies.
 key_evidence:
 - text: The pipeline parallelism implementation of JaxPP improves hardware utilization by up to 1.11×
     with respect to the best performing SPMD configuration.
@@ -56,6 +63,9 @@ key_evidence:
 - text: JaxPP is 44.6% faster than SPMD pipeline parallelism, achieving 457 TFLOPS/device, while being
     more expressive and requiring 1K fewer lines of user code.
   section: Evaluation
-- text: JaxPP effectively scales GPT-3 175B training from 64 to 1024 GPUs, achieving a 92.87% weak scaling
-    efficiency.
+- text: We note that NeMo leverages several high-performance kernels that greatly improve end-to-end performance.
+    JaxPP uses no custom kernels except for the attention APIs from cuDNN
   section: Evaluation
+- text: the same core ideas can be leveraged to implement similar transformations as an MLIR (Lattner
+    et al., 2021) dialect and build a MPMD runtime on other technologies.
+  section: Conclusion

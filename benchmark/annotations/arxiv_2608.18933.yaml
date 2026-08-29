@@ -7,42 +7,73 @@ domain: Systems
 year: 2026
 url: https://arxiv.org/abs/2608.18933v1
 problem: LLM-based software engineering agents perform well on general issue-resolution benchmarks but
-  struggle when deployed on a specific repository because they lack project-specific knowledge (e.g.,
-  repository-specific API contracts, brittle modules, coupled APIs), forcing them to rediscover the same
-  conventions repeatedly -- a cold-start problem.
+  struggle when deployed on a specific repository because they lack project-specific knowledge (recurring
+  brittle modules, repository-specific API contracts, implicitly coupled APIs), forcing them to repeatedly
+  rediscover the same conventions -- a cold-start problem where existing self-evolving agents either depend
+  on available historical issue-resolution signals or incur substantial per-issue test-time exploration cost.
 research_question: Can a self-distillation framework proactively acquire project-specific knowledge directly
   from a repository's own code and tests -- rather than reactively from historical issue-resolution signals
   or costly per-issue online exploration -- and thereby improve downstream automated issue resolution?
-method: 'SkillForge synthesizes project-specific issues by using an LLM to re-implement (rewrite) test-covered
-  core functionality segments of a repository under constrained context (without access to the original
-  implementation), producing realistic buggy variants whose failing tests are converted into SWE-bench-style
-  issues. A SWE agent (Mini-SWE-Agent) resolves these synthetic issues, and SkillForge distills the resulting
-  trajectories into a dual-level, entity-grounded skill repository: global diagnostic skills (Mext: entity
-  purpose, reasoning playbooks, related APIs) retrieved via BM25 at the start of a new issue, and local
-  intervention skills (Mint: concrete repair/pitfall lessons from both successful and failed trajectories)
-  injected just-in-time whenever the agent accesses a matching repository file.'
-dataset: SWE-bench Verified (500 human-validated tasks from popular Python GitHub repositories) and SWE-bench
+method: 'SkillForge synthesizes project-specific issues by tracing test-covered core functionalities (via
+  coverage instrumentation), using an LLM to select critical code segments exercised by a passing test, and
+  rewriting those segments under constrained context (without access to the original implementation, only
+  surrounding lines and the test''s goal) so the rewrite naturally exhibits realistic implementation mistakes.
+  The resulting test failures are assembled into SWE-bench-format synthetic instances (base commit, buggy
+  patch, reference patch, LLM-generated problem statement, tests). A SWE agent (Mini-SWE-Agent) resolves
+  these synthetic issues, and SkillForge distills the resulting trajectories -- after normalizing them and
+  aligning code-access events to an AST-derived repository entity index -- into a dual-level, entity-grounded
+  skill repository: global diagnostic skills (Mext: an entity''s purpose, a reasoning playbook, and related
+  APIs) retrieved via BM25 against the new issue description at the start of real issue resolution, and local
+  intervention skills (Mint: repair guidance and pitfall-avoidance lessons distilled from both successful and
+  failed trajectories) injected just-in-time whenever the agent''s shell commands access a matching repository
+  file.'
+dataset: SWE-bench Verified (500 human-validated tasks from popular Python GitHub repositories; SkillForge
+  synthesizes 577 issues from a temporally rolled-back, LLM-filtered subset of tests) and the full SWE-bench
   Pro (731 instances spanning Python, JavaScript, TypeScript, and Go repositories, with more challenging
-  long-horizon multi-file tasks).
+  long-horizon multi-file tasks). Repository-level analysis is reported on the seven repositories with the
+  most evaluation instances, including Django, Sphinx, Matplotlib, Astropy, Scikit-learn, and Pydata.
 main_contribution: A novel proactive self-distillation paradigm (SkillForge) that synthesizes project-specific
-  issues from a repository's own tests/code rather than relying on historical issue trajectories or costly
-  online exploration, combined with a dual-level (global diagnostic + local intervention) entity-grounded
-  skill repository enabling retrieval aligned with the agent's current code-interaction context.
-results: On SWE-bench Verified, SkillForge achieves 72.2% and 60.6% Pass@1 with DeepSeek-V3.2 and GPT-5-mini
+  issues from a repository's own tests/code -- via functionality-level, execution-trace-guided rewriting of
+  multiple coordinated code segments -- rather than relying on historical issue trajectories or costly online
+  exploration, combined with a dual-level (global diagnostic + local intervention) entity-grounded skill
+  repository that supports macro-level initialization and micro-level just-in-time retrieval during downstream
+  issue resolution.
+results: 'On SWE-bench Verified, SkillForge achieves 72.2% and 60.6% Pass@1 with DeepSeek-V3.2 and GPT-5-mini
   respectively, improving over the Mini-SWE-Agent baseline (66.4% and 55.0%) by +5.8 and +5.6 percentage
-  points. On SWE-bench Pro, SkillForge improves over Mini-SWE-Agent by +5.8 and +4.1 percentage points
-  for the two models. SkillForge outperforms all evaluated history-driven baselines (SWE-Exp, EvoCoder,
-  MemGovern) and online baselines (SAGE, SWE-Debate, Live-SWE-agent) on both benchmarks.
-limitations: ''
+  points, and surpassing the strongest history-driven baseline MemGovern (69.2%/58.0%) by +3.0/+2.6 points
+  and the strongest online baselines SAGE and SWE-Debate by up to +5.0/+4.6 points. On SWE-bench Pro,
+  SkillForge reaches 34.1% and 51.7% Pass@1, improving over Mini-SWE-Agent by +5.8 and +4.1 points and
+  exceeding Live-SWE-agent by +1.7/+2.6 points. Ablations show removing global diagnostic skills (Mext) drops
+  performance by 3.8/3.0 points and removing local intervention skills (Mint) drops it by 4.4/3.4 points.
+  Skills distilled by one LLM transfer poorly to a different resolver LLM (e.g., DeepSeek-V3.2 drops from
+  72.2% to 65.2% when using GPT-5-mini-distilled skills). Hyperparameter studies on Django and Sphinx find
+  performance peaks at k_r=5 retrieved skill records (69.7%) and k_s=5 rewritten segments per synthetic issue,
+  with both larger and smaller values degrading performance. Per-repository gains reach up to +13.6%
+  (Sphinx, DeepSeek-V3.2) and +15.6% (Scikit-learn, GPT-5-mini), with no regressions across the seven
+  evaluated repositories, unlike SWE-Exp which regresses on three repositories (e.g., -11.8% on Matplotlib).'
+limitations: 'The paper reports two threats to validity: (1) external validity -- SkillForge relies on
+  repository tests to synthesize issues and distill knowledge, so code regions rarely exercised by runnable
+  tests contribute fewer learning signals, which may reduce effectiveness in repositories with limited test
+  coverage; (2) internal validity -- problem statements for synthesized issues are generated by an LLM
+  following prior synthesis pipelines, and although manually verified to reflect observable behaviors without
+  leaking implementation details, LLM-generated problem statements may still differ from developer-written
+  issue reports. Additionally, the paper finds that distilled project-specific knowledge is not universally
+  transferable across LLM backbones, since it captures how a particular LLM reasons about and edits a
+  repository.'
 applications: Automated software issue resolution / repository-specific bug fixing by LLM-based software
-  engineering agents.
+  engineering agents deployed on a specific codebase.
 research_gap:
   addressed: Prior self-evolving SWE agent methods acquire project-specific knowledge reactively -- either
-    from historical issue-resolution signals (bounded by the richness of past issues and blind to unexercised
-    long-tail components) or from costly per-issue online test-time exploration (available only after
-    the issue arrives); SkillForge instead proactively synthesizes project-specific issues from the repository's
-    own code and tests before real issues arrive.
-  remaining: ''
+    from historical issue-resolution signals (bounded by the richness and coverage of past issues, providing
+    little learning signal for repository behaviors, API combinations, and long-tail components not yet
+    exercised by historical trajectories) or from costly per-issue online test-time exploration (paying
+    substantial trajectory, token, and time cost per target issue, with guidance available only after the
+    issue has already arrived); SkillForge instead proactively synthesizes project-specific issues from the
+    repository's own code and tests before real issues arrive.
+  remaining: The paper notes that effectiveness likely degrades in repositories with limited test coverage
+    since synthesis and distillation are grounded in runnable tests, and that distilled project-specific
+    knowledge does not transfer well across different LLM backbones, meaning the skill repository would need
+    to be rebuilt per model rather than reused across models.
 key_evidence:
 - text: 'Existing
 
@@ -54,6 +85,11 @@ key_evidence:
 
     per-issue test-time exploration cost.'
   section: Abstract
+- text: 'For each selected segment, we ask an LLM to _rewrite_ the corresponding code by re-completing the
+    local functionality. Crucially, the LLM is not provided with the original implementation; instead, it
+    receives only limited contextual information: the lines before and after the segment, the segment''s
+    location and indentation, and a high-level description of the test''s goal.'
+  section: Methodology
 - text: 'On SWE-bench
 
     Verified, SkillForge achieves 72.2% and 60.6% Pass@1, im-
@@ -62,21 +98,12 @@ key_evidence:
 
     points, respectively.'
   section: Introduction
-- text: 'This limitation creates a cold-start problem: before
-
-    project-specific knowledge has been acquired, even a highly
-
-    capable agent is reduced to a generic repository explorer and
-
-    can repeatedly fall into the same project-specific pitfalls.'
-  section: Introduction
-- text: 'Experiments demonstrate that SkillForge con-
-
-    sistently improves issue resolution performance, yielding ab-
-
-    solute Pass@1 gains of +5.8%/+5.6% on SWE-bench Verified
-
-    and +5.8%/+4.1% on SWE-bench Pro for DeepSeek-V3.2
-
-    and GPT-5-mini, respectively.'
-  section: Conclusion
+- text: 'External validity.SkillForge relies on repository tests to synthesize issues and distill
+    project-specific knowledge. Consequently, code regions that are rarely exercised by runnable tests
+    contribute fewer learning signals, which may reduce the effectiveness of the learned knowledge in
+    repositories with limited test coverage.'
+  section: Discussion
+- text: 'These results indicate that the distilled project-specific knowledge is not universally
+    transferable across LLMs. Instead, it captures how a particular LLM reasons about and edits a specific
+    repository.'
+  section: Results

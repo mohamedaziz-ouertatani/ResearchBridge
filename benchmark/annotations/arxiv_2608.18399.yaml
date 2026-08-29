@@ -62,8 +62,9 @@ key_evidence:
 - text: What the copy delivers has never been measured directly in the attention structure and tied to
     robustness.
   section: Abstract
-- text: the distilled student's attention sits on average 97× closer to its teacher's than fine-tuning
-    ends up from the same teacher
+- text: In per-layer, per-head KL divergence on held-out images, the distilled student's attention sits
+    on average \(97\times\) closer to its teacher's than fine-tuning ends up from the same teacher, though
+    fine-tuning began from the teacher's own weights.
   section: Introduction
 - text: The endpoint robustness gap at this scale is substantially a training-maturity artifact.
   section: Results

@@ -16,30 +16,54 @@ research_question: Can state machine replication protocols like MultiPaxos be sc
 method: 'The paper introduces compartmentalization, a general technique of decoupling the distinct responsibilities
   bundled onto a single overloaded component (e.g., the MultiPaxos leader) into separate components, and
   then independently scaling out the components that are embarrassingly parallel. It applies this systematically
-  to MultiPaxos via six compartmentalizations: proxy leaders (decoupling sequencing from broadcasting),
-  acceptor grids using flexible/Paxos quorums (decoupling read and write quorums), scaling the number
-  of replicas, leaderless/Paxos Quorum Reads for read-write decoupling, batchers, and unbatchers. The
-  technique is also shown to generalize to other protocols (Mencius, S-Paxos, Scalog-like design).'
-dataset: ''
+  to MultiPaxos via six compartmentalizations: proxy leaders (decoupling command sequencing from broadcasting),
+  acceptor grids using flexible/Paxos quorums arranged in an r x w grid (decoupling read quorums from write
+  quorums), scaling the number of replicas by exploiting that only one replica need reply per command,
+  leaderless reads via Paxos Quorum Reads for read/write path decoupling (with linearizability proven,
+  plus sequentially- and eventually-consistent read variants), batchers (decoupling batch formation from
+  batch sequencing), and unbatchers (decoupling batch execution from reply-sending). The technique is also
+  shown to generalize by compartmentalizing Mencius and S-Paxos, and by partially compartmentalizing Scalog.'
+dataset: No external dataset; the protocols (MultiPaxos, Compartmentalized MultiPaxos, Mencius, S-Paxos,
+  Scalog, CRAQ, and an unreplicated baseline) were implemented in Scala with Netty and evaluated on AWS
+  m5.xlarge machines (4 vCPUs, 16 GiB RAM) replicating an in-memory key-value store (integer keys, 16-byte
+  string values by default, with additional runs at 100-byte and 1000-byte values) under closed-loop client
+  workloads with varying numbers of clients, read/write mixes (0%, 60%, 90%, 100% reads), batch sizes,
+  and a skewed key-access workload (10,000 keys) for the CRAQ comparison.
 main_contribution: The paper characterizes all of MultiPaxos's throughput bottlenecks and introduces compartmentalization
   as the first comprehensive technique to eliminate them systematically, debunking the belief that MultiPaxos
   and similar SMR protocols cannot scale, while requiring no specialized hardware or strong assumptions
   (e.g., perfect failure detectors, clock synchrony).
 results: Compartmentalized MultiPaxos increases throughput by 6x on a write-only workload (using 6.66x
-  the machines, i.e. ~90% of perfect linear scalability) and by 16x on a mixed (90% read) workload using
-  4.33x the machines. In their AWS evaluation, unbatched MultiPaxos peaks at ~25,000 commands/sec versus
-  ~150,000 for Compartmentalized MultiPaxos; with batching, MultiPaxos reaches ~200,000 versus ~800,000
-  for the compartmentalized version. Compartmentalized Mencius achieves an 8.3x improvement over vanilla
-  Mencius without batching.
+  the machines, i.e. ~90% of perfect linear scalability) and by 16x on a mixed read-write workload using
+  4.33x the machines. Without batching, MultiPaxos peaks at roughly 25,000 commands/sec versus roughly
+  150,000 for Compartmentalized MultiPaxos (an unreplicated baseline peaks at ~250,000); with batching,
+  MultiPaxos reaches roughly 200,000 versus roughly 800,000 for the compartmentalized version (baseline
+  ~1,000,000). Compartmentalized Mencius achieves an 8.3x improvement over vanilla Mencius without batching
+  (roughly 30,000 to 250,000 commands/sec) and 4.25x with batching; Compartmentalized S-Paxos achieves
+  an 8.2x improvement without batching and 4.16x with batching. Under a 100% read workload, Compartmentalized
+  MultiPaxos scales linearly with the number of replicas up to roughly 650,000 commands/sec unbatched (~17.5
+  million batched) with 6 replicas, though the paper also derives analytically that throughput is bounded
+  by alpha/f_w and does not scale linearly except at 100% reads. In the skew-tolerance comparison, Compartmentalized
+  MultiPaxos throughput is constant regardless of key-access skew, while CRAQ's throughput drops from roughly
+  300,000 to roughly 100,000 commands/sec as skew increases. Against Scalog, Compartmentalized MultiPaxos
+  reaches 800,000 commands/sec (15 machines) versus Scalog's 400,000 (17 machines); compartmentalizing
+  Scalog's replicas with proxy replicas raised its throughput to roughly 650,000 using only one additional
+  machine.
 limitations: Compartmentalization increases the number of network delays needed to execute a command (four
   for MultiPaxos vs. six for Compartmentalized MultiPaxos), which is a small latency increase within a
   single data center but substantial over a wide-area network; the authors state that if minimizing latency
-  is the goal, latency-optimized protocols like CURP or SpecPaxos should be chosen instead. They also
-  note that after full compartmentalization, either the leader or the replicas remains the ultimate throughput
-  bottleneck since not every component can be scaled arbitrarily.
+  is the goal, latency-optimized protocols like CURP or SpecPaxos should be chosen instead. They also note
+  that after full compartmentalization, either the leader or the replicas remains the ultimate throughput
+  bottleneck since not every component can be scaled arbitrarily, and that every replica must still execute
+  every write because the state machine's state is not sharded, creating a fundamental throughput limit
+  the paper does not address. The paper also states that compartmentalization does not automatically indicate
+  how much to decouple and scale a given protocol; determining this currently requires manual ablation
+  studies.
 applications: The paper notes eliminating SMR throughput bottlenecks helps databases (e.g., Cosmos DB-like
   systems) avoid unnecessary partition splits and improve performance, consistency, and resource utilization
-  when replicating large data partitions.
+  when replicating large data partitions; it also states compartmentalization can be incrementally applied
+  by industry practitioners to their existing, battle-tested protocol implementations without adopting
+  an entirely new protocol.
 research_gap:
   addressed: Prior protocols each eliminated a single throughput bottleneck in isolation but fell short
     of a complete solution, since removing one bottleneck causes another to emerge; compartmentalization
@@ -47,29 +71,27 @@ research_gap:
     adoptable rather than requiring a wholly new protocol.
   remaining: The paper explicitly leaves latency optimization unaddressed, noting that compartmentalization
     trades additional network delays for throughput and pointing to latency-optimized protocols (CURP,
-    SpecPaxos) as the better choice when latency, not throughput, is the priority.
+    SpecPaxos) as the better choice when latency, not throughput, is the priority. It also states that
+    determining how much to decouple and scale a given protocol currently requires manual ablation studies,
+    and identifies automatically deducing the optimal amount of decoupling and scaling as a line of future
+    work; the authors also note they are currently working on compartmentalizing Raft and EPaxos.
 key_evidence:
-- text: 'In this paper, we
-
-    introduce compartmentalization, the first comprehensive technique
-
-    to eliminate state machine replication bottlenecks.'
+- text: 'In this paper, we introduce compartmentalization, the first comprehensive technique to eliminate
+    state machine replication bottlenecks.'
   section: Abstract
-- text: 'we demonstrate how to
-
-    compartmentalize MultiPaxos to increase its throughput by 6× on
-
-    a write-only workload and 16× on a mixed read-write workload.'
-  section: Abstract
-- text: 'Without batching, MultiPaxos has a peak throughput
-
-    of roughly 25,000 commands per second, while Compartmentalized
-
-    MultiPaxos has a peak throughput of roughly 150,000 commands'
-  section: Results
-- text: 'Thus, if your goal is to minimize latency,
-
-    you should choose latency optimized protocols like CURP [37] or
-
-    SpecPaxos [38] over a compartmentalized protocol.'
-  section: Discussion
+- text: We compartmentalize MultiPaxos and increase its throughput by a factor of 6\(\times\) on a write-only
+    workload using 6.66\(\times\) the number of machines and 16\(\times\) on a mixed read-write workload
+    using 4.33\(\times\) the number of machines.
+  section: Introduction
+- text: Without batching, MultiPaxos has a peak throughput of roughly 25,000 commands per second, while
+    Compartmentalized MultiPaxos has a peak throughput of roughly 150,000 commands per second, a 6\(\times\)
+    increase.
+  section: Evaluation
+- text: Thus, if your goal is to minimize latency, you should choose latency optimized protocols like CURP
+    [37] or SpecPaxos [38] over a compartmentalized protocol.
+  section: Related Work
+- text: Compartmentalization allows us to decouple and scale protocol components, but it doesn't automatically
+    tell us the extent to which we should decouple and scale. Understanding this, through ablation studies
+    like the one presented here, must currently be done by hand. As a line of future work, we are researching
+    how to automatically deduce the optimal amount of decoupling and scaling.
+  section: Ablation Study
