@@ -52,7 +52,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // font vars go on <html>, not <body>: globals.css declares --type-* at
     // :root, and a custom property resolves var() where it is declared - so
     // --ff-* has to exist at that same level or the declaration is invalid.
-    <html lang="en" className={`${grotesk.variable} ${serif.variable} ${mono.variable}`}>
+    // suppressHydrationWarning is scoped to this element only (not deep) - it
+    // silences exactly the data-theme mismatch THEME_INIT_SCRIPT deliberately
+    // introduces before hydration, not real markup bugs elsewhere in the tree.
+    <html
+      lang="en"
+      className={`${grotesk.variable} ${serif.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

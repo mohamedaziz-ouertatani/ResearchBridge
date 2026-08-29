@@ -28,11 +28,23 @@ const PRIMARY = [
 ];
 
 const INFRASTRUCTURE = [
-  { href: "/corpus", label: "corpus" },
-  { href: "/trends", label: "trends" },
-  { href: "/gaps", label: "gap review" },
-  { href: "/annotate", label: "annotation workbench" },
-  { href: "/admin", label: "pipeline status" },
+  { href: "/corpus", label: "corpus", description: "Browse the papers this app searches." },
+  { href: "/trends", label: "trends", description: "How topics in the corpus have shifted over time." },
+  {
+    href: "/gaps",
+    label: "gap review",
+    description: "Patterns the system noticed across papers, waiting on a human check.",
+  },
+  {
+    href: "/annotate",
+    label: "annotation workbench",
+    description: "Hand-labeled papers used to measure how accurate the system is.",
+  },
+  {
+    href: "/admin",
+    label: "pipeline status",
+    description: "Background jobs that build and maintain the corpus.",
+  },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -86,20 +98,27 @@ function InfrastructureMenu({ pathname }: { pathname: string }) {
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+0.6rem)] left-1/2 z-10 w-[13rem] -translate-x-1/2 border border-[var(--rule)] bg-[var(--panel)] py-1 shadow-lg">
+        <div className="absolute top-[calc(100%+0.6rem)] left-1/2 z-10 w-[16rem] -translate-x-1/2 border border-[var(--rule)] bg-[var(--panel)] py-1 shadow-lg">
           {INFRASTRUCTURE.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isActive(pathname, item.href) ? "page" : undefined}
               onClick={() => setOpen(false)}
-              className={`block px-3 py-2 text-[0.8125rem] ${
-                isActive(pathname, item.href)
-                  ? "text-[var(--ink)]"
-                  : "text-[var(--ink-soft)] hover:bg-[var(--field)] hover:text-[var(--ink)]"
+              className={`block px-3 py-2 ${
+                isActive(pathname, item.href) ? "bg-[var(--field)]" : "hover:bg-[var(--field)]"
               }`}
             >
-              {item.label}
+              <span
+                className={`block text-[0.8125rem] ${
+                  isActive(pathname, item.href) ? "text-[var(--ink)]" : "text-[var(--ink-soft)]"
+                }`}
+              >
+                {item.label}
+              </span>
+              <span className="mt-0.5 block text-[0.6875rem] leading-snug text-[var(--ink-faint)]">
+                {item.description}
+              </span>
             </Link>
           ))}
         </div>
