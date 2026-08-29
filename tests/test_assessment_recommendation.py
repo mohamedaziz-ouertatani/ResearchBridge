@@ -86,3 +86,29 @@ def test_never_forces_a_recommendation_when_evidence_is_thin() -> None:
     )
 
     assert result.recommendation == "INSUFFICIENT EVIDENCE"
+
+
+def test_reasoning_names_all_three_signals() -> None:
+    result = assess_recommendation(
+        novelty_level="medium", research_gap_text="a real gap", technical_feasibility_level="high"
+    )
+    assert "novelty" in result.reasoning.lower()
+    assert "gap" in result.reasoning.lower()
+    assert "feasibility" in result.reasoning.lower()
+
+
+def test_reasoning_says_when_a_signal_was_not_assessed() -> None:
+    result = assess_recommendation(
+        novelty_level="not_assessed", research_gap_text=None, technical_feasibility_level="medium"
+    )
+    lowered = result.reasoning.lower()
+    assert "novelty" in lowered
+    assert "not assessed" in lowered or "not_assessed" in lowered
+
+
+def test_reasoning_mentions_recommendation_and_confidence() -> None:
+    result = assess_recommendation(
+        novelty_level="low", research_gap_text="a real gap", technical_feasibility_level="high"
+    )
+    assert result.recommendation.lower() in result.reasoning.lower()
+    assert result.confidence.lower() in result.reasoning.lower()

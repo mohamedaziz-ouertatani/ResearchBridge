@@ -51,6 +51,7 @@ _ASSESSED_NOVELTY_LEVELS = ("medium", "high")
 class RecommendationResult:
     recommendation: str
     confidence: str  # high | medium | low
+    reasoning: str
 
 
 def assess_recommendation(
@@ -85,4 +86,36 @@ def assess_recommendation(
     else:
         confidence = "low"
 
-    return RecommendationResult(recommendation=recommendation, confidence=confidence)
+    reasoning = _build_reasoning(
+        novelty_level=novelty_level,
+        gap_found=gap_found,
+        technical_feasibility_level=technical_feasibility_level,
+        recommendation=recommendation,
+        confidence=confidence,
+    )
+
+    return RecommendationResult(recommendation=recommendation, confidence=confidence, reasoning=reasoning)
+
+
+def _build_reasoning(
+    *, novelty_level: str, gap_found: bool, technical_feasibility_level: str, recommendation: str, confidence: str
+) -> str:
+    novelty_line = (
+        f"Novelty signal: {novelty_level}"
+        if novelty_level != "not_assessed"
+        else "Novelty signal: not assessed (insufficient retrieved evidence)"
+    )
+    gap_line = (
+        "Research gap evidence: a gap was found in the retrieved literature"
+        if gap_found
+        else "Research gap evidence: none found or not assessed"
+    )
+    feasibility_line = (
+        f"Technical feasibility grounding: {technical_feasibility_level}"
+        if technical_feasibility_level != "not_assessed"
+        else "Technical feasibility grounding: not assessed (insufficient retrieved evidence)"
+    )
+    return (
+        f"{novelty_line}\n{gap_line}\n{feasibility_line}\n\n"
+        f"Recommendation: {recommendation}\nConfidence: {confidence}"
+    )
