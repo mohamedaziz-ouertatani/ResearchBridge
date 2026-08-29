@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { api, type CorpusStats } from "@/lib/api";
 import { assessmentApi, type AssessmentSummary } from "@/lib/assessmentApi";
-import type { PipelineRun, PipelineStatus } from "@/lib/adminApi";
+import type { GapReviewStats, PipelineRun, PipelineStatus } from "@/lib/adminApi";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { YearStrip } from "@/components/YearStrip";
 
 /*
@@ -21,6 +22,14 @@ import { YearStrip } from "@/components/YearStrip";
 */
 
 const NOVELTY_ORDER = ["high", "medium", "low", "not_assessed"] as const;
+
+const GAP_RATING_DIMENSIONS: { key: keyof GapReviewStats & `mean_${string}`; label: string }[] = [
+  { key: "mean_correctness", label: "correctness" },
+  { key: "mean_relevance", label: "relevance" },
+  { key: "mean_novelty", label: "novelty" },
+  { key: "mean_evidence_support", label: "evidence support" },
+  { key: "mean_usefulness", label: "usefulness" },
+];
 
 export function AdminStats({ status }: { status: PipelineStatus }) {
   const [corpusStats, setCorpusStats] = useState<CorpusStats | null>(null);
@@ -103,6 +112,39 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
         )}
       </StatGroup>
 
+      <StatGroup title="corpus health">
+        <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+          Papers stuck mid-pipeline or unreachable by a citation source - not necessarily broken, just
+          worth knowing about before trusting a downstream count.
+        </p>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+          <HealthStat
+            label="missing DOI"
+            value={status.corpus_health.missing_doi}
+            total={status.total_papers}
+            info="Can't be reached by the CrossRef citation pass, which looks papers up by DOI."
+          />
+          <HealthStat
+            label="excluded"
+            value={status.corpus_health.excluded}
+            total={status.total_papers}
+            info="Marked excluded from the corpus via the paper detail page."
+          />
+          <HealthStat
+            label="claims, no embeddings"
+            value={status.corpus_health.claims_without_embeddings}
+            total={status.total_papers}
+            info="Extracted but not yet embedded - not searchable by meaning or eligible for gap detection yet."
+          />
+          <HealthStat
+            label="no citation coverage"
+            value={status.corpus_health.no_citation_coverage}
+            total={status.total_papers}
+            info="Eligible for Semantic Scholar or CrossRef citation fetching (has a DOI, or came from Semantic Scholar) but hasn't been fetched yet."
+          />
+        </div>
+      </StatGroup>
+
       <StatGroup title="ingestion volume over time">
         <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
           Records inserted per run, oldest to newest - limited to the run history already loaded above
@@ -121,6 +163,45 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
           />
           <IngestionVolume title="CORE" runs={status.ingestion_runs.filter((r) => r.source === "core")} />
         </div>
+
+        {Object.keys(status.ingestion_errors_by_type).length > 0 && (
+          <div className="mt-8">
+            <span className="eyebrow inline-flex items-center gap-1.5 text-[0.625rem] text-[var(--ink-faint)]">
+              recent errors by type
+              <InfoTooltip text="Grouped from the most recent ingestion_errors rows across every source - a sample of what's failing lately, not an all-time count." />
+            </span>
+            <div className="mt-2">
+              <BarList counts={status.ingestion_errors_by_type} />
+            </div>
+          </div>
+        )}
+      </StatGroup>
+
+      <StatGroup title="gap review">
+        <dl className="flex flex-wrap gap-x-10 gap-y-3">
+          <Stat label="pending" value={status.gap_stats.pending} />
+          <Stat label="approved" value={status.gap_stats.approved} />
+          <Stat label="rejected" value={status.gap_stats.rejected} />
+        </dl>
+
+        {GAP_RATING_DIMENSIONS.some(({ key }) => status.gap_stats[key] !== null) && (
+          <div className="mt-6">
+            <span className="eyebrow inline-flex items-center gap-1.5 text-[0.625rem] text-[var(--ink-faint)]">
+              mean rating (0–3), rated gaps only
+              <InfoTooltip text="Sec 44's five human-evaluation dimensions, averaged across whatever gaps a reviewer has rated on each - not every reviewed gap needs a rating, so these can be based on a smaller count than the totals above." />
+            </span>
+            <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-5">
+              {GAP_RATING_DIMENSIONS.map(({ key, label }) => (
+                <div key={key}>
+                  <dt className="text-[0.75rem] text-[var(--ink-soft)]">{label}</dt>
+                  <dd className="readout mt-1 text-[1.125rem] tabular-nums">
+                    {status.gap_stats[key] !== null ? status.gap_stats[key]!.toFixed(2) : "—"}
+                  </dd>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </StatGroup>
 
       <StatGroup title="assessment activity">
@@ -200,6 +281,46 @@ function BarList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A single labeled count, no total or tooltip - used by the gap review
+    group, where each number stands alone rather than being a share of
+    something. */
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <dt className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{label}</dt>
+      <dd className="readout mt-1 text-[1.25rem] tabular-nums">{value.toLocaleString()}</dd>
+    </div>
+  );
+}
+
+/** A single count-of-total stat with a tooltip, used by the corpus health
+    grid - deliberately just a number, not a bar, since these are flags to
+    notice rather than proportions to compare at a glance. */
+function HealthStat({
+  label,
+  value,
+  total,
+  info,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  info: string;
+}) {
+  return (
+    <div>
+      <dt className="eyebrow inline-flex items-center gap-1.5 text-[0.625rem] text-[var(--ink-faint)]">
+        {label}
+        <InfoTooltip text={info} />
+      </dt>
+      <dd className="readout mt-1 text-[1.125rem] tabular-nums">
+        {value.toLocaleString()}
+        <span className="ml-1 text-[0.75rem] text-[var(--ink-faint)]">/ {total.toLocaleString()}</span>
+      </dd>
+    </div>
   );
 }
 

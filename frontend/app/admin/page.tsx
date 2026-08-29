@@ -6,6 +6,7 @@ import {
   adminApi,
   type CitationSourceSummary,
   type CitationsFetchResult,
+  type ExtractionEvalResult,
   type PipelineKey,
   type PipelineRun,
   type PipelineStatus,
@@ -47,6 +48,7 @@ type PipelineTab =
   | "extraction"
   | "embedding"
   | "retrieval_eval"
+  | "extraction_eval"
   | "citations_fetch";
 type Tab = PipelineTab | "stats";
 
@@ -58,6 +60,7 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   extraction: "extraction",
   embedding: "embedding",
   retrieval_eval: "retrieval eval",
+  extraction_eval: "extraction eval",
   citations_fetch: "citation management",
 };
 
@@ -114,6 +117,16 @@ const EXTRACTOR_OPTIONS = [
   { label: "stub (synthetic test data only)", value: "stub" },
 ];
 
+// Narrower than EXTRACTOR_OPTIONS above: rb-extract-evaluate's --extractor
+// only accepts heuristic/semantic/hybrid/all (no "stub" - evaluating the
+// synthetic-data stub extractor against real ground truth isn't meaningful).
+const EXTRACTION_EVAL_EXTRACTOR_OPTIONS = [
+  { label: "all (default)", value: "all" },
+  { label: "hybrid", value: "hybrid" },
+  { label: "semantic", value: "semantic" },
+  { label: "heuristic", value: "heuristic" },
+];
+
 const CITATION_SOURCE_OPTIONS = [
   { label: "Semantic Scholar (default)", value: "semantic_scholar" },
   { label: "CrossRef", value: "crossref" },
@@ -122,6 +135,7 @@ const CITATION_SOURCE_OPTIONS = [
 export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [retrievalEval, setRetrievalEval] = useState<RetrievalEvalResult | null>(null);
+  const [extractionEval, setExtractionEval] = useState<ExtractionEvalResult | null>(null);
   const [citationsFetch, setCitationsFetch] = useState<CitationsFetchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("stats");
@@ -135,6 +149,7 @@ export default function AdminPipeline() {
       })
       .catch(() => setError("Can't reach the API. Is it running on port 8000?"));
     adminApi.retrievalEval().then(setRetrievalEval).catch(() => {});
+    adminApi.extractionEval().then(setExtractionEval).catch(() => {});
     adminApi.citationsFetch().then(setCitationsFetch).catch(() => {});
   }
 
@@ -376,6 +391,30 @@ export default function AdminPipeline() {
                     onStarted={reload}
                   />
                   <RetrievalEvalResults result={retrievalEval} />
+                </>
+              )}
+
+              {tab === "extraction_eval" && (
+                <>
+                  <RunSection
+                    title="extraction evaluation"
+                    pipelineKey="extraction_eval"
+                    runs={[]}
+                    running={status.running.extraction_eval}
+                    fields={[
+                      { name: "threshold", label: "similarity threshold", type: "number", placeholder: "0.5" },
+                      {
+                        name: "extractor",
+                        label: "extractor",
+                        type: "select",
+                        options: EXTRACTION_EVAL_EXTRACTOR_OPTIONS,
+                        placeholder: "all",
+                      },
+                    ]}
+                    onRun={(values) => adminApi.triggerExtractionEval(values)}
+                    onStarted={reload}
+                  />
+                  <ExtractionEvalResults result={extractionEval} />
                 </>
               )}
 
@@ -773,6 +812,55 @@ function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }
               </tbody>
             </table>
           )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The last rb-extract-evaluate run's persisted per-field scores - never
+    computed live here, just read (see adminApi.extractionEval). One table
+    per extractor (heuristic/semantic/hybrid), one row per field. */
+function ExtractionEvalResults({ result }: { result: ExtractionEvalResult | null }) {
+  if (!result) return null;
+
+  if (!result.available) {
+    return (
+      <p className="mt-8 text-[0.9375rem] text-[var(--ink-soft)]">
+        Never run yet - click run to evaluate extraction quality against the benchmark.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-8">
+      <p className="text-[0.8125rem] text-[var(--ink-faint)]">
+        Last run {result.generated_at ? new Date(result.generated_at).toLocaleString() : "—"}, threshold=
+        {result.threshold}, {result.paper_count} paper{result.paper_count === 1 ? "" : "s"}
+      </p>
+      {Object.entries(result.extractors ?? {}).map(([extractorName, fieldScores]) => (
+        <div key={extractorName}>
+          <span className="eyebrow">{extractorName}</span>
+          <table className="mt-3 w-full text-[0.8125rem]">
+            <thead>
+              <tr className="border-b border-[var(--rule)] text-left text-[var(--ink-faint)]">
+                <th className="py-1 pr-4 font-normal">field</th>
+                <th className="py-1 pr-4 font-normal">precision</th>
+                <th className="py-1 pr-4 font-normal">recall</th>
+                <th className="py-1 font-normal">f1</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(fieldScores).map(([field, score]) => (
+                <tr key={field} className="border-b border-[var(--rule-soft)]">
+                  <td className="py-1.5 pr-4 readout">{field.replace(/_/g, " ")}</td>
+                  <td className="py-1.5 pr-4 tabular-nums">{score.precision.toFixed(3)}</td>
+                  <td className="py-1.5 pr-4 tabular-nums">{score.recall.toFixed(3)}</td>
+                  <td className="py-1.5 tabular-nums">{score.f1.toFixed(3)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ))}
     </div>

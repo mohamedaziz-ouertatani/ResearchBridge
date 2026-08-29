@@ -18,6 +18,7 @@ export type PipelineKey =
   | "extraction"
   | "embedding"
   | "retrieval_eval"
+  | "extraction_eval"
   | "citations_fetch";
 
 export type AssessmentStats = {
@@ -25,12 +26,33 @@ export type AssessmentStats = {
   needs_review: number;
 };
 
+export type CorpusHealth = {
+  missing_doi: number;
+  excluded: number;
+  claims_without_embeddings: number;
+  no_citation_coverage: number;
+};
+
+export type GapReviewStats = {
+  pending: number;
+  approved: number;
+  rejected: number;
+  mean_correctness: number | null;
+  mean_relevance: number | null;
+  mean_novelty: number | null;
+  mean_evidence_support: number | null;
+  mean_usefulness: number | null;
+};
+
 export type PipelineStatus = {
   total_papers: number;
   papers_with_claims: number;
   papers_with_embeddings: number;
   papers_by_source: Record<string, number>;
+  corpus_health: CorpusHealth;
   assessment_stats: AssessmentStats;
+  gap_stats: GapReviewStats;
+  ingestion_errors_by_type: Record<string, number>;
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];
@@ -70,6 +92,20 @@ export type RetrievalEvalResult = {
   generated_at: string | null;
   k: number | null;
   query_sets: Record<string, RetrievalEvalQuerySet> | null;
+};
+
+export type ExtractionEvalFieldScore = {
+  precision: number;
+  recall: number;
+  f1: number;
+};
+
+export type ExtractionEvalResult = {
+  available: boolean;
+  generated_at: string | null;
+  threshold: number | null;
+  paper_count: number | null;
+  extractors: Record<string, Record<string, ExtractionEvalFieldScore>> | null;
 };
 
 export type CitationSourceSummary = {
@@ -143,6 +179,15 @@ export const adminApi = {
     fetch(`${API_BASE}/api/admin/retrieval-eval`, { cache: "no-store" }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<RetrievalEvalResult>;
+    }),
+
+  triggerExtractionEval: (params: { threshold?: number; extractor?: string }) =>
+    post<PipelineTriggerResult>("/api/admin/extraction-eval/run", params),
+
+  extractionEval: () =>
+    fetch(`${API_BASE}/api/admin/extraction-eval`, { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<ExtractionEvalResult>;
     }),
 
   triggerCitationsFetch: (params: { source?: string; force?: boolean }) =>

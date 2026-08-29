@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { gapsApi, type CandidateGap, type GapStatusFilter } from "@/lib/gapsApi";
+import { gapsApi, RATING_DIMENSIONS, type CandidateGap, type GapRatings, type GapStatusFilter } from "@/lib/gapsApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -155,6 +155,13 @@ function GapCard({
   onReviewed: (g: CandidateGap) => void;
 }) {
   const [note, setNote] = useState(gap.review_note ?? "");
+  const [ratings, setRatings] = useState<Partial<GapRatings>>({
+    correctness_rating: gap.correctness_rating,
+    relevance_rating: gap.relevance_rating,
+    novelty_rating: gap.novelty_rating,
+    evidence_support_rating: gap.evidence_support_rating,
+    usefulness_rating: gap.usefulness_rating,
+  });
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -162,7 +169,7 @@ function GapCard({
     setBusy(next);
     setFailed(false);
     try {
-      const updated = await gapsApi.review(gap.id, next, note);
+      const updated = await gapsApi.review(gap.id, next, note, ratings);
       onReviewed(updated);
     } catch {
       setFailed(true);
@@ -216,34 +223,66 @@ function GapCard({
       )}
 
       {gap.status === "pending" ? (
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="optional note"
-            className="min-w-[16rem] flex-1 border-b border-[var(--rule)] bg-transparent py-1 text-[0.875rem] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:outline-none"
-          />
-          <button
-            onClick={() => review("approved")}
-            disabled={busy !== null}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
-          >
-            {busy === "approved" ? "approving…" : "approve"}
-          </button>
-          <button
-            onClick={() => review("rejected")}
-            disabled={busy !== null}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--live)] hover:text-[var(--live)] disabled:opacity-50"
-          >
-            {busy === "rejected" ? "rejecting…" : "reject"}
-          </button>
-          <InfoTooltip text="Approve confirms this is a real, worth-tracking gap in the literature. Reject dismisses it as noise or a bad inference. Either choice removes it from the pending queue; the optional note is saved alongside your decision." />
-          {failed && <span className="text-[0.75rem] text-[var(--live)]">save failed — try again</span>}
+        <div className="mt-5 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {RATING_DIMENSIONS.map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-1.5">
+                <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{label}</span>
+                <select
+                  value={ratings[key] ?? ""}
+                  onChange={(e) =>
+                    setRatings((r) => ({ ...r, [key]: e.target.value === "" ? null : Number(e.target.value) }))
+                  }
+                  className="readout border-b border-[var(--rule)] bg-transparent py-0.5 text-[0.8125rem] text-[var(--ink)] focus:border-[var(--ink)] focus:outline-none"
+                >
+                  <option value="">—</option>
+                  <option value="0">0 irrelevant</option>
+                  <option value="1">1 weak</option>
+                  <option value="2">2 plausible</option>
+                  <option value="3">3 highly relevant</option>
+                </select>
+              </label>
+            ))}
+            <InfoTooltip text="Optional Sec 44 ratings on 0-3: irrelevant / weak / plausible / highly relevant. Saved alongside your approve/reject decision - leave any dimension blank to skip it." />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="optional note"
+              className="min-w-[16rem] flex-1 border-b border-[var(--rule)] bg-transparent py-1 text-[0.875rem] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)] focus:outline-none"
+            />
+            <button
+              onClick={() => review("approved")}
+              disabled={busy !== null}
+              className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
+            >
+              {busy === "approved" ? "approving…" : "approve"}
+            </button>
+            <button
+              onClick={() => review("rejected")}
+              disabled={busy !== null}
+              className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--live)] hover:text-[var(--live)] disabled:opacity-50"
+            >
+              {busy === "rejected" ? "rejecting…" : "reject"}
+            </button>
+            <InfoTooltip text="Approve confirms this is a real, worth-tracking gap in the literature. Reject dismisses it as noise or a bad inference. Either choice removes it from the pending queue; the optional note is saved alongside your decision." />
+            {failed && <span className="text-[0.75rem] text-[var(--live)]">save failed — try again</span>}
+          </div>
         </div>
       ) : (
         <div className="mt-4 text-[0.8125rem] text-[var(--ink-soft)]">
           <span className="eyebrow">{gap.status}</span>
           {gap.review_note && <span className="ml-2">— {gap.review_note}</span>}
+          {RATING_DIMENSIONS.some(({ key }) => gap[key] !== null) && (
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[0.75rem] text-[var(--ink-faint)]">
+              {RATING_DIMENSIONS.filter(({ key }) => gap[key] !== null).map(({ key, label }) => (
+                <span key={key}>
+                  {label}: <span className="readout">{gap[key]}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </li>

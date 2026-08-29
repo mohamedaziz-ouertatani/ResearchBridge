@@ -7,7 +7,23 @@ export type GapEvidence = {
   section: string | null;
 };
 
-export type CandidateGap = {
+export type GapRatings = {
+  correctness_rating: number | null;
+  relevance_rating: number | null;
+  novelty_rating: number | null;
+  evidence_support_rating: number | null;
+  usefulness_rating: number | null;
+};
+
+export const RATING_DIMENSIONS: { key: keyof GapRatings; label: string }[] = [
+  { key: "correctness_rating", label: "correctness" },
+  { key: "relevance_rating", label: "relevance" },
+  { key: "novelty_rating", label: "novelty" },
+  { key: "evidence_support_rating", label: "evidence support" },
+  { key: "usefulness_rating", label: "usefulness" },
+];
+
+export type CandidateGap = GapRatings & {
   id: string;
   seed_paper_id: string;
   seed_paper_title: string;
@@ -49,10 +65,10 @@ export const gapsApi = {
   list: (status: GapStatusFilter = "pending") =>
     request<CandidateGapPage>(`/api/gaps?status=${status}&limit=50`),
 
-  review: (id: string, status: "approved" | "rejected", reviewNote?: string) =>
+  review: (id: string, status: "approved" | "rejected", reviewNote?: string, ratings?: Partial<GapRatings>) =>
     request<CandidateGap>(`/api/gaps/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ status, review_note: reviewNote || null }),
+      body: JSON.stringify({ status, review_note: reviewNote || null, ...ratings }),
     }),
 
   detect: () => request<{ started: boolean; pipeline: string; log_file: string }>(`/api/gaps/detect`, { method: "POST" }),
