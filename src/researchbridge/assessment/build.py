@@ -23,6 +23,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.coverage import compute_dimension_coverage
+from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.existing_solutions import build_existing_solutions
 from researchbridge.assessment.external_validation import assess_external_validation
 from researchbridge.assessment.feasibility import assess_technical_feasibility
@@ -55,11 +57,21 @@ def build_assessment(
     results = search_by_text(session, query_text, embedder, top_k)
     papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
 
+    dimensions = extract_dimensions(query_text)
+    dimension_coverages = compute_dimension_coverage(
+        dimensions,
+        [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
+        embedder,
+    )
+
     existing_solutions = build_existing_solutions(
         [(paper.title, claims) for paper, _distance, claims in papers_with_claims if claims]
     )
 
-    novelty = assess_novelty([(paper.title, distance, claims) for paper, distance, claims in papers_with_claims])
+    novelty = assess_novelty(
+        [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
+        dimension_coverages=dimension_coverages,
+    )
 
     retrieved_paper_uuids = [paper.id for paper, _distance, _claims in papers_with_claims]
     papers_by_distance = [(paper.id, distance) for paper, distance, _claims in papers_with_claims]
@@ -67,7 +79,7 @@ def build_assessment(
     applications = assess_applications(session, papers_by_distance)
     feasibility = assess_technical_feasibility(session, papers_by_distance)
     opportunities = assess_opportunities(session, papers_by_distance)
-    risks = assess_risks(session, papers_by_distance)
+    risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
     external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
     recommendation = assess_recommendation(
         novelty_level=novelty.level,
@@ -85,7 +97,11 @@ def build_assessment(
         novelty_level=novelty.level,
         novelty_reasoning=novelty.reasoning,
         research_gap_text=gap.text,
-        research_gap_source=gap.source,
+        research_gap_source=(
+            gap.source
+            if gap.status == "found"
+            else ("no_relevant_evidence" if gap.status == "not_assessed" else "checked_no_gap_found")
+        ),
         candidate_gap_id=gap.candidate_gap_id,
         potential_applications=(
             [

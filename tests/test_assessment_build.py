@@ -221,11 +221,37 @@ def test_raises_for_unknown_research_input(session_factory, embedder) -> None:
     session.close()
 
 
-def test_novelty_is_set_when_a_close_match_is_retrieved(session_factory, embedder) -> None:
+def test_novelty_is_low_when_dimension_coverage_is_well_established(session_factory, embedder) -> None:
+    # dimension coverage is now computed whenever dimensions can be extracted
+    # from the query text, and drives novelty.level via the aggregate rule
+    # (see assessment/novelty.py) rather than nearest_distance alone. Under
+    # that rule a dimension can only reach "established" with 2+ distinct
+    # corroborating papers (by title - the same identity coverage.py and
+    # novelty.py both key on), mirroring feasibility.py's own multi-source
+    # requirement - so this fixture needs two DIFFERENTLY-TITLED papers
+    # whose claims jointly cover both RAKE-extracted dimensions ("graph
+    # transformers", "fraud detection"). The FakeEmbedder here is a pure
+    # text hash, so a second paper can only land at the same retrieval
+    # distance as the query if its embedding vector is set directly rather
+    # than derived from its own (necessarily different) title.
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
-    # identical text to the paper's title -> distance 0.0 -> "low" novelty
+    _claim(session, paper, "method", "graph transformers")
+    _claim(session, paper, "results", "fraud detection")
+
+    paper2 = Paper(
+        id=uuid.uuid4(), source="fake", source_id="p2", title="A Second Related Paper", abstract="",
+        raw_metadata={}, ingestion_metadata={},
+    )
+    session.add(paper2)
+    session.flush()
+    [query_vector] = embedder.embed_texts(["graph transformers for fraud detection"])
+    session.add(
+        Embedding(paper_id=paper2.id, embedding_type=EMBEDDING_TYPE, model_name=embedder.model_name, vector=query_vector)
+    )
+    _claim(session, paper2, "dataset", "graph transformers")
+    _claim(session, paper2, "applications", "fraud detection")
+
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -233,7 +259,31 @@ def test_novelty_is_set_when_a_close_match_is_retrieved(session_factory, embedde
 
     session.close()
     assert assessment.novelty_level == "low"
-    assert paper.title in assessment.novelty_reasoning
+    assert "Dimension coverage:" in assessment.novelty_reasoning
+    assert "graph transformers -> established" in assessment.novelty_reasoning
+    assert "fraud detection -> established" in assessment.novelty_reasoning
+
+
+def test_novelty_is_high_when_a_single_paper_cannot_corroborate_dimension_coverage(session_factory, embedder) -> None:
+    # this is the behavior change the redesign targets: a single retrieved
+    # paper at distance 0.0 (an exact title match) used to guarantee "low"
+    # novelty on its own. Now, with dimensions extracted, a single paper's
+    # claims can only ever reach "weak_evidence" per dimension (coverage.py
+    # requires 2+ distinct corroborating papers for "established") - so
+    # novelty correctly reads "high" here even though the nearest paper is
+    # an exact match, because the evidence backing that match's own
+    # dimensions is thin, not because closeness itself was ignored.
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.novelty_level == "high"
+    assert "Dimension coverage:" in assessment.novelty_reasoning
 
 
 def test_novelty_evidence_is_linked_with_role_novelty(session_factory, embedder) -> None:
@@ -298,7 +348,10 @@ def test_research_gap_stays_null_when_no_gap_evidence_exists(session_factory, em
 
     session.close()
     assert assessment.research_gap_text is None
-    assert assessment.research_gap_source is None
+    # a relevant paper WAS retrieved and checked - it just had no gap-signaling
+    # claim, distinct from "no relevant papers to check at all" - see
+    # assessment/gap.py's status field
+    assert assessment.research_gap_source == "checked_no_gap_found"
 
 
 def test_potential_applications_is_set_from_the_neighborhood(session_factory, embedder) -> None:
@@ -531,3 +584,44 @@ def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_facto
     session.close()
     assert novelty_links == []
     assert assessment.novelty_level == "not_assessed"
+
+
+def test_novelty_reasoning_includes_dimension_coverage_when_dimensions_are_extracted(
+    session_factory, embedder
+) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "federated learning for fraud detection across banks")
+    _claim(session, paper, "method", "a federated learning method for fraud detection")
+    ri = _research_input(
+        session,
+        "A federated learning system for detecting financial fraud across multiple banks "
+        "while remaining robust to concept drift and class imbalance.",
+    )
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert "Dimension coverage:" in assessment.novelty_reasoning
+
+
+def test_recommendation_reasoning_is_persisted_and_derivable_at_read_time(session_factory, embedder) -> None:
+    # recommendation reasoning is NOT a new column - it's derived at read
+    # time from novelty_level/novelty_reasoning/research_gap_text/
+    # technical_feasibility_level/recommendation/confidence, all of which
+    # ARE already persisted. This test confirms build_assessment still
+    # populates every one of those source fields (the narrative builder
+    # itself is exercised in the export/API tests).
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.novelty_level is not None
+    assert assessment.technical_feasibility_level is not None
+    assert assessment.recommendation is not None
+    assert assessment.confidence is not None

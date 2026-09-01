@@ -121,8 +121,15 @@ def test_post_assessment_creates_input_and_runs_the_pipeline(client, session, em
     assert body["status"] == "completed"
     assert str(paper.id) in body["retrieved_paper_ids"]
     assert "evaluated only in offline settings" in body["comparison_summary"]
-    assert body["novelty_level"] == "low"  # identical text to the paper title -> distance 0.0
-    assert paper.title in body["novelty_reasoning"]
+    # dimension coverage now drives novelty (see assessment/novelty.py): a
+    # single retrieved paper can only ever reach "weak_evidence" per
+    # dimension (2+ distinct papers are required for "established"), so an
+    # exact-title match with just one corroborating paper reads "high", not
+    # "low" - see tests/test_assessment_build.py's
+    # test_novelty_is_high_when_a_single_paper_cannot_corroborate_dimension_coverage
+    # for the same behavior traced end-to-end at the build_assessment level.
+    assert body["novelty_level"] == "high"
+    assert "Dimension coverage:" in body["novelty_reasoning"]
 
 
 def test_post_assessment_novelty_not_assessed_without_any_evidence(client, session) -> None:
