@@ -45,8 +45,27 @@ check dimensions against), this falls back to the original nearest-
 distance-only rule unchanged - insufficient dimension-level evidence
 doesn't mean the single-paper signal should be discarded too. The 0.7/0.5/
 0.3 fraction thresholds are a first-pass heuristic, same status as every
-other threshold in this file when first written - see the plan's Task 12
-for the live-corpus calibration pass.
+other threshold in this file when first written.
+
+Checked against the real corpus, not just guessed (plan Task 12): the
+fraud/federated-learning worked example (7 scored dimensions, 4
+established, 1 partially_addressed, 1 weak_evidence, 1 not_found) landed
+covered=5/7=0.714, established=4/7=0.571 -> "low", matching the intuitive
+read of that idea (the individual pieces - federated learning, privacy,
+fraud detection - are each well-studied; the novel part is the specific
+combination plus concept drift, which the coverage table surfaces
+explicitly rather than hiding behind one nearest-distance number). A
+4-dimension LLM-agent-planning idea (2 established, 1 weak, 1 not_found;
+covered=2/4=0.5) landed in the middle band -> "medium", correctly not
+tipping either direction on a genuinely mixed signal. Two genuinely
+off-topic ideas (medieval-bread-baking-and-pizza-toppings; pure gibberish)
+retrieved nothing within FAR_DISTANCE at all, so every dimension read
+not_assessed and the rule correctly fell back to the legacy nearest-
+distance path -> "high", not a fabricated aggregate verdict from zero
+evidence. See coverage.py's DIMENSION_MATCH_SIMILARITY docstring for the
+one real edge case found (a degenerate single-dimension idea) and why it
+wasn't fixed by moving these thresholds - the failure was in dimension
+extraction granularity, not this aggregation rule.
 """
 
 from __future__ import annotations

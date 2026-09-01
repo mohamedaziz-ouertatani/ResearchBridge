@@ -18,8 +18,26 @@ already-kept higher-scoring phrase (so "fraud" doesn't survive alongside
 
 Deliberately NOT tuned against any specific idea's expected output - the
 stopword list is a generic, mid-sized English function-word list, not
-hand-picked for the fraud/federated-learning worked example. See Task 12
-of the plan for the live-corpus calibration pass.
+hand-picked for the fraud/federated-learning worked example.
+
+Spot-checked against several real ideas (plan Task 12), not just the one
+worked example: the fraud/federated-learning idea split cleanly into 7
+sensible dimensions (privacy-preserving federated learning system,
+detecting financial fraud, multiple banks, sharing raw transaction data,
+robust, concept drift, highly imbalanced fraud classes); "real-time fraud
+detection with graph transformers" split into 2; an LLM-agent-planning
+idea split into 4. No filler phrases like "we propose" or "this paper"
+showed up as a dimension in any of these - the stopword list holds up
+without per-example tuning.
+
+One real limitation found: a short phrase with no internal stopwords at
+all (e.g. "quantum-assisted cat chess strategy optimization") stays a
+single, overly broad candidate, since RAKE only splits at stopword/
+punctuation boundaries. See coverage.py's DIMENSION_MATCH_SIMILARITY
+docstring for how that showed up downstream (a spurious "established"
+coverage reading) and why it's left as a known limitation rather than
+patched by a length cap that would risk splitting genuinely meaningful
+short technical phrases elsewhere.
 """
 
 from __future__ import annotations

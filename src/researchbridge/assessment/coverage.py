@@ -52,10 +52,38 @@ EvidencedPaper = tuple[str, float, list[ClaimRecord]]  # (paper_title, distance,
 # this constant too.
 RELEVANCE_DISTANCE = 0.65
 
-# First-pass value, same status as every other threshold in this package -
-# see the plan's Task 12 for the live-corpus calibration pass. Starting
-# point matches the ballpark semantic.py found workable for sentence-vs-
-# anchor matching (MEDIUM_CONFIDENCE_SIMILARITY = 0.28).
+# Checked against the real corpus/embedder (all-MiniLM-L6-v2), not just
+# guessed - the fraud/federated-learning worked example's own claim-vs-
+# dimension similarity distribution: overall min=-0.077, p25=0.104,
+# median=0.168, p75=0.241, p90=0.445, max=0.830 (n=252 pairs). 0.30 sits
+# clearly above the bulk of the distribution (p75=0.241) while still
+# admitting every dimension's genuinely-related top match (0.297-0.830) -
+# a clean separation, not a coin flip.
+#
+# One real false positive found during calibration, deliberately NOT fixed
+# by raising this constant: "quantum-assisted cat chess strategy
+# optimization" (a deliberately absurd idea) scored "established" on its
+# single dimension because RAKE keeps a stopword-free compound phrase as
+# ONE broad candidate (no "and"/"for"/etc. to split on), and this corpus
+# genuinely contains quantum-computing papers whose claims share real
+# vocabulary with the "quantum-assisted" portion of that phrase (top match
+# 0.517). Raising the threshold to exclude that (e.g. to 0.35) was tested
+# against the fraud example and would have flipped "sharing raw
+# transaction data" (top matches 0.337/0.320/0.320) and "robust" (top
+# match 0.309) to not_found even though their top matches are genuinely
+# plausible, loosely-worded support - a real recall loss on a well-formed
+# multi-dimension idea, in exchange for not fixing a degenerate single-
+# dimension edge case (0.517 stays well above any reasonable threshold
+# regardless). Genuinely off-topic ideas (checked with "the history of
+# medieval bread baking techniques and pizza topping trends" and pure
+# gibberish) retrieve nothing within RELEVANCE_DISTANCE at all, so they
+# read "not_assessed" - not a false "established" - confirming this
+# failure mode is specific to short, stopword-free, topically-adjacent-but-
+# absurd phrasing, not a general calibration problem. Left as a known
+# limitation for a future dimension-splitting improvement (e.g. capping
+# candidate phrase length even without a stopword boundary) rather than
+# over-fit to one adversarial example - see docs/superpowers/plans/
+# 2026-08-29-dimension-aware-assessment-coverage.md Task 12.
 DIMENSION_MATCH_SIMILARITY = 0.30
 
 _AFFIRMATIVE_CLAIM_TYPES = frozenset({"method", "dataset", "main_contribution", "results", "applications"})
