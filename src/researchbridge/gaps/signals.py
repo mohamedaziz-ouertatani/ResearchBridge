@@ -176,3 +176,55 @@ def classify_cluster(members: list[ClassifiedMember], min_cluster_size: int) -> 
     if len(independent_papers) >= min_cluster_size:
         return "known_limitation"
     return None
+
+
+@dataclass(frozen=True)
+class AddressingMatch:
+    paper_id: uuid.UUID
+    paper_title: str
+    text: str
+    similarity: float
+
+
+def find_addressing_papers(
+    representative_vector: list[float],
+    candidates: list[tuple[uuid.UUID, str, str, list[float]]],
+    threshold: float = ADDRESSING_SIMILARITY_THRESHOLD,
+) -> list[AddressingMatch]:
+    """candidates is (paper_id, paper_title, claim_text, vector) for every
+    main_contribution/results claim in the seed paper's neighborhood - not
+    just the cluster's own contributing papers, since a DIFFERENT paper in
+    the corpus already addressing the pattern is exactly the case this
+    exists to surface."""
+    matches = [
+        AddressingMatch(paper_id=paper_id, paper_title=paper_title, text=text, similarity=similarity)
+        for paper_id, paper_title, text, vector in candidates
+        if (similarity := cosine_similarity(representative_vector, vector)) >= threshold
+    ]
+    matches.sort(key=lambda m: m.similarity, reverse=True)
+    return matches
+
+
+_DOWNGRADE: dict[GapStatus, GapStatus] = {
+    "strong_gap": "potential_gap",
+    "potential_gap": "known_limitation",
+    "known_limitation": "known_limitation",
+}
+
+
+def apply_addressing_downgrade(
+    status: GapStatus, matches: list[AddressingMatch]
+) -> tuple[GapStatus, str | None]:
+    """Negative evidence, never invalidation: a paper's contribution being
+    similar to a named gap can mean it addresses, benchmarks, evaluates, or
+    only partially solves it - the reviewer needs the note, not a silent
+    auto-reject."""
+    if not matches:
+        return status, None
+    best = max(matches, key=lambda m: m.similarity)
+    note = (
+        f'"{best.paper_title}" has a contribution/results claim that closely resembles this pattern '
+        f"(similarity {best.similarity:.2f}) — it may already address, evaluate, or partially solve this; "
+        f"verify before treating it as fully open."
+    )
+    return _DOWNGRADE[status], note

@@ -183,3 +183,74 @@ def test_same_paper_repeating_does_not_count_twice_toward_the_minimum() -> None:
     ]
 
     assert classify_cluster(members, min_cluster_size=3) is None
+
+
+# Task 4: addressing signal tests
+
+from researchbridge.gaps.signals import AddressingMatch, apply_addressing_downgrade, find_addressing_papers
+
+
+def test_finds_a_paper_whose_contribution_is_similar_enough() -> None:
+    seed_id = uuid.uuid4()
+    other_id = uuid.uuid4()
+    candidates = [
+        (seed_id, "Seed Paper", "an unrelated contribution", [0.0, 1.0]),
+        (other_id, "Other Paper", "a benchmark for robustness to table perturbations", [1.0, 0.0]),
+    ]
+
+    matches = find_addressing_papers([1.0, 0.0], candidates, threshold=0.5)
+
+    assert len(matches) == 1
+    assert matches[0].paper_id == other_id
+    assert matches[0].similarity == 1.0
+
+
+def test_no_match_below_threshold() -> None:
+    candidates = [(uuid.uuid4(), "Other Paper", "text", [0.0, 1.0])]
+
+    matches = find_addressing_papers([1.0, 0.0], candidates, threshold=0.5)
+
+    assert matches == []
+
+
+def test_strong_gap_downgrades_to_potential_gap_when_addressed() -> None:
+    match = AddressingMatch(paper_id=uuid.uuid4(), paper_title="Other Paper", text="text", similarity=0.7)
+
+    status, note = apply_addressing_downgrade("strong_gap", [match])
+
+    assert status == "potential_gap"
+    assert note is not None
+    assert "Other Paper" in note
+
+
+def test_potential_gap_downgrades_to_known_limitation_when_addressed() -> None:
+    match = AddressingMatch(paper_id=uuid.uuid4(), paper_title="Other Paper", text="text", similarity=0.7)
+
+    status, note = apply_addressing_downgrade("potential_gap", [match])
+
+    assert status == "known_limitation"
+
+
+def test_known_limitation_stays_known_limitation_but_still_gets_a_note() -> None:
+    match = AddressingMatch(paper_id=uuid.uuid4(), paper_title="Other Paper", text="text", similarity=0.7)
+
+    status, note = apply_addressing_downgrade("known_limitation", [match])
+
+    assert status == "known_limitation"
+    assert note is not None
+
+
+def test_no_matches_leaves_status_and_note_untouched() -> None:
+    status, note = apply_addressing_downgrade("strong_gap", [])
+
+    assert status == "strong_gap"
+    assert note is None
+
+
+def test_downgrade_uses_the_highest_similarity_match() -> None:
+    weak = AddressingMatch(paper_id=uuid.uuid4(), paper_title="Weak Match", text="t", similarity=0.51)
+    strong = AddressingMatch(paper_id=uuid.uuid4(), paper_title="Strong Match", text="t", similarity=0.9)
+
+    _, note = apply_addressing_downgrade("strong_gap", [weak, strong])
+
+    assert "Strong Match" in note
