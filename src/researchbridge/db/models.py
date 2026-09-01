@@ -310,6 +310,10 @@ class CandidateGap(Base):
     __tablename__ = "candidate_gaps"
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="ck_candidate_gaps_status"),
+        CheckConstraint(
+            "gap_status IS NULL OR gap_status IN ('strong_gap', 'potential_gap', 'known_limitation')",
+            name="ck_candidate_gaps_gap_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -332,6 +336,16 @@ class CandidateGap(Base):
     plausible/highly relevant) - enforced by ck_candidate_gaps_*_rating_range
     (see migration 0012). Optional: a reviewer can approve/reject without
     rating, same as review_note already being optional."""
+    gap_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    """"strong_gap"/"potential_gap"/"known_limitation" - the deterministic
+    classification from gaps/signals.py::classify_cluster, computed once at
+    detection time and stored so the review UI and API don't recompute it.
+    NULL for any CandidateGap saved before this column existed."""
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Set only when gaps/signals.py::find_addressing_papers found another
+    paper in the corpus whose contribution/results claim closely resembles
+    this pattern - a downgrade note for the reviewer, never proof the gap
+    is closed (see apply_addressing_downgrade)."""
 
 
 class CandidateGapEvidence(Base):
@@ -345,6 +359,10 @@ class CandidateGapEvidence(Base):
     __tablename__ = "candidate_gap_evidence"
     __table_args__ = (
         UniqueConstraint("candidate_gap_id", "evidence_id", name="uq_candidate_gap_evidence_gap_evidence"),
+        CheckConstraint(
+            "claim_role IS NULL OR claim_role IN ('anchor', 'supporting')",
+            name="ck_candidate_gap_evidence_claim_role",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -352,6 +370,13 @@ class CandidateGapEvidence(Base):
         UUID(as_uuid=True), ForeignKey("candidate_gaps.id"), nullable=False
     )
     evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    claim_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    """"anchor"/"supporting" - this evidence row's classify_claim role
+    within its candidate gap's cluster (gaps/signals.py). NULL for rows
+    saved before this column existed."""
+    self_resolution_signal: Mapped[bool | None] = mapped_column(nullable=True)
+    field_scope_signal: Mapped[bool | None] = mapped_column(nullable=True)
+    own_contribution_overlap: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class ResearchInput(Base):
