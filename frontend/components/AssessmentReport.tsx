@@ -145,7 +145,13 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
             )}
           </>
         ) : (
-          <Unassessed reason="No gap was found in the retrieved literature for this input." />
+          <Unassessed
+            reason={
+              assessment.research_gap_source === "no_relevant_evidence"
+                ? "Not assessed - insufficient relevant evidence was retrieved for this input to investigate whether a research gap exists."
+                : "No gap was found in the retrieved literature for this input."
+            }
+          />
         )}
       </Field>
 
@@ -164,7 +170,13 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
             ))}
           </ul>
         ) : (
-          <Unassessed reason="No retrieved paper stated an application." />
+          <Unassessed
+            reason={
+              assessment.potential_applications === null
+                ? "No relevant paper was retrieved for this input, so applications could not be assessed."
+                : "No retrieved paper stated an application."
+            }
+          />
         )}
       </Field>
 
@@ -199,6 +211,31 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
 
       <Field label="external validation needed" gradeable={false}>
         <Prose text={assessment.external_validation_needed} />
+      </Field>
+
+      <Field label="recommendation reasoning" gradeable={false}>
+        <Preformatted
+          text={[
+            `Novelty signal: ${assessment.novelty_level}`,
+            assessment.novelty_reasoning ?? "",
+            "",
+            assessment.research_gap_text
+              ? `Research gap evidence: ${assessment.research_gap_text}`
+              : `Research gap evidence: ${
+                  assessment.research_gap_source === "no_relevant_evidence"
+                    ? "not assessed - insufficient relevant evidence"
+                    : "none found - relevant literature was checked"
+                }`,
+            "",
+            `Technical grounding: ${assessment.technical_feasibility_level}`,
+            assessment.technical_feasibility_reasoning ?? "",
+            "",
+            `Recommendation: ${assessment.recommendation ?? "not assessed"}`,
+            `Confidence: ${assessment.confidence ?? "not assessed"}`,
+          ]
+            .filter((line) => line !== undefined)
+            .join("\n")}
+        />
       </Field>
     </article>
   );

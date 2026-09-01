@@ -8,7 +8,7 @@ from researchbridge.api.schemas import (
     ResearchAssessmentOut,
     ResearchInputOut,
 )
-from researchbridge.assessment.export import build_docx, build_pdf
+from researchbridge.assessment.export import build_docx, build_pdf, build_report_sections
 
 RESEARCH_INPUT_ID = uuid.uuid4()
 ASSESSMENT_ID = uuid.uuid4()
@@ -105,7 +105,11 @@ def test_build_docx_marks_unassessed_fields_with_reasoning() -> None:
 
     assert "No retrieved paper had extracted claims to compare against" in text
     assert "No gap was found" in text
-    assert "No retrieved paper stated an application" in text
+    # potential_applications=None here means "not assessed" (no relevant
+    # papers retrieved at all) - distinct from the "no_evidence" ([]) case,
+    # which keeps the older "No retrieved paper stated an application"
+    # wording - see test_export_distinguishes_applications_not_assessed_from_no_evidence
+    assert "No relevant paper was retrieved for this input" in text
 
 
 def test_build_pdf_contains_recommendation_and_input_text() -> None:
@@ -127,4 +131,32 @@ def test_build_pdf_marks_unassessed_fields_with_reasoning() -> None:
 
     assert "No retrieved paper had extracted claims to compare against" in text
     assert "No gap was found" in text
-    assert "No retrieved paper stated an application" in text
+    assert "No relevant paper was retrieved for this input" in text
+
+
+def test_export_distinguishes_not_assessed_gap_from_checked_no_gap_found() -> None:
+    not_assessed = _assessment(research_gap_text=None, research_gap_source="no_relevant_evidence")
+    not_found = _assessment(research_gap_text=None, research_gap_source="checked_no_gap_found")
+
+    sections_not_assessed = build_report_sections(not_assessed)
+    sections_not_found = build_report_sections(not_found)
+
+    gap_section_a = next(s for s in sections_not_assessed if s.label == "Research gap")
+    gap_section_b = next(s for s in sections_not_found if s.label == "Research gap")
+
+    assert gap_section_a.unassessed_reason != gap_section_b.unassessed_reason
+    assert "insufficient" in gap_section_a.unassessed_reason.lower()
+    assert "no gap" in gap_section_b.unassessed_reason.lower() or "none" in gap_section_b.unassessed_reason.lower()
+
+
+def test_export_distinguishes_applications_not_assessed_from_no_evidence() -> None:
+    not_assessed = _assessment(potential_applications=None)
+    no_evidence = _assessment(potential_applications=[])
+
+    sections_not_assessed = build_report_sections(not_assessed)
+    sections_no_evidence = build_report_sections(no_evidence)
+
+    app_section_a = next(s for s in sections_not_assessed if s.label == "Potential applications")
+    app_section_b = next(s for s in sections_no_evidence if s.label == "Potential applications")
+
+    assert app_section_a.unassessed_reason != app_section_b.unassessed_reason

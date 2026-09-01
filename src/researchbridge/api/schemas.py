@@ -201,9 +201,14 @@ class ResearchAssessmentOut(BaseModel):
     novelty_reasoning: str | None
     research_gap_text: str | None
     research_gap_source: str | None
-    """"reused_candidate_gap" | "input_specific" | None. Distinguishes an
-    explicit, author-stated gap (never "inference" in the text) from a
-    cross-paper inference (always labeled as such) - see assessment/gap.py."""
+    """"reused_candidate_gap" | "input_specific" | "no_relevant_evidence" |
+    "checked_no_gap_found". Distinguishes an explicit, author-stated gap
+    (never "inference" in the text) from a cross-paper inference (always
+    labeled as such) - see assessment/gap.py. When research_gap_text is
+    None, this still distinguishes "no_relevant_evidence" (insufficient
+    retrieved evidence to investigate at all) from "checked_no_gap_found"
+    (relevant evidence was checked, nothing surfaced) - never collapse
+    both into the same message."""
     candidate_gap_id: uuid.UUID | None
     potential_applications: list[dict] | None
     """Each item: {application, source_paper, paper_id} - an application a

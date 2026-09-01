@@ -39,6 +39,20 @@ OPPORTUNITIES_REASON = (
     "literature does not make, so this is left to a human reviewer."
 )
 
+_GAP_UNASSESSED_REASONS = {
+    "no_relevant_evidence": (
+        "Not assessed - insufficient relevant evidence was retrieved for this input to "
+        "investigate whether a research gap exists."
+    ),
+    "checked_no_gap_found": "No gap was found in the retrieved literature for this input.",
+    None: "No gap was found in the retrieved literature for this input.",
+}
+
+_APPLICATIONS_UNASSESSED_REASONS = {
+    "not_assessed": "No relevant paper was retrieved for this input, so applications could not be assessed.",
+    "no_evidence": "No retrieved paper stated an application.",
+}
+
 
 @dataclass
 class ReportSection:
@@ -57,10 +71,13 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
         by_role.setdefault(item.role, []).append(item)
 
     applications_body = None
+    applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS["not_assessed"]
     if assessment.potential_applications:
         applications_body = "\n".join(
             f"- {app['application']} (source: {app['source_paper']})" for app in assessment.potential_applications
         )
+    elif assessment.potential_applications == []:
+        applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS["no_evidence"]
 
     research_gap_body = assessment.research_gap_text
     if research_gap_body and assessment.research_gap_source:
@@ -70,6 +87,9 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             else "found for this input"
         )
         research_gap_body = f"{research_gap_body}\n({source_note})"
+    research_gap_unassessed_reason = _GAP_UNASSESSED_REASONS.get(
+        assessment.research_gap_source, _GAP_UNASSESSED_REASONS[None]
+    )
 
     return [
         ReportSection(
@@ -88,13 +108,13 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
         ReportSection(
             label="Research gap",
             body=research_gap_body,
-            unassessed_reason="No gap was found in the retrieved literature for this input.",
+            unassessed_reason=research_gap_unassessed_reason,
             evidence=by_role.get("research_gap", []),
         ),
         ReportSection(
             label="Potential applications",
             body=applications_body,
-            unassessed_reason="No retrieved paper stated an application.",
+            unassessed_reason=applications_unassessed_reason,
             evidence=by_role.get("application", []),
         ),
         ReportSection(
