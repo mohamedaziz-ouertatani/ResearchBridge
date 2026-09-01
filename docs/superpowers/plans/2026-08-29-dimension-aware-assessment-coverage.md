@@ -87,7 +87,7 @@ Stopword-boundary splitting yields candidates such as: `build privacy-preserving
 **Interfaces:**
 - Produces: `IdeaDimension` (dataclass: `label: str`), `extract_dimensions(text: str, max_dimensions: int = 8) -> list[IdeaDimension]`. No embedder needed for this step — pure string processing.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 from __future__ import annotations
@@ -144,12 +144,12 @@ def test_single_short_sentence_still_yields_something() -> None:
     assert len(dimensions) >= 1
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_dimensions.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'researchbridge.assessment.dimensions'`
 
-- [ ] **Step 3: Implement `dimensions.py`**
+- [x] **Step 3: Implement `dimensions.py`**
 
 ```python
 """Deterministic idea-dimension extraction (RAKE-style keyword extraction).
@@ -281,12 +281,12 @@ def _score_words(candidates: list[str]) -> dict[str, float]:
     return {word: degree[word] / frequency[word] for word in frequency}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_dimensions.py -v`
 Expected: PASS. If `test_extracts_multiple_dimensions_from_the_fraud_idea` or the substring-dedup test fails on the exact worked example, adjust `_STOPWORDS`/`MAX_PHRASE_WORDS` (not the test) until it passes — the test encodes the actual requirement, not an implementation detail.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/dimensions.py tests/test_assessment_dimensions.py
@@ -307,7 +307,7 @@ git commit -m "feat(assessment): add deterministic RAKE-based dimension extracti
 
 This module never touches the database and never creates `Evidence` rows — it only reads the `claims` lists already fetched by `build.py`'s `_claims_for_paper`, so the hard evidence-grounding invariant holds by construction: every `evidence_id` it returns came from an existing `ExtractedClaim`/`Evidence` row.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 from __future__ import annotations
@@ -445,12 +445,12 @@ def test_multiple_dimensions_are_each_scored_independently(embedder) -> None:
     assert by_label["class imbalance"].status == "not_found"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_coverage.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'researchbridge.assessment.coverage'`
 
-- [ ] **Step 3: Implement `coverage.py`**
+- [x] **Step 3: Implement `coverage.py`**
 
 ```python
 """Per-dimension evidence coverage over an assessment's own retrieved
@@ -574,12 +574,12 @@ def _status_for(label: str, matches: list[tuple[str, "ClaimRecord"]]) -> Dimensi
     )
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_coverage.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/coverage.py tests/test_assessment_coverage.py
@@ -596,7 +596,7 @@ git commit -m "feat(assessment): add pure-function per-dimension evidence covera
 
 **Interfaces:** No signature changes — `build_existing_solutions()` keeps its exact current shape.
 
-- [ ] **Step 1: Write the failing regression test**
+- [x] **Step 1: Write the failing regression test**
 
 Add to `tests/test_assessment_existing_solutions.py`:
 
@@ -612,12 +612,12 @@ def test_main_contribution_claims_are_not_classified_as_problems() -> None:
     assert result.text is None or "Problems already addressed" not in result.text
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_assessment_existing_solutions.py::test_main_contribution_claims_are_not_classified_as_problems -v`
 Expected: FAIL — `main_contribution` currently lands under "Problems already addressed" (`existing_solutions.py:41`)
 
-- [ ] **Step 3: Fix the section mapping**
+- [x] **Step 3: Fix the section mapping**
 
 In `src/researchbridge/assessment/existing_solutions.py`, change:
 
@@ -633,12 +633,12 @@ to:
 
 Also tighten the module docstring's claim-type list note (it currently doesn't call out `main_contribution` specifically, so no further doc change is required) and update the inline comment at the top of `_SECTIONS` if it references `main_contribution` — it doesn't today, so no change needed there.
 
-- [ ] **Step 4: Run full existing_solutions test file to verify pass and no regressions**
+- [x] **Step 4: Run full existing_solutions test file to verify pass and no regressions**
 
 Run: `pytest tests/test_assessment_existing_solutions.py -v`
 Expected: PASS, all tests including the new one and the pre-existing `test_groups_claims_by_question_not_by_paper` (which will need updating — see Step 4a).
 
-- [ ] **Step 4a: Update the now-incorrect existing test**
+- [x] **Step 4a: Update the now-incorrect existing test**
 
 `test_groups_claims_by_question_not_by_paper` doesn't use `main_contribution`, so it's unaffected. Confirm via the run in Step 4; if any other existing test in the file asserts `main_contribution` appears under "Problems already addressed", update it to expect it appears nowhere (since no section claims it anymore) — grep first:
 
@@ -648,7 +648,7 @@ grep -n "main_contribution" tests/test_assessment_existing_solutions.py
 
 If that grep returns only the new test from Step 1, no further changes are needed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/existing_solutions.py tests/test_assessment_existing_solutions.py
@@ -676,7 +676,7 @@ git commit -m "fix(assessment): stop classifying main_contribution claims as pro
 
 The `reasoning` text keeps its existing nearest-distance sentence (unchanged, still the primary explanation) and, when dimension coverage was used, appends a second paragraph: a literal `"Dimension coverage:\n  <label> -> <status>\n  ..."` block — this is the exact block persisted into `novelty_reasoning`, per the "Migration implications" table.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_assessment_novelty.py`:
 
@@ -755,12 +755,12 @@ def test_medium_novelty_when_coverage_is_mixed() -> None:
     assert result.level == "medium"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_novelty.py -v`
 Expected: FAIL — `assess_novelty()` doesn't accept `dimension_coverages` yet, `NoveltyResult` has no `dimension_coverage` field.
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `src/researchbridge/assessment/novelty.py`, add the import and update the dataclass and function:
 
@@ -873,12 +873,12 @@ def _aggregate_from_coverage(scored_coverages: list[DimensionCoverage]) -> tuple
 
 Note: `field` must already be imported (`from dataclasses import dataclass, field`) — add `field` to the existing `from dataclasses import dataclass` line at the top of the file.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_novelty.py -v`
 Expected: PASS — both the new dimension-aware tests and every pre-existing nearest-distance-only test (unaffected, since `dimension_coverages` defaults to `None`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/novelty.py tests/test_assessment_novelty.py
@@ -895,7 +895,7 @@ git commit -m "feat(assessment): make novelty an aggregate multi-dimension signa
 
 **Interfaces:** `GapAssessmentResult` gains `status: str` (`"not_assessed" | "not_found" | "found"`). `source` keeps its exact current meaning and values (`"reused_candidate_gap" | "input_specific" | None`) — `status` is a new, additional field, not a replacement.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_assessment_gap.py`:
 
@@ -934,12 +934,12 @@ def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embe
     assert result.text is not None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_gap.py -v`
 Expected: FAIL — `GapAssessmentResult` has no `status` attribute.
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `src/researchbridge/assessment/gap.py`:
 
@@ -997,12 +997,12 @@ grep -n "_NONE_RESULT" src/researchbridge/assessment/gap.py
 
 Expected: no matches after the edit.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_gap.py -v`
 Expected: PASS — including every pre-existing test in the file (they only assert on `source`/`text`/`candidate_gap_id`/`evidence_ids`/`is_closely_grounded`, none of which changed shape).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/gap.py tests/test_assessment_gap.py
@@ -1021,7 +1021,7 @@ git commit -m "feat(assessment): distinguish gap not_assessed from not_found"
 
 **Interfaces:** `ApplicationsResult` gains `status: str` (`"not_assessed" | "no_evidence" | "found"`). `build.py` persists `potential_applications` as `None` for `not_assessed`, `[]` (empty list) for `no_evidence`, and the existing populated-list shape for `found` — no schema change, since the column is already `list | None`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_assessment_applications.py` (create the file with these tests plus imports if the module-level fixtures aren't already present — check the existing file first and reuse its `_paper`/`_claim`/`embedder`-equivalent helpers rather than duplicating them):
 
@@ -1085,12 +1085,12 @@ def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have
     assert assessment.potential_applications == []
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_applications.py tests/test_assessment_build.py -v`
 Expected: FAIL — `ApplicationsResult` has no `status` field yet; `build.py` still collapses both cases to `None`.
 
-- [ ] **Step 3: Implement `applications.py`**
+- [x] **Step 3: Implement `applications.py`**
 
 ```python
 @dataclass
@@ -1142,7 +1142,7 @@ def assess_applications(session: Session, papers_by_distance: list[PaperWithDist
 
 Remove the old module-level `_EMPTY_RESULT` (replaced by the two new sentinels above).
 
-- [ ] **Step 4: Wire the distinction into `build.py`**
+- [x] **Step 4: Wire the distinction into `build.py`**
 
 In `src/researchbridge/assessment/build.py`, replace lines 90-101:
 
@@ -1178,12 +1178,12 @@ with:
         ),
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_applications.py tests/test_assessment_build.py -v`
 Expected: PASS — including the pre-existing `test_assessment_defaults_unassessed_fields_rather_than_fabricating`, which asserts on other fields and doesn't check `potential_applications` directly (confirm via the run; if it does assert `potential_applications is None`, that's still correct since that test's scenario has zero relevant papers retrieved, which is the `not_assessed`/`None` case).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/researchbridge/assessment/applications.py src/researchbridge/assessment/build.py tests/test_assessment_applications.py tests/test_assessment_build.py
@@ -1202,7 +1202,7 @@ git commit -m "feat(assessment): distinguish 'no relevant papers' from 'no state
 - Consumes: `DimensionCoverage` (Task 2).
 - Produces: `RisksResult` gains `coverage_gaps: list[str]` (dimension labels whose status is `not_found` or `weak_evidence` among the *same relevant paper set* risks.py already gates on). `assess_risks()` gains optional `dimension_coverages: list[DimensionCoverage] | None = None`. The existing `text` field (the actual extracted risk statements) is completely unchanged in how it's built — `coverage_gaps` is additive and structurally separate, never merged into `text`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_assessment_risks.py`:
 
@@ -1249,12 +1249,12 @@ def test_coverage_gaps_never_appear_inside_the_risk_text_itself(session_factory)
     assert "concept drift" not in (result.text or "")
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_risks.py -v`
 Expected: FAIL — `assess_risks()` doesn't accept `dimension_coverages`, `RisksResult` has no `coverage_gaps`.
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `src/researchbridge/assessment/risks.py`:
 
@@ -1323,12 +1323,12 @@ def assess_risks(
 
 Add `field` to the existing `from dataclasses import dataclass` import line.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_risks.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/risks.py tests/test_assessment_risks.py
@@ -1345,7 +1345,7 @@ git commit -m "feat(assessment): surface dimension coverage gaps alongside risks
 
 **Interfaces:** `RecommendationResult` gains `reasoning: str`. The decision table producing `recommendation`/`confidence` is **completely unchanged** — this task only adds an explanatory string built from the same inputs the function already receives, plus one new optional parameter.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_assessment_recommendation.py`:
 
@@ -1376,12 +1376,12 @@ def test_reasoning_mentions_recommendation_and_confidence() -> None:
     assert result.confidence.lower() in result.reasoning.lower()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_recommendation.py -v`
 Expected: FAIL — `RecommendationResult` has no `reasoning` field.
 
-- [ ] **Step 3: Implement the change**
+- [x] **Step 3: Implement the change**
 
 In `src/researchbridge/assessment/recommendation.py`:
 
@@ -1460,12 +1460,12 @@ def _build_reasoning(
     )
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_recommendation.py -v`
 Expected: PASS — including every pre-existing test in the file (all assert only on `recommendation`/`confidence`, unaffected by the new field).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/researchbridge/assessment/recommendation.py tests/test_assessment_recommendation.py
@@ -1484,7 +1484,7 @@ git commit -m "feat(assessment): make the recommendation chain inspectable via a
 - Consumes: `extract_dimensions` (Task 1), `compute_dimension_coverage` (Task 2), the updated `assess_novelty`/`assess_risks` signatures (Tasks 4, 7), the updated `GapAssessmentResult.status`/`ApplicationsResult.status` (Tasks 5, 6), the updated `RecommendationResult.reasoning` (Task 8).
 - `build_assessment()`'s own signature is unchanged (`session, research_input_id, embedder, top_k=10`).
 
-- [ ] **Step 1: Write the failing integration tests**
+- [x] **Step 1: Write the failing integration tests**
 
 Add to `tests/test_assessment_build.py`:
 
@@ -1530,12 +1530,12 @@ def test_recommendation_reasoning_is_persisted_and_derivable_at_read_time(sessio
     assert assessment.confidence is not None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_build.py -v`
 Expected: The first new test FAILs (`build_assessment` doesn't compute dimensions/coverage yet, so `novelty_reasoning` has no "Dimension coverage:" block). The second should already pass (it only checks pre-existing behavior) — confirms it's a true regression guard, not a new requirement.
 
-- [ ] **Step 3: Wire dimensions and coverage into `build_assessment`**
+- [x] **Step 3: Wire dimensions and coverage into `build_assessment`**
 
 In `src/researchbridge/assessment/build.py`, add imports:
 
@@ -1601,17 +1601,17 @@ to:
         ),
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/test_assessment_build.py -v`
 Expected: PASS — including every pre-existing test in the file. In particular, re-check `test_assessment_defaults_unassessed_fields_rather_than_fabricating` (line 143 in the original file): it asserts `assessment.research_gap_text is None`, which is still true (only `research_gap_source`'s value changed, from `None` to `"no_relevant_evidence"` in this no-relevant-papers scenario) — if the test doesn't check `research_gap_source`, it passes unmodified; if a reviewer wants that source value asserted too, add `assert assessment.research_gap_source == "no_relevant_evidence"` to that test as a tightening, not a requirement of this step.
 
-- [ ] **Step 5: Run the full test suite to check for regressions**
+- [x] **Step 5: Run the full test suite to check for regressions**
 
 Run: `pytest tests/ -v -k "assessment"`
 Expected: PASS across every assessment-related test file.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/researchbridge/assessment/build.py tests/test_assessment_build.py
@@ -1635,7 +1635,7 @@ git commit -m "feat(assessment): wire dimension coverage into build_assessment o
 **Interfaces:**
 - Produces: `build_recommendation_narrative(assessment: ResearchAssessmentOut) -> str` — a pure, read-time function computed entirely from already-persisted fields (`novelty_level`, `novelty_reasoning`, `research_gap_text`, `research_gap_source`, `technical_feasibility_level`, `technical_feasibility_reasoning`, `recommendation`, `confidence`). No new persisted field.
 
-- [ ] **Step 1: Write the failing narrative test**
+- [x] **Step 1: Write the failing narrative test**
 
 Create `tests/test_assessment_narrative.py`:
 
@@ -1712,12 +1712,12 @@ def test_narrative_reports_final_recommendation_and_confidence() -> None:
     assert "low" in narrative.lower()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_assessment_narrative.py -v`
 Expected: FAIL — `researchbridge.assessment.narrative` doesn't exist yet.
 
-- [ ] **Step 3: Implement `narrative.py`**
+- [x] **Step 3: Implement `narrative.py`**
 
 ```python
 """Read-time recommendation narrative (blueprint constraint: the
@@ -1762,12 +1762,12 @@ def build_recommendation_narrative(assessment: ResearchAssessmentOut) -> str:
     return "\n\n".join([novelty_line, gap_line, feasibility_line, recommendation_line])
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_assessment_narrative.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Write the failing export tests**
+- [x] **Step 5: Write the failing export tests**
 
 Add to `tests/test_assessment_export.py` (near the existing "No gap was found" assertions at lines ~107-130):
 
@@ -1802,12 +1802,12 @@ def test_export_distinguishes_applications_not_assessed_from_no_evidence() -> No
 
 (`_build_assessment_out` should already exist as a helper in `test_assessment_export.py` given the existing tests at lines 33/66 construct `ResearchAssessmentOut`-shaped fixtures directly — if no such shared helper exists yet, check the file's current fixture pattern first and factor one out rather than duplicating the full field list four times.)
 
-- [ ] **Step 6: Run tests to verify they fail**
+- [x] **Step 6: Run tests to verify they fail**
 
 Run: `pytest tests/test_assessment_export.py -v`
 Expected: FAIL — `build_report_sections` doesn't yet vary `unassessed_reason` by `research_gap_source`/by empty-vs-null `potential_applications`.
 
-- [ ] **Step 7: Implement the change in `export.py`**
+- [x] **Step 7: Implement the change in `export.py`**
 
 In `src/researchbridge/assessment/export.py`, update `build_report_sections`:
 
@@ -1862,12 +1862,12 @@ _APPLICATIONS_UNASSESSED_REASONS = {
 }
 ```
 
-- [ ] **Step 8: Run export tests to verify they pass**
+- [x] **Step 8: Run export tests to verify they pass**
 
 Run: `pytest tests/test_assessment_export.py -v`
 Expected: PASS. Confirm the pre-existing tests at lines ~107/129 (`"No gap was found" in text`, `"No retrieved paper stated an application" in text`) still pass — they exercise the `research_gap_source=None`/`potential_applications=None` defaults, which map to the same fallback strings as before.
 
-- [ ] **Step 9: Update the frontend report**
+- [x] **Step 9: Update the frontend report**
 
 In `frontend/lib/assessmentApi.ts`, find the `ResearchAssessment` type's `research_gap_source` field and widen its documented (TypeScript string literal, if typed as a union) value set to include the two new sentinels — check the current type definition first:
 
@@ -1964,7 +1964,7 @@ Add a new field block after "external validation needed" (end of the article, be
 
 This duplicates `narrative.py`'s stitching logic in TypeScript rather than adding a new API round-trip for a string trivially computable from fields the page already has — acceptable for this first iteration; if the duplication drifts, a follow-up can expose `GET /api/assessments/{id}` returning the narrative pre-built server-side instead.
 
-- [ ] **Step 10: Manually verify the frontend renders correctly**
+- [x] **Step 10: Manually verify the frontend renders correctly**
 
 Start the dev server and view a real assessment report:
 
@@ -1974,7 +1974,7 @@ npm --prefix frontend run dev
 
 Open an existing assessment in the browser, confirm: the "research gap" and "potential applications" sections show the new distinct messages when applicable, and the new "recommendation reasoning" section renders the four-line block without layout breakage. Screenshot before considering this step done.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add src/researchbridge/assessment/narrative.py src/researchbridge/assessment/export.py frontend/components/AssessmentReport.tsx frontend/lib/assessmentApi.ts tests/test_assessment_narrative.py tests/test_assessment_export.py
@@ -1992,7 +1992,7 @@ git commit -m "feat(assessment): render inspectable recommendation narrative and
 
 This test validates **structure and grounding guarantees**, not a predetermined scientific conclusion — per the constraint, it must not assert a specific `recommendation` value or a specific novelty level, since that depends on what's actually in the corpus.
 
-- [ ] **Step 1: Write the acceptance test**
+- [x] **Step 1: Write the acceptance test**
 
 ```python
 from __future__ import annotations
@@ -2167,12 +2167,12 @@ def _section(comparison_summary: str, heading: str) -> str:
     return after.split("\n\n", 1)[0]
 ```
 
-- [ ] **Step 2: Run the acceptance test**
+- [x] **Step 2: Run the acceptance test**
 
 Run: `pytest tests/test_assessment_dimension_coverage_e2e.py -v`
 Expected: PASS, assuming Tasks 1-9 are complete. If it fails, the failure should point at exactly one of the structural guarantees above being violated — treat that as a real bug in the corresponding task's implementation, not a reason to weaken this test.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/test_assessment_dimension_coverage_e2e.py
@@ -2185,23 +2185,23 @@ git commit -m "test(assessment): add end-to-end structural acceptance test for d
 
 This task is deliberately not a pytest file — it's the same manual calibration step every threshold in this codebase (`NEAR_DISTANCE`/`FAR_DISTANCE` in `novelty.py`, the tightened threshold in `feasibility.py`, `DEFAULT_SIMILARITY_THRESHOLD` in `gaps/cluster.py`) was originally checked against before being trusted, per this codebase's own established practice.
 
-- [ ] **Step 1: Run `extract_dimensions` against 5-10 real research ideas**
+- [x] **Step 1: Run `extract_dimensions` against 5-10 real research ideas**
 
 Use a scratch script (not committed) to run `extract_dimensions()` from Task 1 against a handful of real ideas the corpus has (or ideas a user is likely to submit — the fraud/federated-learning example plus a few others spanning different domains in the corpus). Eyeball the output: are the phrases genuinely distinct concepts, or is the stopword list letting noise through (e.g. "we propose", "this paper")? Adjust `_STOPWORDS` in `dimensions.py` if so, and re-run Task 1's test suite to confirm no regression.
 
-- [ ] **Step 2: Run `compute_dimension_coverage` against the live corpus with the fraud idea**
+- [x] **Step 2: Run `compute_dimension_coverage` against the live corpus with the fraud idea**
 
 Using a real `Embedder` (not the test fakes) against the actual database, run `build_assessment` for the fraud/federated-learning idea from Task 11 against whatever real papers exist in the corpus. Inspect the resulting `novelty_reasoning`'s dimension-coverage block: do the `established`/`partially_addressed`/`weak_evidence`/`not_found` statuses look right by manual judgment? In particular check `DIMENSION_MATCH_SIMILARITY = 0.30` in `coverage.py` — if real claim/dimension pairs that are obviously related score below it (false negatives -> everything reads `not_found`) or obviously unrelated pairs score above it (false positives -> everything reads `established`), adjust the constant.
 
-- [ ] **Step 3: Document the calibration**
+- [x] **Step 3: Document the calibration**
 
 Update `coverage.py`'s module docstring with a calibration note in the same style as `novelty.py`'s (lines 14-28) and `gaps/cluster.py`'s (lines 15-26): what was checked, what the raw similarity distribution looked like, why the final threshold was picked. This is a documentation-only change to a comment block, not new logic — re-run `pytest tests/test_assessment_coverage.py -v` afterward only to confirm nothing was accidentally broken while editing the file.
 
-- [ ] **Step 4: Sanity-check the novelty aggregate-rule thresholds (0.7/0.5/0.3) from Task 4**
+- [x] **Step 4: Sanity-check the novelty aggregate-rule thresholds (0.7/0.5/0.3) from Task 4**
 
 Using the same live-corpus session, try 3-5 different ideas spanning "clearly already well-covered by the corpus" to "clearly novel relative to the corpus" and confirm the aggregate rule's `low`/`medium`/`high` boundaries feel right. Adjust the constants in `novelty.py`'s `_aggregate_from_coverage` if not, and add the same kind of calibration note to that function's docstring.
 
-- [ ] **Step 5: Commit the documentation updates**
+- [x] **Step 5: Commit the documentation updates**
 
 ```bash
 git add src/researchbridge/assessment/coverage.py src/researchbridge/assessment/novelty.py src/researchbridge/assessment/dimensions.py
