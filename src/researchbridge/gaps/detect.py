@@ -31,11 +31,13 @@ from researchbridge.gaps.cluster import (
     DEFAULT_SIMILARITY_THRESHOLD,
     RELEVANT_CLAIM_TYPES,
     ClaimRecord,
+    GapCluster,
     find_recurring_patterns,
 )
 from researchbridge.gaps.signals import (
     ClaimClassification,
     ClassifiedMember,
+    GapStatus,
     apply_addressing_downgrade,
     classify_claim,
     classify_cluster,
@@ -121,7 +123,11 @@ def detect_candidate_gaps(
         for row, vector in zip(contribution_rows, contribution_vectors, strict=True)
     ]
 
-    drafts: list[CandidateGapDraft] = []
+    # First pass: classify every cluster and drop any that don't clear the
+    # bar, without embedding anything yet - the representative-text vectors
+    # are only needed for surviving clusters, and are computed together in
+    # one batched call below rather than one-at-a-time in this loop.
+    surviving: list[tuple[GapCluster, GapStatus]] = []
     for cluster in clusters:
         members = [
             ClassifiedMember(
@@ -140,8 +146,14 @@ def detect_candidate_gaps(
                 len(cluster.members),
             )
             continue
+        surviving.append((cluster, status))
 
-        [representative_vector] = embedder.embed_texts([cluster.representative_text])
+    representative_vectors = (
+        embedder.embed_texts([cluster.representative_text for cluster, _status in surviving]) if surviving else []
+    )
+
+    drafts: list[CandidateGapDraft] = []
+    for (cluster, status), representative_vector in zip(surviving, representative_vectors, strict=True):
         matches = find_addressing_papers(representative_vector, addressing_candidates)
         final_status, note = apply_addressing_downgrade(status, matches)
 

@@ -107,15 +107,44 @@ def test_finds_a_pattern_recurring_across_the_neighborhood(session_factory, embe
     assert result.drafts[0].seed_paper_id == seed.id
     assert len(result.drafts[0].evidence_ids) == 3
     assert result.drafts[0].gap_status == "known_limitation"  # weak default tier, no strong anchor
+    # every evidence_id in the draft has a matching classification, keyed correctly
+    assert set(result.drafts[0].evidence_roles.keys()) == set(result.drafts[0].evidence_ids)
+    for evidence_id in result.drafts[0].evidence_ids:
+        assert result.drafts[0].evidence_roles[evidence_id].role in ("anchor", "supporting", "motivation")
 
 
-def test_no_pattern_returns_empty_list(session_factory, embedder) -> None:
+def test_insufficient_evidence_when_no_cluster_forms(session_factory, embedder) -> None:
     session = session_factory()
     seed = _paper(session, embedder, "seed")
     a = _paper(session, embedder, "a")
 
     _claim(session, seed, "limitations", "the system is tested only offline in this setup")
     _claim(session, a, "limitations", "training requires substantial gpu resources")
+    session.commit()
+
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+
+    session.close()
+    assert result.status == "insufficient_evidence"
+    assert result.drafts == []
+
+
+def test_cluster_dropped_when_every_member_is_own_contribution_motivation(session_factory, embedder) -> None:
+    """A cluster that WOULD have formed under the old clustering-only logic
+    (3 distinct papers, near-identical gap text, well above min_cluster_size)
+    gets dropped by classify_cluster because each paper's gap claim is a
+    near-paraphrase of that SAME paper's own main_contribution claim - the
+    FinRCA-Bench regression pattern: honest motivation, not a real gap."""
+    session = session_factory()
+    seed = _paper(session, embedder, "seed")
+    a = _paper(session, embedder, "a")
+    b = _paper(session, embedder, "b")
+
+    gap_text = "existing benchmarks lack robustness evaluation for input perturbations"
+    contribution_text = "we introduce a benchmark for robustness evaluation of input perturbations"
+    for paper in (seed, a, b):
+        _claim(session, paper, "research_gap", gap_text)
+        _claim(session, paper, "main_contribution", contribution_text)
     session.commit()
 
     result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
