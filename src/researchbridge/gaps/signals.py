@@ -34,6 +34,7 @@ motivation - see classify_claim's scoring below.
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import dataclass
 from typing import Literal
 
@@ -139,3 +140,39 @@ def classify_claim(
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=True))
+
+
+@dataclass(frozen=True)
+class ClassifiedMember:
+    paper_id: uuid.UUID
+    evidence_id: uuid.UUID
+    text: str
+    classification: ClaimClassification
+
+
+def classify_cluster(members: list[ClassifiedMember], min_cluster_size: int) -> GapStatus | None:
+    """Aggregates one cluster's classified members into a gap status, or
+    None if nothing here clears the bar to be shown to a reviewer at all.
+
+    "independent_papers" (papers whose claim is NOT itself overlap-flagged)
+    is the cross-paper corroboration requirement: min_cluster_size distinct
+    papers saying something gap-shaped is not enough on its own if every one
+    of them is explainable by that same paper's own contribution - that's
+    corroboration of a shared research topic, not of anything unresolved.
+    """
+    anchor_papers = {m.paper_id for m in members if m.classification.role == "anchor"}
+    supporting_members = [m for m in members if m.classification.role in ("anchor", "supporting")]
+    supporting_papers = {m.paper_id for m in supporting_members}
+    independent_papers = {
+        m.paper_id
+        for m in supporting_members
+        if m.classification.own_contribution_overlap < OWN_CONTRIBUTION_OVERLAP_THRESHOLD
+    }
+
+    if len(anchor_papers) >= 2:
+        return "strong_gap"
+    if len(anchor_papers) == 1 and len(supporting_papers) >= min_cluster_size and len(independent_papers) >= 2:
+        return "potential_gap"
+    if len(independent_papers) >= min_cluster_size:
+        return "known_limitation"
+    return None

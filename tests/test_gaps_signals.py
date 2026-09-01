@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from researchbridge.gaps.signals import (
     OWN_CONTRIBUTION_OVERLAP_THRESHOLD,
     ClaimClassification,
@@ -95,3 +97,89 @@ def test_cosine_similarity_of_identical_vectors_is_one() -> None:
 
 def test_cosine_similarity_of_orthogonal_vectors_is_zero() -> None:
     assert cosine_similarity([1.0, 0.0], [0.0, 1.0]) == 0.0
+
+
+# Task 3: classify_cluster tests
+
+from researchbridge.gaps.signals import ClassifiedMember, classify_cluster
+
+
+def _member(paper_id: uuid.UUID | None, role: str, overlap: float = 0.0) -> ClassifiedMember:
+    return ClassifiedMember(
+        paper_id=paper_id or uuid.uuid4(),
+        evidence_id=uuid.uuid4(),
+        text="claim text",
+        classification=ClaimClassification(
+            role=role, self_resolution=False, field_scope=(role == "anchor"), own_contribution_overlap=overlap
+        ),
+    )
+
+
+def test_two_anchor_papers_is_strong_gap() -> None:
+    members = [_member(None, "anchor"), _member(None, "anchor"), _member(None, "supporting")]
+
+    assert classify_cluster(members, min_cluster_size=3) == "strong_gap"
+
+
+def test_one_anchor_with_enough_independent_support_is_potential_gap() -> None:
+    members = [
+        _member(None, "anchor"),
+        _member(None, "supporting", overlap=0.1),
+        _member(None, "supporting", overlap=0.1),
+    ]
+
+    assert classify_cluster(members, min_cluster_size=3) == "potential_gap"
+
+
+def test_one_anchor_with_only_overlap_flagged_support_is_insufficient() -> None:
+    # the anchor paper alone can't clear min_cluster_size, and the
+    # "corroborating" papers are all explainable by their own contribution -
+    # not independent corroboration of anything unresolved
+    members = [
+        _member(None, "anchor"),
+        _member(None, "supporting", overlap=0.9),
+        _member(None, "supporting", overlap=0.9),
+    ]
+
+    assert classify_cluster(members, min_cluster_size=3) is None
+
+
+def test_three_independent_supporting_papers_with_no_anchor_is_known_limitation() -> None:
+    members = [
+        _member(None, "supporting", overlap=0.1),
+        _member(None, "supporting", overlap=0.1),
+        _member(None, "supporting", overlap=0.1),
+    ]
+
+    assert classify_cluster(members, min_cluster_size=3) == "known_limitation"
+
+
+def test_all_overlap_flagged_supporting_papers_is_insufficient_evidence() -> None:
+    # the FinRCA-Bench pattern: three benchmark papers each independently
+    # motivating their own contribution with near-identical "existing
+    # benchmarks lack X" phrasing, each demoted for overlapping with their
+    # OWN contribution - recurring topic, not corroborated unresolvedness
+    members = [
+        _member(None, "supporting", overlap=0.9),
+        _member(None, "supporting", overlap=0.9),
+        _member(None, "supporting", overlap=0.9),
+    ]
+
+    assert classify_cluster(members, min_cluster_size=3) is None
+
+
+def test_only_motivation_members_is_insufficient_evidence() -> None:
+    members = [_member(None, "motivation"), _member(None, "motivation"), _member(None, "motivation")]
+
+    assert classify_cluster(members, min_cluster_size=3) is None
+
+
+def test_same_paper_repeating_does_not_count_twice_toward_the_minimum() -> None:
+    same_paper = uuid.uuid4()
+    members = [
+        _member(same_paper, "supporting", overlap=0.1),
+        _member(same_paper, "supporting", overlap=0.1),
+        _member(same_paper, "supporting", overlap=0.1),
+    ]
+
+    assert classify_cluster(members, min_cluster_size=3) is None
