@@ -98,13 +98,15 @@ def test_finds_a_pattern_recurring_across_the_neighborhood(session_factory, embe
     _claim(session, c, "limitations", "training requires substantial gpu resources")
     session.commit()
 
-    drafts = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
 
     session.close()
-    assert len(drafts) == 1
-    assert drafts[0].contributing_paper_count == 3
-    assert drafts[0].seed_paper_id == seed.id
-    assert len(drafts[0].evidence_ids) == 3
+    assert result.status == "gaps_found"
+    assert len(result.drafts) == 1
+    assert result.drafts[0].contributing_paper_count == 3
+    assert result.drafts[0].seed_paper_id == seed.id
+    assert len(result.drafts[0].evidence_ids) == 3
+    assert result.drafts[0].gap_status == "known_limitation"  # weak default tier, no strong anchor
 
 
 def test_no_pattern_returns_empty_list(session_factory, embedder) -> None:
@@ -116,10 +118,35 @@ def test_no_pattern_returns_empty_list(session_factory, embedder) -> None:
     _claim(session, a, "limitations", "training requires substantial gpu resources")
     session.commit()
 
-    drafts = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
 
     session.close()
-    assert drafts == []
+    assert result.status == "insufficient_evidence"
+    assert result.drafts == []
+
+
+def test_no_related_papers_at_all_is_a_distinct_status(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, embedder, "seed")
+    session.commit()  # no other papers exist at all - nothing for find_similar_to_paper to return
+
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+
+    session.close()
+    assert result.status == "no_relevant_papers"
+    assert result.drafts == []
+
+
+def test_neighborhood_size_counts_the_seed_and_its_related_papers(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, embedder, "seed")
+    a = _paper(session, embedder, "a")
+    session.commit()
+
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+
+    session.close()
+    assert result.neighborhood_size == 2
 
 
 def test_observation_names_the_inference_and_is_grounded_in_a_real_claim(session_factory, embedder) -> None:
@@ -137,11 +164,11 @@ def test_observation_names_the_inference_and_is_grounded_in_a_real_claim(session
         _claim(session, paper, "limitations", text)
     session.commit()
 
-    drafts = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
 
     session.close()
-    assert "inference" in drafts[0].observation.lower()
-    assert any(t in drafts[0].observation for t in texts)  # quotes a real claim, doesn't invent one
+    assert "inference" in result.drafts[0].observation.lower()
+    assert any(t in result.drafts[0].observation for t in texts)  # quotes a real claim, doesn't invent one
 
 
 def test_load_gap_claims_reads_claim_type_and_tier(session_factory, embedder) -> None:
