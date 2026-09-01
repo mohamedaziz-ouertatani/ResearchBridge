@@ -336,3 +336,38 @@ def test_limit_caps_papers_processed(session_factory) -> None:
         assert run.papers_processed == 2
     finally:
         session.close()
+
+
+def test_research_gap_claim_persists_its_validation_tier(session_factory) -> None:
+    session = session_factory()
+    paper = Paper(
+        source="fake",
+        source_id="tier-1",
+        title="t",
+        abstract="Extending this approach to multilingual settings remains an open problem for future work.",
+        raw_metadata={},
+        ingestion_metadata={},
+    )
+    session.add(paper)
+    session.commit()
+
+    class _Extractor:
+        extraction_method = "fake"
+        model_version = "fake-v1"
+
+        def extract(self, paper):
+            return [
+                ClaimCandidate(
+                    claim_type="research_gap",
+                    claim_text=paper.abstract,
+                    evidence_quote=paper.abstract,
+                    confidence="medium",
+                )
+            ]
+
+    pipeline = ExtractionPipeline(_Extractor(), session_factory)
+    pipeline.run()
+
+    claim = session.execute(select(ExtractedClaim).where(ExtractedClaim.paper_id == paper.id)).scalar_one()
+    assert claim.validation_tier == "strong"
+    session.close()

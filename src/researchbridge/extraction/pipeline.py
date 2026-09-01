@@ -187,6 +187,7 @@ class ExtractionPipeline:
                             text=candidate.claim_text,
                             evidence_id=evidence.id,
                             confidence=candidate.confidence,
+                            validation_tier=type_validation.tier,
                         )
                     )
                 run.claims_created += 1

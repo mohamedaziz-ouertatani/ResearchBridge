@@ -151,6 +151,12 @@ _PROBLEM_LANGUAGE_RE = re.compile(
 class ValidationResult:
     is_valid: bool
     reason: str | None = None
+    tier: str | None = None
+    """"strong" or "weak" for an accepted research_gap claim (which regex
+    tier matched) - None for every other claim_type, and None for any
+    rejected claim. Persisted downstream (extracted_claims.validation_tier)
+    so gap clustering can require an unambiguous anchor claim rather than
+    treating "future research" boilerplate the same as "remains unresolved"."""
 
 
 def _has_result_signal(text: str) -> bool:
@@ -173,9 +179,9 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
 
     if claim_type == "research_gap":
         if _STRONG_GAP_LANGUAGE_RE.search(text):
-            return ValidationResult(True)
+            return ValidationResult(True, tier="strong")
         if _WEAK_GAP_LANGUAGE_RE.search(text) and not _has_result_signal(text):
-            return ValidationResult(True)
+            return ValidationResult(True, tier="weak")
         return ValidationResult(
             False, "no unresolved-problem/future-work language found; not a stated research gap"
         )

@@ -150,3 +150,35 @@ def test_validatable_claim_types_covers_the_minimum_scope_fields() -> None:
         "research_gap",
         "applications",
     }
+
+
+def test_strong_gap_language_sets_strong_tier() -> None:
+    text = "Extending this approach to multilingual settings remains an open problem for future work."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
+def test_weak_gap_language_sets_weak_tier() -> None:
+    text = "This finding suggests a promising direction for future research in the area."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "weak"
+
+
+def test_non_research_gap_types_have_no_tier() -> None:
+    text = "However, the approach does not scale to graphs with more than a million nodes."
+    result = validate_claim_type("limitations", text)
+
+    assert result.is_valid is True
+    assert result.tier is None
+
+
+def test_rejected_claim_has_no_tier() -> None:
+    text = "Our model achieves 94.2% AUC and an F1 score of 0.89 on the benchmark."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+    assert result.tier is None

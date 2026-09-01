@@ -207,6 +207,11 @@ class ExtractedClaim(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
     confidence: Mapped[str] = mapped_column(String, nullable=False)
+    validation_tier: Mapped[str | None] = mapped_column(String, nullable=True)
+    """"strong"/"weak" for a research_gap claim that passed extraction
+    validation (see extraction/validation.py::ValidationResult.tier) - None
+    for every other claim_type. Read by gaps/detect.py to decide whether a
+    claim can anchor a candidate gap on its own."""
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
