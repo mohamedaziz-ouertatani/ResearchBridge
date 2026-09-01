@@ -9,7 +9,12 @@ import pytest
 
 from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
-from researchbridge.gaps.detect import detect_candidate_gaps
+from researchbridge.gaps.detect import (
+    _load_contribution_claims,
+    _load_gap_claims,
+    _own_contribution_overlaps,
+    detect_candidate_gaps,
+)
 
 _WORD = re.compile(r"[a-z]+")
 
@@ -137,3 +142,77 @@ def test_observation_names_the_inference_and_is_grounded_in_a_real_claim(session
     session.close()
     assert "inference" in drafts[0].observation.lower()
     assert any(t in drafts[0].observation for t in texts)  # quotes a real claim, doesn't invent one
+
+
+def test_load_gap_claims_reads_claim_type_and_tier(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1")
+    _claim(session, paper, "research_gap", "remains an open problem for future work")
+    session.commit()
+
+    rows = _load_gap_claims(session, [paper.id])
+
+    session.close()
+    assert len(rows) == 1
+    assert rows[0].claim_type == "research_gap"
+    assert rows[0].paper_id == paper.id
+
+
+def test_load_contribution_claims_only_loads_contribution_and_results(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1")
+    _claim(session, paper, "main_contribution", "we build a new benchmark")
+    _claim(session, paper, "results", "our method achieves 90% accuracy")
+    _claim(session, paper, "method", "we use a transformer")
+    session.commit()
+
+    rows = _load_contribution_claims(session, [paper.id])
+
+    session.close()
+    assert {r.claim_type for r in rows} == {"main_contribution", "results"}
+
+
+def test_own_contribution_overlap_is_high_for_near_identical_text(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1")
+    _claim(session, paper, "research_gap", "no existing benchmark evaluates robustness to table perturbations")
+    _claim(session, paper, "main_contribution", "we introduce a benchmark evaluating robustness to table perturbations")
+    session.commit()
+
+    gap_rows = _load_gap_claims(session, [paper.id])
+    contribution_rows = _load_contribution_claims(session, [paper.id])
+    overlaps = _own_contribution_overlaps(gap_rows, contribution_rows, embedder)
+
+    session.close()
+    assert overlaps[gap_rows[0].evidence_id] > 0.5
+
+
+def test_own_contribution_overlap_is_zero_when_paper_has_no_contribution_claims(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1")
+    _claim(session, paper, "research_gap", "remains an open problem for future work")
+    session.commit()
+
+    gap_rows = _load_gap_claims(session, [paper.id])
+    overlaps = _own_contribution_overlaps(gap_rows, [], embedder)
+
+    session.close()
+    assert overlaps[gap_rows[0].evidence_id] == 0.0
+
+
+def test_own_contribution_overlap_only_compares_within_the_same_paper(session_factory, embedder) -> None:
+    session = session_factory()
+    a = _paper(session, embedder, "a")
+    b = _paper(session, embedder, "b")
+    _claim(session, a, "research_gap", "no existing benchmark evaluates robustness to table perturbations")
+    _claim(session, b, "main_contribution", "we introduce a benchmark evaluating robustness to table perturbations")
+    session.commit()
+
+    gap_rows = _load_gap_claims(session, [a.id, b.id])
+    contribution_rows = _load_contribution_claims(session, [a.id, b.id])
+    overlaps = _own_contribution_overlaps(gap_rows, contribution_rows, embedder)
+
+    session.close()
+    # b's near-identical contribution must NOT count toward a's overlap -
+    # cross-paper similarity is find_addressing_papers's job (Task 4/7), not this
+    assert overlaps[gap_rows[0].evidence_id] == 0.0

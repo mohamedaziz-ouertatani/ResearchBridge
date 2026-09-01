@@ -31,8 +31,11 @@ from researchbridge.gaps.cluster import (
     ClaimRecord,
     find_recurring_patterns,
 )
+from researchbridge.gaps.signals import cosine_similarity
 
 DETECTION_METHOD = "cluster-v1"
+
+CONTRIBUTION_CLAIM_TYPES = ("main_contribution", "results")
 
 
 @dataclass
@@ -87,3 +90,81 @@ def _render_observation(cluster) -> str:
         f"Recurring pattern across {cluster.contributing_paper_count} related papers "
         f"(inference, not stated by any single author): \"{cluster.representative_text}\""
     )
+
+
+@dataclass
+class _GapClaimRow:
+    paper_id: uuid.UUID
+    evidence_id: uuid.UUID
+    text: str
+    claim_type: str
+    gap_tier: str | None
+
+
+@dataclass
+class _ContributionClaimRow:
+    paper_id: uuid.UUID
+    text: str
+    claim_type: str
+
+
+def _load_gap_claims(session: Session, paper_ids: list[uuid.UUID]) -> list[_GapClaimRow]:
+    rows = session.execute(
+        select(
+            ExtractedClaim.paper_id,
+            ExtractedClaim.evidence_id,
+            ExtractedClaim.text,
+            ExtractedClaim.claim_type,
+            ExtractedClaim.validation_tier,
+        ).where(ExtractedClaim.paper_id.in_(paper_ids), ExtractedClaim.claim_type.in_(RELEVANT_CLAIM_TYPES))
+    ).all()
+    return [
+        _GapClaimRow(paper_id=paper_id, evidence_id=evidence_id, text=text, claim_type=claim_type, gap_tier=tier)
+        for paper_id, evidence_id, text, claim_type, tier in rows
+    ]
+
+
+def _load_contribution_claims(session: Session, paper_ids: list[uuid.UUID]) -> list[_ContributionClaimRow]:
+    rows = session.execute(
+        select(ExtractedClaim.paper_id, ExtractedClaim.text, ExtractedClaim.claim_type).where(
+            ExtractedClaim.paper_id.in_(paper_ids), ExtractedClaim.claim_type.in_(CONTRIBUTION_CLAIM_TYPES)
+        )
+    ).all()
+    return [_ContributionClaimRow(paper_id=paper_id, text=text, claim_type=claim_type) for paper_id, text, claim_type in rows]
+
+
+def _own_contribution_overlaps(
+    gap_rows: list[_GapClaimRow], contribution_rows: list[_ContributionClaimRow], embedder: Embedder
+) -> dict[uuid.UUID, float]:
+    """Max cosine similarity between each gap claim and that SAME paper's
+    own main_contribution/results claims - 0.0 if the paper has none, and
+    never compared against another paper's contribution (that's a separate,
+    intentionally distinct check - see find_addressing_papers)."""
+    if not gap_rows:
+        return {}
+
+    contribution_texts_by_paper: dict[uuid.UUID, list[str]] = {}
+    for row in contribution_rows:
+        contribution_texts_by_paper.setdefault(row.paper_id, []).append(row.text)
+
+    all_contribution_texts = [row.text for row in contribution_rows]
+    gap_texts = [row.text for row in gap_rows]
+    vectors = embedder.embed_texts(gap_texts + all_contribution_texts)
+    gap_vectors = vectors[: len(gap_texts)]
+    contribution_vectors = vectors[len(gap_texts) :]
+
+    # if the same contribution text string repeats verbatim across two different
+    # papers, this dict collapses to one entry - harmless, since identical text
+    # implies identical embedding anyway
+    vector_by_contribution_text: dict[str, list[float]] = dict(zip(all_contribution_texts, contribution_vectors, strict=True))
+
+    overlaps: dict[uuid.UUID, float] = {}
+    for row, vector in zip(gap_rows, gap_vectors, strict=True):
+        own_texts = contribution_texts_by_paper.get(row.paper_id, [])
+        if not own_texts:
+            overlaps[row.evidence_id] = 0.0
+            continue
+        own_vectors = [vector_by_contribution_text[t] for t in own_texts]
+        overlaps[row.evidence_id] = max(cosine_similarity(vector, ov) for ov in own_vectors)
+
+    return overlaps
