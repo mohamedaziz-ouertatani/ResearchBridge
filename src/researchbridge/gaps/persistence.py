@@ -1,8 +1,10 @@
 """Persists CandidateGapDrafts as CandidateGap + CandidateGapEvidence rows.
 
-Always status="pending" - Sec 35/44's human-in-the-loop rule for gap
-detection isn't optional here. Nothing this module writes should be
-presented to a user as a validated finding.
+Always status="pending" - the human-in-the-loop rule for gap detection
+isn't optional here. Nothing this module writes should be presented to a
+user as a validated finding. gap_status/resolution_note and each evidence
+row's classification are written as computed by gaps/detect.py - this
+module makes no judgment calls of its own, it's pure persistence.
 """
 
 from __future__ import annotations
@@ -26,12 +28,24 @@ def save_candidate_gaps(
             contributing_paper_count=draft.contributing_paper_count,
             similarity_threshold=similarity_threshold,
             detection_method=DETECTION_METHOD,
+            gap_status=draft.gap_status,
+            resolution_note=draft.resolution_note,
         )
         session.add(gap)
         session.flush()  # populate gap.id for the evidence links below
 
         for evidence_id in draft.evidence_ids:
-            session.add(CandidateGapEvidence(candidate_gap_id=gap.id, evidence_id=evidence_id))
+            classification = draft.evidence_roles[evidence_id]
+            session.add(
+                CandidateGapEvidence(
+                    candidate_gap_id=gap.id,
+                    evidence_id=evidence_id,
+                    claim_role=classification.role if classification.role != "motivation" else None,
+                    self_resolution_signal=classification.self_resolution,
+                    field_scope_signal=classification.field_scope,
+                    own_contribution_overlap=classification.own_contribution_overlap,
+                )
+            )
         saved.append(gap)
 
     session.commit()

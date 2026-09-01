@@ -7,6 +7,7 @@ from sqlalchemy import select
 from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, Paper
 from researchbridge.gaps.detect import CandidateGapDraft
 from researchbridge.gaps.persistence import save_candidate_gaps
+from researchbridge.gaps.signals import ClaimClassification
 
 
 def _seed_paper(session) -> Paper:
@@ -40,6 +41,13 @@ def test_saves_candidate_gap_as_pending_inference(session_factory) -> None:
         observation='Recurring pattern across 3 related papers (inference): "tested only offline"',
         contributing_paper_count=3,
         evidence_ids=[ev1.id, ev2.id, ev3.id],
+        gap_status="known_limitation",
+        resolution_note=None,
+        evidence_roles={
+            ev1.id: ClaimClassification(role="supporting", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            ev2.id: ClaimClassification(role="supporting", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            ev3.id: ClaimClassification(role="supporting", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+        },
     )
 
     saved = save_candidate_gaps(session, [draft], similarity_threshold=0.5)
@@ -50,6 +58,8 @@ def test_saves_candidate_gap_as_pending_inference(session_factory) -> None:
     assert gap.gap_type == "inference"
     assert gap.contributing_paper_count == 3
     assert gap.similarity_threshold == 0.5
+    assert gap.gap_status == "known_limitation"
+    assert gap.resolution_note is None
     session.close()
 
 
@@ -60,7 +70,12 @@ def test_links_every_contributing_evidence_row(session_factory) -> None:
     session.commit()
 
     draft = CandidateGapDraft(
-        seed_paper_id=seed.id, observation="obs", contributing_paper_count=2, evidence_ids=[ev1.id, ev2.id]
+        seed_paper_id=seed.id, observation="obs", contributing_paper_count=2, evidence_ids=[ev1.id, ev2.id],
+        gap_status="known_limitation", resolution_note=None,
+        evidence_roles={
+            ev1.id: ClaimClassification(role="supporting", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            ev2.id: ClaimClassification(role="supporting", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+        },
     )
 
     saved = save_candidate_gaps(session, [draft], similarity_threshold=0.4)
@@ -79,8 +94,20 @@ def test_saves_multiple_drafts_independently(session_factory) -> None:
     session.commit()
 
     drafts = [
-        CandidateGapDraft(seed_paper_id=seed.id, observation="first", contributing_paper_count=1, evidence_ids=[ev1.id]),
-        CandidateGapDraft(seed_paper_id=seed.id, observation="second", contributing_paper_count=1, evidence_ids=[ev2.id]),
+        CandidateGapDraft(
+            seed_paper_id=seed.id, observation="first", contributing_paper_count=1, evidence_ids=[ev1.id],
+            gap_status="known_limitation", resolution_note=None,
+            evidence_roles={
+                ev1.id: ClaimClassification(role="anchor", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            },
+        ),
+        CandidateGapDraft(
+            seed_paper_id=seed.id, observation="second", contributing_paper_count=1, evidence_ids=[ev2.id],
+            gap_status="known_limitation", resolution_note=None,
+            evidence_roles={
+                ev2.id: ClaimClassification(role="anchor", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            },
+        ),
     ]
 
     saved = save_candidate_gaps(session, drafts, similarity_threshold=0.5)
@@ -94,3 +121,64 @@ def test_no_drafts_saves_nothing(session_factory) -> None:
     saved = save_candidate_gaps(session, [], similarity_threshold=0.5)
     session.close()
     assert saved == []
+
+
+def test_persists_per_evidence_classification(session_factory) -> None:
+    session = session_factory()
+    seed = _seed_paper(session)
+    ev1, ev2 = _evidence(session, seed), _evidence(session, seed)
+    session.commit()
+
+    draft = CandidateGapDraft(
+        seed_paper_id=seed.id, observation="obs", contributing_paper_count=2, evidence_ids=[ev1.id, ev2.id],
+        gap_status="strong_gap", resolution_note="paper X may address this",
+        evidence_roles={
+            ev1.id: ClaimClassification(role="anchor", self_resolution=False, field_scope=True, own_contribution_overlap=0.1),
+            ev2.id: ClaimClassification(role="anchor", self_resolution=False, field_scope=True, own_contribution_overlap=0.2),
+        },
+    )
+
+    saved = save_candidate_gaps(session, [draft], similarity_threshold=0.4)
+
+    gap = session.get(CandidateGap, saved[0].id)
+    assert gap.gap_status == "strong_gap"
+    assert gap.resolution_note == "paper X may address this"
+
+    links = {
+        link.evidence_id: link
+        for link in session.execute(
+            select(CandidateGapEvidence).where(CandidateGapEvidence.candidate_gap_id == saved[0].id)
+        ).scalars()
+    }
+    session.close()
+    assert links[ev1.id].claim_role == "anchor"
+    assert links[ev1.id].field_scope_signal is True
+    assert links[ev1.id].own_contribution_overlap == 0.1
+
+
+def test_maps_motivation_role_to_null_claim_role(session_factory) -> None:
+    session = session_factory()
+    seed = _seed_paper(session)
+    ev1, ev2 = _evidence(session, seed), _evidence(session, seed)
+    session.commit()
+
+    draft = CandidateGapDraft(
+        seed_paper_id=seed.id, observation="obs", contributing_paper_count=2, evidence_ids=[ev1.id, ev2.id],
+        gap_status="known_limitation", resolution_note=None,
+        evidence_roles={
+            ev1.id: ClaimClassification(role="anchor", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+            ev2.id: ClaimClassification(role="motivation", self_resolution=False, field_scope=False, own_contribution_overlap=0.0),
+        },
+    )
+
+    saved = save_candidate_gaps(session, [draft], similarity_threshold=0.4)
+
+    links = {
+        link.evidence_id: link
+        for link in session.execute(
+            select(CandidateGapEvidence).where(CandidateGapEvidence.candidate_gap_id == saved[0].id)
+        ).scalars()
+    }
+    session.close()
+    assert links[ev1.id].claim_role == "anchor"
+    assert links[ev2.id].claim_role is None
