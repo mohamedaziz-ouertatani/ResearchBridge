@@ -131,6 +131,8 @@ def to_gaps(session: Session, gaps: Sequence[CandidateGap]) -> list[CandidateGap
             observation=gap.observation,
             gap_type=gap.gap_type,
             status=gap.status,
+            gap_status=gap.gap_status,
+            resolution_note=gap.resolution_note,
             contributing_paper_count=gap.contributing_paper_count,
             similarity_threshold=gap.similarity_threshold,
             detection_method=gap.detection_method,
@@ -183,20 +185,27 @@ def _titles_by_paper(session: Session, paper_ids: set[uuid.UUID]) -> dict[uuid.U
 
 def _evidence_by_gap(session: Session, gap_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[GapEvidenceOut]]:
     rows = session.execute(
-        select(CandidateGapEvidence.candidate_gap_id, Evidence, Paper.title)
+        select(CandidateGapEvidence, Evidence, Paper.title, ExtractedClaim.validation_tier)
         .join(Evidence, Evidence.id == CandidateGapEvidence.evidence_id)
         .join(Paper, Paper.id == Evidence.paper_id)
+        .join(ExtractedClaim, ExtractedClaim.evidence_id == Evidence.id)
         .where(CandidateGapEvidence.candidate_gap_id.in_(gap_ids))
     ).all()
 
     result: dict[uuid.UUID, list[GapEvidenceOut]] = defaultdict(list)
-    for gap_id, evidence, paper_title in rows:
-        result[gap_id].append(
+    for link, evidence, paper_title, validation_tier in rows:
+        result[link.candidate_gap_id].append(
             GapEvidenceOut(
                 paper_id=evidence.paper_id,
                 paper_title=paper_title,
                 text=evidence.text,
                 section=evidence.section,
+                claim_type=evidence.evidence_type,
+                validation_tier=validation_tier,
+                claim_role=link.claim_role,
+                self_resolution_signal=bool(link.self_resolution_signal),
+                field_scope_signal=bool(link.field_scope_signal),
+                own_contribution_overlap=link.own_contribution_overlap or 0.0,
             )
         )
     return result

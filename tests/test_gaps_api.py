@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_session
-from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, Paper
+from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
 
 
 @pytest.fixture()
@@ -61,6 +61,13 @@ def _add_gap(
         extraction_method="hybrid", model_version="v1", confidence="medium",
     )
     session.add(evidence)
+    session.flush()
+    session.add(
+        ExtractedClaim(
+            paper_id=contributing.id, claim_type="limitations", text="tested only offline",
+            evidence_id=evidence.id, confidence="medium",
+        )
+    )
     session.flush()
 
     gap = CandidateGap(
@@ -197,6 +204,64 @@ def test_review_gap_rejects_invalid_status(client, session) -> None:
 def test_review_gap_404s_for_unknown_id(client) -> None:
     response = client.put(f"/api/gaps/{uuid.uuid4()}", json={"status": "approved"})
     assert response.status_code == 404
+
+
+def test_gap_response_includes_status_and_resolution_note(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+    gap.gap_status = "strong_gap"
+    gap.resolution_note = "note text"
+    session.commit()
+
+    body = client.get("/api/gaps", params={"status": "pending"}).json()
+    item = body["items"][0]
+
+    assert item["gap_status"] == "strong_gap"
+    assert item["resolution_note"] == "note text"
+
+
+def test_gap_evidence_includes_claim_type_and_role(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+    link = session.execute(
+        text("SELECT id, evidence_id FROM candidate_gap_evidence WHERE candidate_gap_id = :gap_id"),
+        {"gap_id": gap.id},
+    ).one()
+    session.execute(
+        text(
+            "UPDATE candidate_gap_evidence "
+            "SET claim_role = :claim_role, self_resolution_signal = :self_resolution_signal, "
+            "field_scope_signal = :field_scope_signal, own_contribution_overlap = :own_contribution_overlap "
+            "WHERE id = :id"
+        ),
+        {
+            "claim_role": "anchor",
+            "self_resolution_signal": False,
+            "field_scope_signal": True,
+            "own_contribution_overlap": 0.2,
+            "id": link.id,
+        },
+    )
+    session.execute(
+        text(
+            "UPDATE extracted_claims SET claim_type = :claim_type, validation_tier = :validation_tier "
+            "WHERE evidence_id = :evidence_id"
+        ),
+        {"claim_type": "research_gap", "validation_tier": "strong", "evidence_id": link.evidence_id},
+    )
+    session.commit()
+
+    body = client.get("/api/gaps", params={"status": "pending"}).json()
+    evidence = body["items"][0]["evidence"][0]
+
+    assert evidence["claim_type"] in {"limitations", "research_gap"}
+    assert evidence["claim_role"] in {"anchor", "supporting", None}
+    assert "validation_tier" in evidence
+    assert "self_resolution_signal" in evidence
+    assert "field_scope_signal" in evidence
+    assert "own_contribution_overlap" in evidence
 
 
 def test_db_rejects_invalid_status_bypassing_the_api(session) -> None:

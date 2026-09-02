@@ -116,6 +116,17 @@ class GapEvidenceOut(BaseModel):
     paper_title: str
     text: str
     section: str | None
+    claim_type: str
+    validation_tier: str | None
+    """"strong"/"weak" for a research_gap claim, None for limitations or any
+    claim predating this column (see extraction/validation.py)."""
+    claim_role: str | None
+    """"anchor"/"supporting" - this evidence's role within its cluster. None
+    means it was classified "motivation" (excluded from corroborating the
+    gap, but still shown for transparency - see gaps/persistence.py)."""
+    self_resolution_signal: bool
+    field_scope_signal: bool
+    own_contribution_overlap: float
 
     model_config = {"from_attributes": True}
 
@@ -127,6 +138,8 @@ class CandidateGapOut(BaseModel):
     observation: str
     gap_type: str
     status: str
+    gap_status: str | None
+    resolution_note: str | None
     contributing_paper_count: int
     similarity_threshold: float
     detection_method: str
