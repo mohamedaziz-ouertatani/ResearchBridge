@@ -120,6 +120,19 @@ _FIELD_SCOPE_RE = re.compile(
 # sweep stopped there, not because the false-positive rate had actually
 # leveled off. See benchmark/gap_calibration_results.json for the full
 # per-threshold table (now covering 0.30-0.95).
+#
+# External-validity caveat for a future recalibration: this sweep measures
+# similarity between hand-written annotation FIELDS (main_contribution vs.
+# research_gap.remaining - full paragraphs written independently by an
+# annotator), but at runtime _own_contribution_overlaps (detect.py) compares
+# extracted CLAIM SPANS - single sentences lifted verbatim from the same
+# paper's abstract. Two sentences from the same abstract plausibly share
+# more surface vocabulary than two independently-written summary fields, so
+# the real runtime similarity distribution may sit higher than what 0.85 was
+# calibrated against. This is not believed to be a bug in the current
+# threshold - just a reminder that whoever recalibrates this constant later
+# should be aware they may be comparing against a different text
+# distribution than what actually runs in production.
 OWN_CONTRIBUTION_OVERLAP_THRESHOLD = 0.85
 
 # Same idea, cross-paper: how similar a cluster's representative gap text
@@ -218,6 +231,12 @@ def classify_claim(
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
+    """A plain dot product - assumes both `a` and `b` are already
+    L2-normalized (true for SentenceTransformerEmbedder's output, which
+    passes normalize_embeddings=True), NOT a full cosine formula with its
+    own normalization built in. A future Embedder that doesn't normalize
+    would silently invalidate every threshold calibrated against this
+    function."""
     return sum(x * y for x, y in zip(a, b, strict=True))
 
 

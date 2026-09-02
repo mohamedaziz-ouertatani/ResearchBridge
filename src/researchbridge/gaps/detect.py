@@ -154,7 +154,14 @@ def detect_candidate_gaps(
 
     drafts: list[CandidateGapDraft] = []
     for (cluster, status), representative_vector in zip(surviving, representative_vectors, strict=True):
-        matches = find_addressing_papers(representative_vector, addressing_candidates)
+        # find_addressing_papers is documented (signals.py) as checking a
+        # DIFFERENT paper in the corpus - exclude this cluster's own
+        # contributing papers from the shared candidate pool so a paper
+        # can't be flagged as "addressing" a gap it itself contributed to
+        # (that's what own_contribution_overlap already covers, per-claim).
+        cluster_paper_ids = {m.paper_id for m in cluster.members}
+        cross_paper_candidates = [c for c in addressing_candidates if c[0] not in cluster_paper_ids]
+        matches = find_addressing_papers(representative_vector, cross_paper_candidates)
         final_status, note = apply_addressing_downgrade(status, matches)
 
         drafts.append(

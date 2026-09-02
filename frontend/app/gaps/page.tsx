@@ -244,7 +244,11 @@ function GapCard({
                   <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
                     {ev.claim_type}
                     {ev.validation_tier ? ` · ${ev.validation_tier}` : ""}
-                    {ev.claim_role ? ` · ${ev.claim_role}` : " · excluded from corroboration"}
+                    {ev.claim_role
+                      ? ` · ${ev.claim_role}`
+                      : gap.gap_status
+                        ? " · excluded from corroboration"
+                        : ""}
                   </span>
                 </div>
                 <p className="mt-1 max-w-[62ch] text-[0.875rem] leading-relaxed text-[var(--ink-soft)]">

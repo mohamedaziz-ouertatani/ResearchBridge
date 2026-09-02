@@ -251,17 +251,25 @@ def test_gap_evidence_includes_claim_type_and_role(client, session) -> None:
         ),
         {"claim_type": "research_gap", "validation_tier": "strong", "evidence_id": link.evidence_id},
     )
+    # claim_type in the API response is sourced from Evidence.evidence_type
+    # (see serializers.py::_evidence_by_gap), NOT ExtractedClaim.claim_type -
+    # _add_gap hardcodes evidence_type="limitations", so it must be updated
+    # here too for the response to actually come back as "research_gap".
+    session.execute(
+        text("UPDATE evidence SET evidence_type = :evidence_type WHERE id = :evidence_id"),
+        {"evidence_type": "research_gap", "evidence_id": link.evidence_id},
+    )
     session.commit()
 
     body = client.get("/api/gaps", params={"status": "pending"}).json()
     evidence = body["items"][0]["evidence"][0]
 
-    assert evidence["claim_type"] in {"limitations", "research_gap"}
-    assert evidence["claim_role"] in {"anchor", "supporting", None}
-    assert "validation_tier" in evidence
-    assert "self_resolution_signal" in evidence
-    assert "field_scope_signal" in evidence
-    assert "own_contribution_overlap" in evidence
+    assert evidence["claim_type"] == "research_gap"
+    assert evidence["claim_role"] == "anchor"
+    assert evidence["validation_tier"] == "strong"
+    assert evidence["self_resolution_signal"] is False
+    assert evidence["field_scope_signal"] is True
+    assert evidence["own_contribution_overlap"] == 0.2
 
 
 def test_db_rejects_invalid_status_bypassing_the_api(session) -> None:
