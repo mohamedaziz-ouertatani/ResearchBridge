@@ -113,10 +113,14 @@ class CoreConnector:
             exhausted=exhausted,
         )
 
+    # Shorter timeout/retry budget than the other connectors: CORE's search
+    # endpoint has been observed to hang (TCP connects, 0 bytes ever returned)
+    # rather than respond with an error, so a run should fail fast instead of
+    # burning ~3 minutes retrying a connection that will never complete.
     @retry(
         retry=retry_if_exception(_is_retryable),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
     def _fetch_page(self, offset: int) -> dict[str, Any]:
@@ -125,7 +129,7 @@ class CoreConnector:
             CORE_SEARCH_URL,
             params={"q": self.query, "limit": self.page_size, "offset": offset},
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=30,
+            timeout=10,
         )
         response.raise_for_status()
         return response.json()
