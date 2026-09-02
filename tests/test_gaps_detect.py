@@ -182,7 +182,7 @@ def test_neighborhood_size_counts_the_seed_and_its_related_papers(session_factor
     assert result.neighborhood_size == 2
 
 
-def test_observation_names_the_inference_and_is_grounded_in_a_real_claim(session_factory, embedder) -> None:
+def test_observation_is_grounded_in_a_real_claim_verbatim(session_factory, embedder) -> None:
     session = session_factory()
     seed = _paper(session, embedder, "seed")
     a = _paper(session, embedder, "a")
@@ -200,8 +200,36 @@ def test_observation_names_the_inference_and_is_grounded_in_a_real_claim(session
     result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
 
     session.close()
-    assert "inference" in result.drafts[0].observation.lower()
-    assert any(t in result.drafts[0].observation for t in texts)  # quotes a real claim, doesn't invent one
+    # the "this is an inference, not an author's stated fact" framing is now
+    # UI-only chrome (frontend/app/gaps/page.tsx) - the stored observation is
+    # just the concise, grounded claim text itself, quoted or truncated verbatim
+    assert result.drafts[0].observation in texts  # short enough to survive untruncated
+
+
+def test_observation_truncates_a_long_claim_at_a_word_boundary(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, embedder, "seed")
+    a = _paper(session, embedder, "a")
+    b = _paper(session, embedder, "b")
+
+    long_text = (
+        "the evaluation setup in this work only considers offline batch processing scenarios and "
+        "never evaluates any of the streaming or online deployment conditions that would actually "
+        "matter for a production system operating under real world latency constraints"
+    )
+    assert len(long_text) > 220
+    for paper in (seed, a, b):
+        _claim(session, paper, "limitations", long_text)
+    session.commit()
+
+    result = detect_candidate_gaps(session, seed.id, embedder, top_k=10, min_cluster_size=3, similarity_threshold=0.3)
+
+    session.close()
+    observation = result.drafts[0].observation
+    assert observation.endswith("…")
+    assert len(observation) <= 221
+    assert not observation[:-1].endswith(" ")  # truncated at a word boundary, no trailing space before the ellipsis
+    assert long_text.startswith(observation[:-1])
 
 
 def test_load_gap_claims_reads_claim_type_and_tier(session_factory, embedder) -> None:

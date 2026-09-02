@@ -214,12 +214,15 @@ function GapCard({
         </span>
       )}
 
-      <p className="mt-3 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)]">
-        {gap.observation}
-      </p>
+      <div className="mt-3">
+        <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">candidate gap</span>
+        <p className="mt-1 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)]">
+          {gap.observation}
+        </p>
+      </div>
 
-      <div className="mt-2 text-[0.75rem] text-[var(--ink-faint)]">
-        {gap.gap_type} — a synthesized observation, not a stated fact
+      <div className="mt-1 text-[0.75rem] text-[var(--ink-faint)]">
+        inference — not stated by any single author
       </div>
 
       {gap.resolution_note && (
@@ -231,8 +234,9 @@ function GapCard({
       {gap.evidence.length > 0 && (
         <details className="mt-4">
           <summary className="eyebrow inline-flex cursor-pointer items-center gap-1.5 hover:text-[var(--ink)]">
-            evidence ({gap.evidence.length})
-            <InfoTooltip text="The actual passages this candidate was inferred from — one per contributing paper. Read these before approving or rejecting; the observation above is a synthesis of them, not a quote itself." />
+            supporting pattern — recurring across {gap.contributing_paper_count} related papers ({gap.evidence.length}{" "}
+            evidence)
+            <InfoTooltip text="The actual passages this candidate was inferred from — one per contributing paper. Read these before approving or rejecting; the candidate gap above is drawn from this pattern, not invented separately from it." />
           </summary>
           <ul className="mt-2 space-y-3 border-l border-[var(--rule-soft)] pl-4">
             {gap.evidence.map((ev, i) => (

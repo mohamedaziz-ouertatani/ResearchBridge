@@ -182,11 +182,26 @@ def detect_candidate_gaps(
     )
 
 
+OBSERVATION_MAX_CHARS = 220
+
+
 def _render_observation(cluster) -> str:
-    return (
-        f"Recurring pattern across {cluster.contributing_paper_count} related papers "
-        f"(inference, not stated by any single author): \"{cluster.representative_text}\""
-    )
+    """The concise candidate-gap statement: the cluster's representative claim,
+    verbatim. The "recurring pattern across N papers" framing and the
+    "inference, not stated by any author" disclaimer are UI-only chrome now
+    (frontend/app/gaps/page.tsx) built from contributing_paper_count and a
+    static label - keeping them out of the stored text is what makes this
+    field short enough to read as a gap statement rather than a summary."""
+    return _truncate_at_word_boundary(cluster.representative_text, OBSERVATION_MAX_CHARS)
+
+
+def _truncate_at_word_boundary(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    cutoff = text.rfind(" ", 0, max_chars)
+    if cutoff == -1:
+        cutoff = max_chars
+    return text[:cutoff].rstrip() + "…"
 
 
 @dataclass
