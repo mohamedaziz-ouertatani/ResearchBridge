@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { gapsApi, RATING_DIMENSIONS, type CandidateGap, type GapRatings, type GapStatusFilter } from "@/lib/gapsApi";
+import {
+  gapsApi,
+  RATING_DIMENSIONS,
+  GAP_STATUS_LABELS,
+  type CandidateGap,
+  type GapRatings,
+  type GapStatusFilter,
+} from "@/lib/gapsApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -193,6 +200,20 @@ function GapCard({
         </span>
       </div>
 
+      {gap.gap_status && (
+        <span
+          className={`eyebrow mt-2 inline-block rounded-[2px] border px-2 py-0.5 text-[0.6875rem] ${
+            gap.gap_status === "strong_gap"
+              ? "border-[var(--ink)] text-[var(--ink)]"
+              : gap.gap_status === "potential_gap"
+                ? "border-[var(--rule)] text-[var(--ink-soft)]"
+                : "border-[var(--rule-soft)] text-[var(--ink-faint)]"
+          }`}
+        >
+          {GAP_STATUS_LABELS[gap.gap_status]}
+        </span>
+      )}
+
       <p className="mt-3 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)]">
         {gap.observation}
       </p>
@@ -200,6 +221,12 @@ function GapCard({
       <div className="mt-2 text-[0.75rem] text-[var(--ink-faint)]">
         {gap.gap_type} — a synthesized observation, not a stated fact
       </div>
+
+      {gap.resolution_note && (
+        <p className="mt-2 max-w-[68ch] text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">
+          ⚠ {gap.resolution_note}
+        </p>
+      )}
 
       {gap.evidence.length > 0 && (
         <details className="mt-4">
@@ -210,9 +237,16 @@ function GapCard({
           <ul className="mt-2 space-y-3 border-l border-[var(--rule-soft)] pl-4">
             {gap.evidence.map((ev, i) => (
               <li key={i}>
-                <Link href={`/papers/${ev.paper_id}`} className="eyebrow hover:text-[var(--ink)]">
-                  {ev.paper_title}
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/papers/${ev.paper_id}`} className="eyebrow hover:text-[var(--ink)]">
+                    {ev.paper_title}
+                  </Link>
+                  <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
+                    {ev.claim_type}
+                    {ev.validation_tier ? ` · ${ev.validation_tier}` : ""}
+                    {ev.claim_role ? ` · ${ev.claim_role}` : " · excluded from corroboration"}
+                  </span>
+                </div>
                 <p className="mt-1 max-w-[62ch] text-[0.875rem] leading-relaxed text-[var(--ink-soft)]">
                   &quot;{ev.text}&quot;
                 </p>

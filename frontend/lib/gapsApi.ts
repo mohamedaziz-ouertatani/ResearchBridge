@@ -5,6 +5,12 @@ export type GapEvidence = {
   paper_title: string;
   text: string;
   section: string | null;
+  claim_type: string;
+  validation_tier: "strong" | "weak" | null;
+  claim_role: "anchor" | "supporting" | null;
+  self_resolution_signal: boolean;
+  field_scope_signal: boolean;
+  own_contribution_overlap: number;
 };
 
 export type GapRatings = {
@@ -30,11 +36,19 @@ export type CandidateGap = GapRatings & {
   observation: string;
   gap_type: string;
   status: "pending" | "approved" | "rejected";
+  gap_status: "strong_gap" | "potential_gap" | "known_limitation" | null;
+  resolution_note: string | null;
   contributing_paper_count: number;
   similarity_threshold: number;
   detection_method: string;
   review_note: string | null;
   evidence: GapEvidence[];
+};
+
+export const GAP_STATUS_LABELS: Record<NonNullable<CandidateGap["gap_status"]>, string> = {
+  strong_gap: "strong gap",
+  potential_gap: "potential gap",
+  known_limitation: "known limitation",
 };
 
 export type CandidateGapPage = {
