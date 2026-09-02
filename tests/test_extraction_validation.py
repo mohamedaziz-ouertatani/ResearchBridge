@@ -75,6 +75,124 @@ def test_generic_usefulness_statement_is_not_enough_for_applications() -> None:
     assert result.is_valid is False
 
 
+def test_task_restatement_dressed_as_usefulness_is_rejected() -> None:
+    # the reported bug: no actor, no institution, no downstream action -
+    # just the paper's own predictive task restated as a gerund
+    text = (
+        "In this paper will deliberate various techniques of data mining "
+        "which are useful for predicting performance level of students."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+    assert result.reason
+
+
+def test_software_applications_noun_sense_is_rejected() -> None:
+    # the reported bug: "applications" meaning computer programs, not
+    # "applications of this research" - a lexical homonym, not a weak signal
+    text = (
+        "These are aided by the automation of many procedures involved in "
+        "typical student activities, which manage huge amounts of information "
+        "collected through software applications for technology-oriented learning."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_application_naming_an_actor_is_accepted() -> None:
+    text = "Deployed by banks to flag suspicious transactions for manual review by compliance teams."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
+def test_application_naming_a_downstream_action_is_accepted() -> None:
+    text = "Can be used by dermatologists to prioritize which patients need urgent biopsy."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_application_naming_an_external_setting_is_accepted() -> None:
+    # no actor/action keyword, but a genuine "in X" domain qualifier beyond
+    # the bare task object - must still be accepted
+    text = "Can be applied to accelerate drug discovery pipelines in pharmaceutical R&D."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_bare_predictive_task_with_no_qualifier_is_rejected() -> None:
+    # same shape as the reported bug but phrased with "applied to" instead
+    # of "useful for" - must still be rejected, since the complement names
+    # nothing beyond the task's own object
+    text = "This approach can be applied to predicting customer churn."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_method_language_with_used_to_is_still_rejected() -> None:
+    # "used" is a recognized deployment verb, but "used to train" is method
+    # language, not a deployment claim - the complement must still clear
+    # the actor/action/qualifying-context requirement
+    text = "The dataset was used to train the model on benchmark image data."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_vague_qualifier_still_rejected_even_with_a_trailing_in_phrase() -> None:
+    # "in general" must not be mistaken for a genuine domain qualifier
+    text = "These findings could be useful for future studies in general."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_a_later_qualifying_occurrence_is_still_found_after_an_earlier_failed_one() -> None:
+    # real corpus case: the first "used in X" clause names nothing
+    # external, but a later "used as X in Y" clause in the same sentence
+    # does - matching must not stop at the first (failing) occurrence
+    text = (
+        "Simulating self-heating effects in Fin field-effect transistors used in modern "
+        "integrated circuits; the improvements are expected to benefit devices used as "
+        "solid-state synapses in neuromorphic computing circuits."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_enumeration_is_accepted_without_a_curated_actor_word() -> None:
+    # real corpus case: a multi-item "applications such as" list is
+    # unambiguous evidence on its own, even though none of "object
+    # search"/"robot navigation"/"augmented reality" is a curated actor
+    text = (
+        "Visual grounding has widespread applications such as object search, video "
+        "analysis, automation, robot navigation, and augmented reality."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_abbreviation_period_does_not_truncate_the_qualifying_context() -> None:
+    # real corpus case: "e.g." mid-sentence must not cut off "organization"
+    # (an actor) that appears later in the same clause
+    text = (
+        "Small-sized domain-specific pre-trained data can be especially useful in "
+        "practice when models need to be retrained, e.g. due to data that is "
+        "confidential to an organization."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
 def test_results_claim_without_metric_language_is_rejected() -> None:
     text = "This paper studies the problem of efficient graph coloring."
     result = validate_claim_type("results", text)

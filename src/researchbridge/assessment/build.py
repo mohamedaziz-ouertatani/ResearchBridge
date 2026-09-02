@@ -76,7 +76,9 @@ def build_assessment(
     retrieved_paper_uuids = [paper.id for paper, _distance, _claims in papers_with_claims]
     papers_by_distance = [(paper.id, distance) for paper, distance, _claims in papers_with_claims]
     gap = assess_research_gap(session, papers_by_distance, embedder)
-    applications = assess_applications(session, papers_by_distance)
+    applications = assess_applications(
+        [(paper.id, paper.title, distance, claims) for paper, distance, claims in papers_with_claims], embedder
+    )
     feasibility = assess_technical_feasibility(session, papers_by_distance)
     opportunities = assess_opportunities(session, papers_by_distance)
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
