@@ -75,18 +75,97 @@ _FIELD_SCOPE_RE = re.compile(
 # How similar a limitation/research_gap claim needs to be to the SAME
 # paper's own main_contribution/results claims before that overlap counts
 # as negative evidence (this paper's own contribution appears to already
-# cover what it just named as a gap). Starting value, not yet calibrated
-# against the real corpus embedder - see Task 13's calibration step, which
-# must update this comment with the measured distribution before treating
-# the value as final.
-OWN_CONTRIBUTION_OVERLAP_THRESHOLD = 0.5
+# cover what it just named as a gap). Calibrated against the real
+# 40-paper Sec 25 benchmark plus benchmark/gap_calibration_groups.yaml's
+# curated same-paper self-pairs - see gaps/calibration.py and
+# benchmark/gap_calibration_results.json for the full sweep (Task 14,
+# re-run with a widened 0.30-0.95 threshold range after the initial
+# 0.30-0.70 sweep turned out not to have plateaued yet - see below).
+# The precision-first decision rule scores this against two "should NOT
+# overlap" categories (genuine_unresolved_gap, n=28;
+# recurring_limitation_genuinely_unresolved, n=3) and two "SHOULD overlap"
+# categories (motivation_addressed, n=40; recurring_limitation_topical_
+# convergence, n=3). At the starting placeholder 0.5, genuine_unresolved_gap
+# had a false-positive rate of 0.607 - well over half of real, still-open
+# gaps would have been wrongly demoted as "already covered by the paper's
+# own contribution." Its false-positive rate falls monotonically as the
+# threshold rises (0.929 at 0.30 -> 0.071 at 0.70) and, on the widened
+# sweep, keeps falling past 0.70 (0.036 at 0.75/0.80) before finally
+# plateauing at 0.000 from 0.85 onward - so the original 0.70 pick was
+# premature; it stopped at the edge of the originally-swept range, not at
+# an actual plateau. recurring_limitation_genuinely_unresolved's
+# false-positive rate follows the same shape, bottoming out at 0.000
+# (0/3) starting at 0.85 as well (having sat at 0.333 from 0.65-0.80).
+# 0.85 is therefore the smallest threshold at which BOTH "should NOT
+# overlap" categories reach their sweep-best (0.000) simultaneously.
+# Condition 2 of the documented rule (should-overlap false negatives not
+# at their sweep-worst) is never satisfiable anywhere in this range:
+# recurring_limitation_topical_convergence's false-negative rate saturates
+# at its worst value (1.000) from 0.65 all the way to 0.95, so every
+# candidate threshold that clears condition 1 also sits at
+# recurring_limitation_topical_convergence's worst case - per the
+# documented fallback for exactly this situation, the threshold is set to
+# minimize genuine_unresolved_gap's false-positive rate specifically, even
+# at the cost of a higher false-negative rate elsewhere. That minimum
+# (0.000, 0/28) is first reached at 0.85, where
+# recurring_limitation_genuinely_unresolved is also at its minimum (0.000,
+# 0/3) - at the cost of motivation_addressed's false-negative rate reaching
+# 0.925 and recurring_limitation_topical_convergence's reaching 1.000
+# (both worse than at 0.70, but this is the documented, deliberate
+# trade-off: wrongly excluding a genuine unresolved gap is worse than
+# missing a motivation-language claim, which only ever demotes a claim's
+# role, never hides the cluster). 0.70 was reconsidered and rejected
+# because it was not yet at genuine_unresolved_gap's sweep floor (0.071 vs.
+# 0.85's 0.000) - it looked plateaued only because the originally-run
+# sweep stopped there, not because the false-positive rate had actually
+# leveled off. See benchmark/gap_calibration_results.json for the full
+# per-threshold table (now covering 0.30-0.95).
+OWN_CONTRIBUTION_OVERLAP_THRESHOLD = 0.85
 
 # Same idea, cross-paper: how similar a cluster's representative gap text
 # needs to be to some OTHER paper's main_contribution/results claim before
 # that counts as an "addressing signal" worth a reviewer note and a one-
 # level downgrade (never an exclusion - see apply_addressing_downgrade).
-# Same calibration caveat as above.
-ADDRESSING_SIMILARITY_THRESHOLD = 0.5
+# Calibrated against benchmark/gap_calibration_groups.yaml's curated
+# cross-paper pairs - see benchmark/gap_calibration_results.json (Task 14).
+# Unlike OWN_CONTRIBUTION_OVERLAP_THRESHOLD above, this signal is advisory
+# only (a note plus a one-level downgrade, never an exclusion), so it is
+# deliberately calibrated to minimize false warnings, NOT to maximize
+# warning coverage - do not "fix" this later by lowering it to catch more
+# high_value_addressing_match cases; that trades reviewer trust in the
+# signal for a marginal, non-gating detection gain, which the calibration
+# explicitly rejects (see Task 14's asymmetric decision rule). Across the
+# entire swept range (0.30-0.95), false_warning_topical_only's
+# false-positive rate was 0.0 at every single value tested (its two
+# curated pairs - BioBERT-replication/Mandarin-TTS-probing and
+# GPU-TPU-batch-size/hyper-ball-clustering-index - share only a coarse
+# domain label, never real subject matter, and never spuriously cleared
+# any tested threshold). Because the false-positive rate never rises above
+# zero anywhere in the tested range, "pick the largest threshold at/near
+# zero false positives" is a degenerate instruction here - it buys no
+# additional false-positive protection (there is none to buy) while
+# strictly destroying detection, so the value is instead the SMALLEST
+# threshold that holds false_warning_topical_only's false-positive rate at
+# its floor (0.0, true everywhere) while also minimizing the combined
+# false-negative rate of high_value_addressing_match and
+# benchmark_evaluation_partial_solution: both are tied at their combined
+# minimum (0.0 + 0.5 = 0.5) at 0.30 and 0.35 alike, so 0.30 - the smaller
+# of the tied pair - is used, rather than climbing to 0.70 where
+# high_value_addressing_match's false-negative rate reaches 1.0 for no
+# false-positive benefit. A missed addressing warning only means a
+# reviewer doesn't get a "verify before treating this as fully open" note;
+# a false one erodes trust in the signal until reviewers start ignoring
+# it, which is worse long-term - but "conservative" here means picking the
+# smallest value that already achieves zero false positives, not padding
+# the margin past that point once the floor is reached. Caveat for a
+# future recalibration: false_warning_topical_only and
+# high_value_addressing_match/benchmark_evaluation_partial_solution each
+# have only 2 curated cross-paper examples (n=2) in
+# gap_calibration_groups.yaml as of this calibration - a threshold chosen
+# from 2 examples per category is thin evidence even though the reasoning
+# above is sound; adding more curated cross-paper pairs and re-running the
+# sweep would meaningfully strengthen this constant.
+ADDRESSING_SIMILARITY_THRESHOLD = 0.30
 
 
 @dataclass(frozen=True)

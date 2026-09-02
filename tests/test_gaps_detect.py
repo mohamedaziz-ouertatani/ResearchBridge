@@ -141,7 +141,11 @@ def test_cluster_dropped_when_every_member_is_own_contribution_motivation(sessio
     b = _paper(session, embedder, "b")
 
     gap_text = "existing benchmarks lack robustness evaluation for input perturbations"
-    contribution_text = "we introduce a benchmark for robustness evaluation of input perturbations"
+    # A near-total paraphrase (all 8 gap words reappear, only 2 new ones added)
+    # so own_contribution_overlap clears OWN_CONTRIBUTION_OVERLAP_THRESHOLD
+    # (0.85, see signals.py) with margin (~0.894) - this scenario is meant to
+    # sit well past the boundary, not skim it.
+    contribution_text = "we provide robustness evaluation for input perturbations existing benchmarks lack"
     for paper in (seed, a, b):
         _claim(session, paper, "research_gap", gap_text)
         _claim(session, paper, "main_contribution", contribution_text)

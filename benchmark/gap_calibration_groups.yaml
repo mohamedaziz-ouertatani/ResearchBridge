@@ -47,4 +47,128 @@
 # output - this skeleton intentionally ships with zero groups so
 # cli_calibrate.py runs (and reports "no group-derived samples yet") rather
 # than erroring on a missing file.
-groups: []
+#
+# Cross-paper groups are kept to exactly the intended pair per group entry
+# (rather than pooling several papers into one big group) because
+# addressing_signal_samples computes EVERY pairwise combination within a
+# group's source_ids list - a 4-paper group would silently create 6 pairs,
+# most of which were never actually vetted for the category they'd inherit.
+# Same-paper (own-overlap) groups are safe to pool since each member is
+# scored only against its own contribution, never against other members.
+groups:
+  - category: recurring_limitation_genuinely_unresolved
+    source_ids: ["1812.06834", "1912.10915", "2012.15419"]
+    note: >
+      Each paper's own research_gap.remaining names a residual weakness in a
+      completely different area than what its own main_contribution built:
+      1812.06834 (LVM tutorial) explicitly lists undirected graphical
+      models/MCMC/spectral learning/GANs as "not covered", while its
+      contribution is a directed-model + variational-inference tutorial -
+      disjoint topics by the tutorial's own scoping. 1912.10915 (Mandarin
+      TTS tone probing) says future TTS models need better tone-sandhi
+      training data/stimuli, while its own contribution is the probing
+      study itself (it built no new TTS model). 2012.15419 (BioBERT
+      replication) says the field should curate larger QA benchmark
+      datasets and test more BERT variants/domains, while its own
+      contribution is a replication/comparison study that built neither.
+
+  - category: recurring_limitation_topical_convergence
+    source_ids: ["2301.00089", "1912.11323", "2512.24565"]
+    note: >
+      Each paper's remaining/limitations text stays anchored to the exact
+      system/component its own main_contribution just built, unlike the
+      genuinely_unresolved trio above whose gaps point at unrelated topics:
+      2301.00089's remaining ("switch JSON to Protobuf-gRPC to fix the
+      bottleneck") critiques the very Transceiver-Function/Engine
+      architecture named as the contribution, not some other subsystem.
+      1912.11323's remaining explicitly says "tackling the weak points of
+      the bidding module" and "combining UCT with BIS" - BIS's nil-success
+      estimation IS the paper's contribution. 2512.24565's limitations
+      (Time Efficiency measurements confounded by network latency) is a
+      caveat on using its own contributed efficiency metrics (TFS/TEFS),
+      not a separate unaddressed topic. These are a softer real-corpus
+      analogue of the FinRCA-Bench pattern (well-organized abstracts here
+      keep "addressed" and "remaining" cleanly separated, so a clean
+      "prior work lacks X, we provide X" restatement inside remaining/
+      limitations itself is rare) - each was picked because the semantic
+      overlap with the paper's own contribution is real and non-accidental
+      (same named system/module/metric), not because the same "lacks X"
+      sentence appears twice.
+
+  - category: high_value_addressing_match
+    source_ids: ["1812.02641", "2512.24676"]
+    note: >
+      1812.02641 (Local Conditioning)'s remaining flags unaddressed
+      "optimal associated trees/loop cutsets" and scaling problems for
+      exact message passing on loopy (cyclic) networks. 2512.24676's
+      main_contribution is "the first provably convergent message-passing-
+      based decomposition method ... on loopy graphs" via tree-cluster
+      partitioning - a different subfield (probabilistic graphical model
+      inference vs. continuous nonlinear-program decomposition) but a
+      genuine methodological bearing on the same loopy-graph message-
+      passing problem; a reviewer would want this surfaced.
+
+  - category: high_value_addressing_match
+    source_ids: ["1812.08126", "2312.17648"]
+    note: >
+      1812.08126 (diverse image captioning)'s remaining calls for "training
+      approaches that incentivize multimodal models to build a more
+      complete, bi-directional understanding of their modalities."
+      2312.17648 (EpmVG)'s main_contribution is a cross-modal distillation
+      mechanism that transfers CLIP's image-text consistency knowledge into
+      a visual grounding model's visual and linguistic branches - a
+      different downstream task (grounding vs. captioning) but directly on
+      point for "bi-directional multimodal understanding," worth a
+      reviewer's attention.
+
+  - category: false_warning_topical_only
+    source_ids: ["2012.15419", "1912.10915"]
+    note: >
+      Both NLP-domain papers share only coarse vocabulary ("data",
+      "training", domain-specific model behavior). 2012.15419 (BioBERT
+      replication)'s remaining is about biomedical QA benchmark dataset
+      scarcity and testing more BERT variants; 1912.10915's main_contribution
+      is a probing study of Mandarin TTS tonal coarticulation/sandhi. Text
+      mining for biomedical QA and Mandarin tone phonetics in TTS output
+      have no real bearing on each other despite the shared "NLP" label -
+      a warning here would be pure noise.
+
+  - category: false_warning_topical_only
+    source_ids: ["1812.11731", "2212.14524"]
+    note: >
+      Both Machine-Learning-domain papers. 1812.11731 (GPU vs TPU batch-size
+      study)'s remaining is about extending hardware/batch-size comparisons
+      (network size, image size, V100/Titan V, quantization/pruning);
+      2212.14524's main_contribution is a hyper-ball-based cluster internal
+      validity index for determining the optimal number of clusters.
+      Hardware throughput benchmarking and clustering-quality metrics share
+      only the "Machine Learning" domain label, not actual subject matter -
+      a warning here would be pure noise.
+
+  - category: benchmark_evaluation_partial_solution
+    source_ids: ["2012.15419", "2412.21015"]
+    note: >
+      2012.15419 (BioBERT replication)'s remaining explicitly asks the
+      community to "curate and expand the magnitude of benchmark datasets"
+      since small QA datasets (BioASQ) cause overfitting. 2412.21015
+      (MapQaTor)'s main_contribution is a general-purpose, extensible
+      framework for reproducibly building map/QA benchmark datasets 30x
+      faster than manual annotation - literally dataset-construction
+      tooling that could be pointed at the exact resource-scarcity problem
+      2012.15419 names, without touching or resolving 2012.15419's actual
+      scientific question (whether domain-specific pretraining helps
+      biomedical NLP tasks). Textbook "benchmark/tooling touches the gap,
+      doesn't solve it" case.
+
+  - category: benchmark_evaluation_partial_solution
+    source_ids: ["1812.02407", "1812.11731"]
+    note: >
+      1812.02407 (Elastic Gossip)'s remaining calls for studying its gossip
+      protocol "at larger cluster scales" and "under non-homogeneous
+      hardware/network conditions." 1812.11731's main_contribution is a
+      systematic empirical scaling study comparing GPU/TPU training speed
+      across batch sizes and dataset sizes - real evaluation methodology
+      for exactly the "larger scale, varying hardware" dimension
+      1812.02407 flags as open, but run on single-node GPU/TPU hardware
+      benchmarks rather than the decentralized gossip protocol itself, so
+      it partially touches the named gap without resolving it.

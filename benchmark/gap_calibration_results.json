@@ -1,0 +1,699 @@
+{
+  "generated_at": "2026-09-02T02:48:35.825634+00:00",
+  "own_contribution_overlap": {
+    "sample_count": 74,
+    "rows": [
+      {
+        "threshold": 0.3,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.9285714285714286,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.3,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.3,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.3,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.8214285714285714,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.3333333333333333
+      },
+      {
+        "threshold": 0.4,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.7142857142857143,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.6666666666666666
+      },
+      {
+        "threshold": 0.45,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.6785714285714286,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.6666666666666666
+      },
+      {
+        "threshold": 0.5,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.6071428571428571,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.5,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.05
+      },
+      {
+        "threshold": 0.5,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.5,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.6666666666666666
+      },
+      {
+        "threshold": 0.55,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.39285714285714285,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.55,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.075
+      },
+      {
+        "threshold": 0.55,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.6666666666666666,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.55,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.6666666666666666
+      },
+      {
+        "threshold": 0.6,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.32142857142857145,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.6,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.125
+      },
+      {
+        "threshold": 0.6,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.6666666666666666,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.6,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.6666666666666666
+      },
+      {
+        "threshold": 0.65,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.21428571428571427,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.65,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.25
+      },
+      {
+        "threshold": 0.65,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.3333333333333333,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.65,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.07142857142857142,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.45
+      },
+      {
+        "threshold": 0.7,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.3333333333333333,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.03571428571428571,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.65
+      },
+      {
+        "threshold": 0.75,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.3333333333333333,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.03571428571428571,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.85
+      },
+      {
+        "threshold": 0.8,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.3333333333333333,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.925
+      },
+      {
+        "threshold": 0.85,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "genuine_unresolved_gap",
+        "total": 28,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "motivation_addressed",
+        "total": 40,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "recurring_limitation_genuinely_unresolved",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "recurring_limitation_topical_convergence",
+        "total": 3,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      }
+    ]
+  },
+  "addressing_similarity": {
+    "sample_count": 6,
+    "rows": [
+      {
+        "threshold": 0.3,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.5
+      },
+      {
+        "threshold": 0.3,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.3,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.5
+      },
+      {
+        "threshold": 0.35,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.5,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.5,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.5,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.55,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.55,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.55,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.5
+      },
+      {
+        "threshold": 0.6,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.6,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.6,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.65,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.65,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.65,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.7,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.75,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.8,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.85,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.9,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "benchmark_evaluation_partial_solution",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "false_warning_topical_only",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      {
+        "threshold": 0.95,
+        "category": "high_value_addressing_match",
+        "total": 2,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 1.0
+      }
+    ]
+  }
+}

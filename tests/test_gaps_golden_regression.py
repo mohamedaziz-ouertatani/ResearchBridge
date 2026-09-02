@@ -109,7 +109,11 @@ def test_1_paper_motivation_bridging_a_gap_is_excluded(session_factory) -> None:
         )
         _claim(
             session, paper, "main_contribution",
-            "we investigate whether large language models can help bridge this gap in benchmark coverage",
+            # Near-total paraphrase of the gap claim (differs only by "the"
+            # vs. "this") so own_contribution_overlap clears
+            # OWN_CONTRIBUTION_OVERLAP_THRESHOLD (0.85, see signals.py) with
+            # margin (~0.96), not just skims it.
+            "the paper investigates whether large language models can help bridge this gap in benchmark coverage",
         )
     session.commit()
 
@@ -139,7 +143,11 @@ def test_2_recurring_benchmark_motivation_language_is_excluded(session_factory) 
         )
         _claim(
             session, paper, "main_contribution",
-            "we introduce a benchmark evaluating robustness to table perturbations and reasoning pathway aggregation",
+            # Reuses nearly every word from its own gap claim so
+            # own_contribution_overlap clears OWN_CONTRIBUTION_OVERLAP_THRESHOLD
+            # (0.85, see signals.py) with margin (~0.87), not just skims it.
+            "the benchmark evaluates robustness to table perturbations and reasoning pathway "
+            "aggregation that no existing benchmark previously measured",
         )
     session.commit()
 
@@ -273,14 +281,42 @@ def test_7_benchmark_paper_similar_to_but_not_solving_the_gap_still_corroborates
         )
         _claim(session, paper, "main_contribution", "we propose a transformer based text classification architecture")
 
+    # benchmark_paper's own gap claim shares just enough vocabulary
+    # ("adversarial", "perturbations", "under", "for", "existing",
+    # "benchmarks", "remains", "unresolved") with seed/a's gap claim to
+    # cluster with it (cosine ~0.36, comfortably above the 0.3 clustering
+    # threshold passed below) without being a close paraphrase of it.
     _claim(
         session, benchmark_paper, "research_gap",
-        "no existing benchmark evaluates adversarial perturbations under realistic constraints for existing benchmarks",
+        "no existing benchmarks evaluate adversarial perturbations and the problem remains largely "
+        "unresolved under realistic deployment settings spanning varied hardware platforms diverse "
+        "software stacks fluctuating network conditions heterogeneous user populations distinct "
+        "geographic regions extended time periods inconsistent measurement protocols and mismatched "
+        "reporting standards for practical production use",
         validation_tier="strong",
     )
     _claim(
         session, benchmark_paper, "main_contribution",
-        "we introduce a benchmark for evaluating adversarial perturbations under realistic constraints",
+        # Reuses nearly every one of its own gap claim's DISTINCTIVE words
+        # (the long "realistic deployment settings ... production use" list)
+        # while deliberately dropping the words shared with seed/a's gap
+        # claim ("adversarial", "perturbations", "existing", "benchmarks",
+        # "under", "for", "remains", "unresolved"). This gives two
+        # deliberately different measurements against the two thresholds
+        # this scenario exercises: own_contribution_overlap (this
+        # contribution vs. THIS SAME paper's own gap claim, ~0.87) clears
+        # OWN_CONTRIBUTION_OVERLAP_THRESHOLD (0.85) so the paper is demoted
+        # to supporting; its similarity to the CLUSTER's representative
+        # text (seed/a's identical gap claim, which is what
+        # find_addressing_papers actually compares against - not
+        # benchmark_paper's own gap claim) stays ~0.05, safely under
+        # ADDRESSING_SIMILARITY_THRESHOLD (0.30), so no addressing downgrade
+        # fires and the strong_gap the other two independently earned
+        # survives untouched.
+        "evaluate realistic deployment settings spanning varied hardware platforms diverse software "
+        "stacks fluctuating network conditions heterogeneous user populations distinct geographic "
+        "regions extended time periods inconsistent measurement protocols and mismatched reporting "
+        "standards practical production use",
     )
     session.commit()
 
