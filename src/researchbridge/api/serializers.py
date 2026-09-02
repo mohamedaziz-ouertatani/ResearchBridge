@@ -188,7 +188,7 @@ def _evidence_by_gap(session: Session, gap_ids: list[uuid.UUID]) -> dict[uuid.UU
         select(CandidateGapEvidence, Evidence, Paper.title, ExtractedClaim.validation_tier)
         .join(Evidence, Evidence.id == CandidateGapEvidence.evidence_id)
         .join(Paper, Paper.id == Evidence.paper_id)
-        .join(ExtractedClaim, ExtractedClaim.evidence_id == Evidence.id)
+        .join(ExtractedClaim, ExtractedClaim.evidence_id == Evidence.id, isouter=True)
         .where(CandidateGapEvidence.candidate_gap_id.in_(gap_ids))
     ).all()
 
