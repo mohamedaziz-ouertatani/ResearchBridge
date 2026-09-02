@@ -94,28 +94,93 @@ _STRONG_GAP_LANGUAGE_RE = re.compile(
 )
 _WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture research\b|\bgap (in|between)\b", re.IGNORECASE)
 
-# Real application/use-context language - a stated context this work is
-# useful *in*, not a generic claim of usefulness (Sec 5's failure mode)
-# and not a method/architecture/result sentence. Voice-agnostic: real
-# abstracts write this in first person ("can be applied to"), the
-# benchmark's hand-annotated ground truth in third person ("the authors
-# suggest this can be used for", "targets autonomous driving") - both
-# describe the same thing, a named context this work is useful *in*.
-_APPLICATION_LANGUAGE_RE = re.compile(
-    r"\b(can|could) be (applied|used) (to|for|in)\b|\bis applicable to\b"
-    r"|\bapplications? (such as|include|in|to|for)\b|\breal-world applications?\b"
-    r"|\bdeployed (in|to|for)\b|\bused (in|for|to) [a-z]"
-    r"|\b(applied|applicable|useful|targets?|targeting) (to|for|in) [a-z]"
-    r"|\bin (clinical|industrial|practical|real-world) (practice|settings?|use|contexts?)\b"
-    r"|\bpractical use\b",
+# Real application/use-context language - Gate 1 of a two-gate design (see
+# docs/superpowers/specs/2026-09-02-applications-evidence-grounding-design.md).
+# This gate asks a narrow, context-free question: does this sentence, read
+# on its own, describe genuine deployment/use-case language with a
+# concrete, named external complement? It deliberately does NOT try to
+# detect whether the claim restates the SAME PAPER's own task - that
+# requires comparing against the paper's other claims, which this
+# function has no access to (it validates one candidate sentence at a
+# time). That check is Gate 2, in assessment/applications.py, at
+# assessment time, where the paper's other claims are available.
+#
+# Two real production false positives motivated the redesign of the old,
+# single-regex version of this check:
+#   1. "...useful for predicting performance level of students." - the
+#      old _APPLICATION_LANGUAGE_RE's `useful (to|for|in) [a-z]` clause
+#      accepted ANY following word, so a bare restatement of the paper's
+#      own predictive task (no actor, no institution, no downstream
+#      action, nothing beyond the task's own object) passed.
+#   2. "...software applications for technology-oriented learning." - the
+#      old regex's `applications? (such as|include|in|to|for)` matched the
+#      literal substring "applications for" regardless of whether
+#      "application(s)" meant "use-case" or "computer program."
+
+# Strip the ordinary "software/mobile/web/computer application(s)" noun
+# sense before matching anything else, so it can never itself satisfy the
+# "applications... for/to/in" clause below.
+_TECH_NOUN_APPLICATION_RE = re.compile(
+    r"\b(software|mobile|web|desktop|computer|online)\s+applications?\b", re.IGNORECASE
+)
+
+# Each alternative captures its own complement (the text after the
+# deployment verb) into a distinctly-named group, so the code below can
+# find whichever one matched and inspect it.
+_DEPLOYMENT_CLAUSE_RE = re.compile(
+    r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+(?P<c1>[^.;]+)"
+    r"|\bis applicable\s+(?:to|in)\s+(?P<c2>[^.;]+)"
+    r"|\bapplications?\s+(?:such as|include|in|to|for)\s+(?P<c3>[^.;]+)"
+    r"|\breal-world applications?\s+(?:in|for)\s+(?P<c4>[^.;]+)"
+    r"|\bdeployed\s+(?:in|to|for|by)\s+(?P<c5>[^.;]+)"
+    r"|\bused\s+(?:in|for|to|by)\s+(?P<c6>[^.;]+)"
+    r"|\b(?:applied|applicable|targets?|targeting)\s+(?:to|for|in)\s+(?P<c7>[^.;]+)"
+    r"|\buseful\s+(?:to|for|in)\s+(?P<c8>[^.;]+)",
     re.IGNORECASE,
 )
-# "useful for X" only counts as an application when X names something
-# concrete, not a vague catch-all ("future studies", "future work",
-# "further research", "general purposes") - otherwise almost any
-# throwaway sentence would qualify.
-_VAGUE_USEFULNESS_RE = re.compile(
-    r"\buseful for (future (studies|work|research)|general purposes|further research)\b",
+
+# Named human/institutional actors or deployment settings - if the
+# deployment verb's complement names one of these, the claim is naming
+# something beyond the paper's own task.
+_ACTOR_SETTING_RE = re.compile(
+    r"\buniversit(y|ies)\b|\bschools?\b|\bhospitals?\b|\bclinics?\b|\bclinicians?\b"
+    r"|\bphysicians?\b|\bdoctors?\b|\bnurses?\b|\bbanks?\b|\bbanking\b"
+    r"|\bfinancial institutions?\b|\bcompliance teams?\b|\bregulators?\b"
+    r"|\bpolicymakers?\b|\binstructors?\b|\bteachers?\b|\beducators?\b"
+    r"|\badvisors?\b|\bcounselors?\b|\bpractitioners?\b|\bindustry\b"
+    r"|\borganizations?\b|\bcompanies\b|\bbusinesses?\b|\benterprises?\b"
+    r"|\bgovernments?\b|\bagenc(y|ies)\b|\bdecision[- ]makers?\b|\bstakeholders?\b"
+    r"|\b\w+(ologists?|icians?)\b"
+    r"|\bin (clinical|industrial|educational|practical|real-world) (practice|settings?|use|contexts?)\b"
+    r"|\bat scale\b|\bin the field\b|\bin practice\b",
+    re.IGNORECASE,
+)
+
+# Downstream actions distinct from the paper's own predictive/detection/
+# classification verb - a human or institutional response taken as a
+# RESULT of the system's output, not the system's own computation.
+_DOWNSTREAM_ACTION_RE = re.compile(
+    r"\binterventions?\b|\btriage\b|\bmanual review\b|\bcounsel(l)?ing\b"
+    r"|\btreatment plan(ning)?\b|\bresource allocation\b|\bpolicy( ?making)?\b"
+    r"|\bremediation\b|\bprioriti[sz](e|ation|ing)\b|\bdecision support\b"
+    r"|\brisk mitigation\b|\bearly (intervention|warning)\b|\bscreening\b"
+    r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b",
+    re.IGNORECASE,
+)
+
+# A generic structural fallback: the complement contains ITS OWN
+# qualifying "in X"/"for X"/"at X"/"by X" phrase beyond the deployment
+# verb's own preposition - e.g. "fraud detection IN financial
+# transactions", "drug discovery pipelines IN pharmaceutical R&D". Deliberately
+# excludes "on" (method/training language routinely says "trained on X").
+_QUALIFYING_CONTEXT_RE = re.compile(r"\b(in|for|at|by|within|across|among)\s+[a-z]", re.IGNORECASE)
+
+# Known-vague qualifiers that would otherwise satisfy _QUALIFYING_CONTEXT_RE
+# without naming anything concrete - "in general" contains "in general[a-z]"
+# but names no real context.
+_VAGUE_QUALIFIER_RE = re.compile(
+    r"\bin general\b|\bfor future (work|studies|research)\b|\bin the future\b"
+    r"|\bfor general purposes\b|\bfor further research\b|\bin future\b",
     re.IGNORECASE,
 )
 
@@ -153,10 +218,11 @@ class ValidationResult:
     reason: str | None = None
     tier: str | None = None
     """"strong" or "weak" for an accepted research_gap claim (which regex
-    tier matched) - None for every other claim_type, and None for any
-    rejected claim. Persisted downstream (extracted_claims.validation_tier)
-    so gap clustering can require an unambiguous anchor claim rather than
-    treating "future research" boilerplate the same as "remains unresolved"."""
+    tier matched); "strong" for an accepted applications claim (there is
+    no "weak" applications tier - hedged/generic language is rejected
+    outright, not accepted-but-flagged); None for every other claim_type,
+    and None for any rejected claim. Persisted downstream
+    (extracted_claims.validation_tier)."""
 
 
 def _has_result_signal(text: str) -> bool:
@@ -164,9 +230,16 @@ def _has_result_signal(text: str) -> bool:
 
 
 def _has_application_signal(text: str) -> bool:
-    if _VAGUE_USEFULNESS_RE.search(text):
+    masked = _TECH_NOUN_APPLICATION_RE.sub(" ", text)
+    match = _DEPLOYMENT_CLAUSE_RE.search(masked)
+    if not match:
         return False
-    return bool(_APPLICATION_LANGUAGE_RE.search(text))
+    complement = next(g for g in match.groupdict().values() if g)
+    if _ACTOR_SETTING_RE.search(complement) or _DOWNSTREAM_ACTION_RE.search(complement):
+        return True
+    if _VAGUE_QUALIFIER_RE.search(complement):
+        return False
+    return bool(_QUALIFYING_CONTEXT_RE.search(complement))
 
 
 def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
@@ -189,9 +262,12 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
     if claim_type == "applications":
         if not _has_application_signal(text):
             return ValidationResult(
-                False, "no concrete application/use-context language found; reads as method, result, or generic text"
+                False,
+                "no concrete deployment context (actor, institution, downstream action, or "
+                "named external setting) found; reads as method, result, restated task, or "
+                "generic/vague text",
             )
-        return ValidationResult(True)
+        return ValidationResult(True, tier="strong")
 
     if claim_type == "results":
         if not _has_result_signal(text):
