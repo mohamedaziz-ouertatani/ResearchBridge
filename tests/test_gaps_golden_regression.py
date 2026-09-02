@@ -297,26 +297,29 @@ def test_7_benchmark_paper_similar_to_but_not_solving_the_gap_still_corroborates
     )
     _claim(
         session, benchmark_paper, "main_contribution",
-        # Reuses nearly every one of its own gap claim's DISTINCTIVE words
-        # (the long "realistic deployment settings ... production use" list)
-        # while deliberately dropping the words shared with seed/a's gap
-        # claim ("adversarial", "perturbations", "existing", "benchmarks",
-        # "under", "for", "remains", "unresolved"). This gives two
+        # A real claim sentence ("we evaluate ...", not a bare verb-plus-
+        # noun-list fragment) that reuses nearly every one of its own gap
+        # claim's DISTINCTIVE words (the "realistic deployment settings ...
+        # production use" list) while deliberately dropping most of the
+        # words shared with seed/a's gap claim ("adversarial",
+        # "perturbations", "existing", "benchmarks", "remains",
+        # "unresolved" - "for" alone survives from that set, folded
+        # naturally into "for practical production use"). This gives two
         # deliberately different measurements against the two thresholds
         # this scenario exercises: own_contribution_overlap (this
-        # contribution vs. THIS SAME paper's own gap claim, ~0.87) clears
+        # contribution vs. THIS SAME paper's own gap claim, ~0.86) clears
         # OWN_CONTRIBUTION_OVERLAP_THRESHOLD (0.85) so the paper is demoted
         # to supporting; its similarity to the CLUSTER's representative
         # text (seed/a's identical gap claim, which is what
         # find_addressing_papers actually compares against - not
-        # benchmark_paper's own gap claim) stays ~0.05, safely under
+        # benchmark_paper's own gap claim) stays ~0.10, safely under
         # ADDRESSING_SIMILARITY_THRESHOLD (0.30), so no addressing downgrade
         # fires and the strong_gap the other two independently earned
         # survives untouched.
-        "evaluate realistic deployment settings spanning varied hardware platforms diverse software "
-        "stacks fluctuating network conditions heterogeneous user populations distinct geographic "
-        "regions extended time periods inconsistent measurement protocols and mismatched reporting "
-        "standards practical production use",
+        "we evaluate realistic deployment settings: varied hardware platforms, diverse software "
+        "stacks, fluctuating network conditions, heterogeneous user populations, distinct "
+        "geographic regions, extended time periods, inconsistent measurement protocols, and "
+        "mismatched reporting standards for practical production use",
     )
     session.commit()
 
