@@ -63,12 +63,34 @@ PaperWithClaims = tuple[uuid.UUID, str, float, list[ClaimRecord]]  # (paper_id, 
 # restating the task under ANY of its guises, not just the contribution.
 _TASK_CLAIM_TYPES = ("problem", "method", "main_contribution", "results")
 
-# Provisional - a reasoned starting point (higher than gaps/signals.py's
-# 0.85, since this check's job has narrowed to catching only near-total
-# paraphrase, with Gate 1's lexical check doing the primary
-# discrimination), NOT yet verified against real data. See the live-
-# corpus spot-check task in docs/superpowers/plans/2026-09-02-
-# applications-evidence-grounding.md before trusting this number.
+# Checked against the real corpus/embedder (all-MiniLM-L6-v2), not just
+# guessed: of 348 persisted "applications" claims that still pass the
+# strengthened Gate 1, 587 (application, same-paper task) pairs were
+# compared. 60/587 sit at or above 0.92, and inspection showed these are
+# overwhelmingly EXACT-TEXT duplicates (sim=1.000) - the same sentence
+# extracted twice under two different claim_types across separate
+# extraction runs, not just similar phrasing. The one genuinely high
+# (but non-identical) real pair found close to the boundary - "...can be
+# effectively used to predict option prices...and could be useful for
+# OPTIONS TRADERS in making informed decisions" (sim=0.899) against a task
+# claim naming no trader/decision language at all - correctly stays
+# ACCEPTED at 0.92: it names a real actor and downstream action the task
+# claim doesn't have, exactly the pattern this check must not reject.
+# Lowering the threshold to something like 0.85 to more aggressively catch
+# restatement would have incorrectly rejected that genuine case too, so
+# 0.92 was kept rather than tuned down.
+#
+# Two real residual false positives WERE found in the 0.70-0.92 band
+# ("...useful for predicting future trips for A GIVEN USER" against a
+# trip-prediction task claim, sim=0.848; "...applied in QPE" - QPE being
+# the method's own acronym - against its own definition, sim=0.848) - but
+# both trace to extraction/validation.py's _QUALIFYING_CONTEXT_RE fallback
+# being too permissive (matching "for a given user"/"in QPE" as if they
+# named genuine external context), not to this threshold. Lowering this
+# threshold would not have fixed either case cleanly without also risking
+# the genuine 0.899 case above. Left as a known Gate 1 refinement
+# candidate for a future pass, not addressed here - see
+# docs/superpowers/plans/2026-09-02-applications-evidence-grounding.md.
 OWN_TASK_OVERLAP_THRESHOLD = 0.92
 
 
