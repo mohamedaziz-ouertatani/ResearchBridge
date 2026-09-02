@@ -116,6 +116,46 @@ _WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture research\b|\bgap (in|between)\b", 
 #      old regex's `applications? (such as|include|in|to|for)` matched the
 #      literal substring "applications for" regardless of whether
 #      "application(s)" meant "use-case" or "computer program."
+#
+# A first version of this rewrite required EVERY deployment-verb match to
+# clear an actor/downstream-action/qualifying-context gate. Re-running the
+# extraction benchmark's claim-type-validation check against the real,
+# hand-annotated ground truth (rb-extract-evaluate) surfaced real
+# regressions that weren't in the two reported bugs or the hand-picked
+# test cases, each traced to a specific bug rather than accepted as
+# "appropriately conservative":
+#   - .search() only inspects the FIRST regex match in the text, so a
+#     sentence with an early deployment phrase that fails the gate (e.g.
+#     "used in modern integrated circuits") never got a chance to try a
+#     later, genuinely qualifying one in the same sentence ("used AS
+#     solid-state synapses IN neuromorphic computing circuits").
+#   - a captured complement group can lose the very preposition the
+#     actor-setting regex needs: "useful IN practice" - the "in" is
+#     consumed by the verb clause's own non-capturing group, so the
+#     complement text starts at "practice", and "\bin practice\b" can
+#     never match against text that no longer contains "in".
+#   - the old `[^.;]+` complement boundary truncated at the first literal
+#     period, including one inside an abbreviation like "e.g." mid-
+#     sentence, cutting off real qualifying context that came after it.
+#   - a single verb-strength tiering ("applicable to"/"can be applied to"
+#     always accepted, "useful for"/"used to" always gated) is also wrong:
+#     "can be applied to predicting customer churn" is exactly as much a
+#     bare task-restatement as the reported "useful for predicting..."
+#     bug - the verb doesn't determine whether the complement names
+#     something real. What actually distinguished the genuine real-corpus
+#     cases from the restatements was ENUMERATION - "applications such as
+#     A, B, C" or "applicable to Spotify, YouTube, ..." lists multiple
+#     concrete items, and a bare task restatement is never phrased as a
+#     list. So enumeration ("such as"/"including") is a third acceptable
+#     signal alongside actor/institution and downstream-action - checked
+#     the same way, against every deployment-verb match uniformly,
+#     regardless of which specific verb introduced it.
+# See _has_application_signal below for how these are fixed: matched with
+# finditer() (not .search()) so every occurrence in the text gets a
+# chance, checked against each match's own full span (not a captured
+# sub-group) so a consumed preposition or enumeration marker is still
+# visible, over text with common abbreviation periods normalized away
+# first.
 
 # Strip the ordinary "software/mobile/web/computer application(s)" noun
 # sense before matching anything else, so it can never itself satisfy the
@@ -124,20 +164,36 @@ _TECH_NOUN_APPLICATION_RE = re.compile(
     r"\b(software|mobile|web|desktop|computer|online)\s+applications?\b", re.IGNORECASE
 )
 
-# Each alternative captures its own complement (the text after the
-# deployment verb) into a distinctly-named group, so the code below can
-# find whichever one matched and inspect it.
+# "e.g." / "i.e." / "etc." mid-sentence would otherwise truncate a
+# complement-boundary search at their own internal period.
+_ABBREVIATION_RE = re.compile(r"\b(e\.g|i\.e|etc)\.", re.IGNORECASE)
+
+# Every recognized deployment/use-case verb construction, voice-agnostic
+# between first-person abstract prose ("can be applied to") and third-
+# person ground-truth annotation ("is applicable to X" / "applicable to
+# X"). No tiering by verb - see the module docstring above for why that
+# was tried and rejected. Each alternative requires at least one
+# following word so an empty/truncated complement never matches.
 _DEPLOYMENT_CLAUSE_RE = re.compile(
-    r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+(?P<c1>[^.;]+)"
-    r"|\bis applicable\s+(?:to|in)\s+(?P<c2>[^.;]+)"
-    r"|\bapplications?\s+(?:such as|include|in|to|for)\s+(?P<c3>[^.;]+)"
-    r"|\breal-world applications?\s+(?:in|for)\s+(?P<c4>[^.;]+)"
-    r"|\bdeployed\s+(?:in|to|for|by)\s+(?P<c5>[^.;]+)"
-    r"|\bused\s+(?:in|for|to|by)\s+(?P<c6>[^.;]+)"
-    r"|\b(?:applied|applicable|targets?|targeting)\s+(?:to|for|in)\s+(?P<c7>[^.;]+)"
-    r"|\buseful\s+(?:to|for|in)\s+(?P<c8>[^.;]+)",
+    r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+[a-z]"
+    r"|\b(?:is\s+)?applicable\s+(?:to|in)\s+[a-z]"
+    r"|\bapplications?\s+(?:such as|include|in|to|for)\s+[a-z]"
+    r"|\breal-world applications?\s+(?:in|for)\s+[a-z]"
+    r"|\bdeployed\s+(?:in|to|for|by)\s+[a-z]"
+    r"|\bused\s+(?:in|for|to|by|as)\s+[a-z]"
+    r"|\b(?:applied|applicable|targets?|targeting)\s+(?:to|for|in)\s+[a-z]"
+    r"|\buseful\s+(?:to|for|in)\s+[a-z]",
     re.IGNORECASE,
 )
+
+# A multi-item list marker - a real restatement of the paper's own task
+# is never phrased as a list of examples.
+_ENUMERATION_RE = re.compile(r"\bsuch as\b|\bincluding\b", re.IGNORECASE)
+
+# A deployment-clause span is bounded at the next real sentence break -
+# after abbreviation periods have already been normalized away, so an
+# "e.g."/"i.e." inside the span doesn't cut it short.
+_SPAN_BOUNDARY_RE = re.compile(r"[.;]")
 
 # Named human/institutional actors or deployment settings - if the
 # deployment verb's complement names one of these, the claim is naming
@@ -230,16 +286,25 @@ def _has_result_signal(text: str) -> bool:
 
 
 def _has_application_signal(text: str) -> bool:
-    masked = _TECH_NOUN_APPLICATION_RE.sub(" ", text)
-    match = _DEPLOYMENT_CLAUSE_RE.search(masked)
-    if not match:
-        return False
-    complement = next(g for g in match.groupdict().values() if g)
-    if _ACTOR_SETTING_RE.search(complement) or _DOWNSTREAM_ACTION_RE.search(complement):
-        return True
-    if _VAGUE_QUALIFIER_RE.search(complement):
-        return False
-    return bool(_QUALIFYING_CONTEXT_RE.search(complement))
+    normalized = _ABBREVIATION_RE.sub(r"\1", text)
+    masked = _TECH_NOUN_APPLICATION_RE.sub(" ", normalized)
+
+    for match in _DEPLOYMENT_CLAUSE_RE.finditer(masked):
+        boundary_match = _SPAN_BOUNDARY_RE.search(masked, match.end())
+        boundary = boundary_match.start() if boundary_match else len(masked)
+        full_span = masked[match.start() : boundary]
+        complement = masked[match.end() : boundary]
+
+        if _ACTOR_SETTING_RE.search(full_span) or _DOWNSTREAM_ACTION_RE.search(full_span):
+            return True
+        if _ENUMERATION_RE.search(full_span):
+            return True
+        if _VAGUE_QUALIFIER_RE.search(complement):
+            continue
+        if _QUALIFYING_CONTEXT_RE.search(complement):
+            return True
+
+    return False
 
 
 def validate_claim_type(claim_type: str, text: str) -> ValidationResult:

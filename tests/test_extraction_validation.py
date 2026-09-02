@@ -153,6 +153,46 @@ def test_vague_qualifier_still_rejected_even_with_a_trailing_in_phrase() -> None
     assert result.is_valid is False
 
 
+def test_a_later_qualifying_occurrence_is_still_found_after_an_earlier_failed_one() -> None:
+    # real corpus case: the first "used in X" clause names nothing
+    # external, but a later "used as X in Y" clause in the same sentence
+    # does - matching must not stop at the first (failing) occurrence
+    text = (
+        "Simulating self-heating effects in Fin field-effect transistors used in modern "
+        "integrated circuits; the improvements are expected to benefit devices used as "
+        "solid-state synapses in neuromorphic computing circuits."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_enumeration_is_accepted_without_a_curated_actor_word() -> None:
+    # real corpus case: a multi-item "applications such as" list is
+    # unambiguous evidence on its own, even though none of "object
+    # search"/"robot navigation"/"augmented reality" is a curated actor
+    text = (
+        "Visual grounding has widespread applications such as object search, video "
+        "analysis, automation, robot navigation, and augmented reality."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_abbreviation_period_does_not_truncate_the_qualifying_context() -> None:
+    # real corpus case: "e.g." mid-sentence must not cut off "organization"
+    # (an actor) that appears later in the same clause
+    text = (
+        "Small-sized domain-specific pre-trained data can be especially useful in "
+        "practice when models need to be retrained, e.g. due to data that is "
+        "confidential to an organization."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
 def test_results_claim_without_metric_language_is_rejected() -> None:
     text = "This paper studies the problem of efficient graph coloring."
     result = validate_claim_type("results", text)
