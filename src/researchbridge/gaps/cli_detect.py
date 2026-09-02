@@ -76,7 +76,7 @@ def _run_single(session, embedder, args: argparse.Namespace) -> None:
         return
 
     try:
-        drafts = detect_candidate_gaps(
+        result = detect_candidate_gaps(
             session, paper.id, embedder, args.top_k, args.min_cluster_size, args.threshold
         )
     except ValueError as exc:
@@ -91,16 +91,25 @@ def _run_single(session, embedder, args: argparse.Namespace) -> None:
         f"min cluster size {args.min_cluster_size}, threshold {args.threshold}\n"
     )
 
-    if not drafts:
-        print("No recurring pattern found - not a failure, just nothing cleared the threshold.")
+    if result.status == "no_relevant_papers":
+        print("No related papers were found for this seed - nothing to compare it against.")
+        return
+    if result.status == "insufficient_evidence":
+        print(
+            f"Found {result.neighborhood_size - 1} related paper(s), but no cluster of limitation/research_gap "
+            "claims cleared the evidence bar - not a failure, just nothing defensible enough to surface."
+        )
         return
 
-    for i, draft in enumerate(drafts, start=1):
-        print(f"[{i}] {draft.observation}")
-        print(f"    contributing papers: {draft.contributing_paper_count}\n")
+    for i, draft in enumerate(result.drafts, start=1):
+        print(f"[{i}] ({draft.gap_status}) {draft.observation}")
+        print(f"    contributing papers: {draft.contributing_paper_count}")
+        if draft.resolution_note:
+            print(f"    note: {draft.resolution_note}")
+        print()
 
     if args.save:
-        saved = save_candidate_gaps(session, drafts, args.threshold)
+        saved = save_candidate_gaps(session, result.drafts, args.threshold)
         print(f"Saved {len(saved)} candidate gap(s) with status='pending'.")
 
 
@@ -118,11 +127,13 @@ def _run_batch(session, embedder, args: argparse.Namespace) -> None:
         save=args.save,
     )
 
-    print(f"Papers seen:    {summary.papers_seen}")
-    print(f"Papers skipped: {summary.papers_skipped} (already had a candidate gap)")
-    print(f"Papers failed:  {summary.papers_failed}")
-    print(f"Gaps found:     {summary.gaps_found}")
-    print(f"Gaps saved:     {summary.gaps_saved}")
+    print(f"Papers seen:          {summary.papers_seen}")
+    print(f"Papers skipped:       {summary.papers_skipped} (already had a candidate gap)")
+    print(f"Papers failed:        {summary.papers_failed}")
+    print(f"No related papers:    {summary.no_relevant_papers}")
+    print(f"Insufficient evidence:{summary.insufficient_evidence}")
+    print(f"Gaps found:           {summary.gaps_found}")
+    print(f"Gaps saved:           {summary.gaps_saved}")
 
 
 if __name__ == "__main__":

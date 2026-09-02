@@ -40,6 +40,8 @@ class BatchSummary:
     papers_seen: int = 0
     papers_skipped: int = 0
     papers_failed: int = 0
+    no_relevant_papers: int = 0
+    insufficient_evidence: int = 0
     gaps_found: int = 0
     gaps_saved: int = 0
 
@@ -61,15 +63,20 @@ def run_all(
     for paper_id in seed_ids:
         summary.papers_seen += 1
         try:
-            drafts = detect_candidate_gaps(session, paper_id, embedder, top_k, min_cluster_size, similarity_threshold)
+            result = detect_candidate_gaps(session, paper_id, embedder, top_k, min_cluster_size, similarity_threshold)
         except Exception:
             logger.exception("Gap detection failed for paper %s", paper_id)
             summary.papers_failed += 1
             continue
 
-        summary.gaps_found += len(drafts)
-        if drafts and save:
-            saved = save_candidate_gaps(session, drafts, similarity_threshold)
+        if result.status == "no_relevant_papers":
+            summary.no_relevant_papers += 1
+        elif result.status == "insufficient_evidence":
+            summary.insufficient_evidence += 1
+
+        summary.gaps_found += len(result.drafts)
+        if result.drafts and save:
+            saved = save_candidate_gaps(session, result.drafts, similarity_threshold)
             summary.gaps_saved += len(saved)
 
     return summary

@@ -173,6 +173,38 @@ def test_force_reprocesses_seeds_that_already_have_a_candidate_gap(session_facto
     assert second.papers_skipped == 0
 
 
+def test_tracks_no_relevant_papers_separately_from_insufficient_evidence(session_factory, embedder) -> None:
+    session = session_factory()
+    lonely = _paper(session, embedder, "lonely")  # no other papers exist at all
+    session.commit()
+
+    summary = run_all(session, embedder, min_cluster_size=3, similarity_threshold=0.3, save=False)
+
+    session.close()
+    assert summary.no_relevant_papers == 1
+    assert summary.insufficient_evidence == 0
+
+
+def test_tracks_insufficient_evidence_when_related_papers_exist_but_no_cluster_qualifies(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, embedder, "seed")
+    a = _paper(session, embedder, "a")
+    _claim(session, seed, "limitations", "the system is tested only offline in this setup")
+    _claim(session, a, "limitations", "training requires substantial gpu resources")
+    session.commit()
+
+    summary = run_all(session, embedder, min_cluster_size=3, similarity_threshold=0.3, save=False)
+
+    session.close()
+    # run_all treats every embedded paper as its own seed in turn (see
+    # test_finds_and_reports_gaps_without_persisting_when_save_is_false's
+    # papers_seen == 3 for 3 papers) - both "seed" and "a" get processed,
+    # and each independently finds only the other as a related paper with
+    # neighborhood_size=2, below min_cluster_size=3, so each is tallied.
+    assert summary.insufficient_evidence == 2
+    assert summary.no_relevant_papers == 0
+
+
 def test_continues_past_a_failure_for_one_paper(session_factory, embedder, monkeypatch) -> None:
     session = session_factory()
     seed, a, b = _recurring_pattern(session, embedder, ("seed", "a", "b"))
