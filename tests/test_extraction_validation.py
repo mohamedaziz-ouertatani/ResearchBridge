@@ -195,6 +195,42 @@ def test_application_informing_decisions_is_accepted_as_a_downstream_action() ->
     assert result.is_valid is True
 
 
+def test_deployed_through_names_a_real_collaboration() -> None:
+    # real corpus case (Fix D, 2026-09-04): "deployed" only recognized
+    # (in|to|for|by) as its preposition - "deployed THROUGH collaboration
+    # between WeBank and Extreme Vision" never matched the verb clause at
+    # all, so the named-companies check never ran.
+    text = (
+        "The platform has been deployed through collaboration between WeBank and Extreme Vision "
+        "to help customers develop computer vision-based safety monitoring solutions in smart city applications."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_deployed_via_names_a_real_platform() -> None:
+    # real corpus case (Fix D): same missing-preposition gap with "via"
+    text = (
+        "AI-HEALS is deployed via a WeChat Mini Program and features automated health-education "
+        "content delivery, digital diaries for data logging, and intelligent Q&A functions."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_deployed_via_a_bare_task_restatement_is_still_rejected() -> None:
+    # regression guard: adding "via"/"through" must not reopen the
+    # original bare-task-restatement bug - "via" doesn't naturally
+    # introduce a gerund describing the system's own task the way "to"
+    # does, but verify the full validator still rejects it if it tried
+    text = "This approach can be deployed via predicting customer churn."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
 def test_application_naming_an_external_setting_is_accepted() -> None:
     # no actor/action keyword, but a genuine "in X" domain qualifier beyond
     # the bare task object - must still be accepted

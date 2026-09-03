@@ -245,13 +245,26 @@ _ABBREVIATION_RE = re.compile(r"\b(e\.g|i\.e|etc)\.", re.IGNORECASE)
 # intervening noun phrase after of/for/in is bounded to 30 characters so
 # this can't reach across an unrelated later "such as" clause in a long
 # sentence.
+#
+# Fix D (2026-09-04, sampling a broader set of rejected candidates than
+# Fix C looked at): "deployed" only recognized (in|to|for|by) as its
+# following preposition - real corpus cases like "deployed THROUGH
+# collaboration between WeBank and Extreme Vision" and "deployed VIA a
+# WeChat Mini Program" never matched the verb clause at all, so the
+# actor/institution/downstream-action check inside it never even ran,
+# even though both name real companies/platforms. Added "via"/"through" -
+# unlike "to", neither naturally introduces a gerund describing the
+# system's own task ("deployed to predicting X" is not idiomatic English
+# the way "applied to predicting X" is), so this doesn't reopen the
+# original bare-task-restatement bug - verified with
+# test_deployed_via_a_bare_task_restatement_is_still_rejected.
 _DEPLOYMENT_CLAUSE_RE = re.compile(
     r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+[a-z]"
     r"|\b(?:is\s+)?applicable\s+(?:to|in)\s+[a-z]"
     r"|\bapplications?\s+(?:such as|include|in|to|for)\s+[a-z]"
     r"|\bapplications?\s*(?:,\s*|\s+(?:of|for|in)\s+[A-Za-z0-9][\w\-' ]{0,30}?,\s*)(?:such as|includes?|including)\s+[a-z]"
     r"|\breal-world applications?\s+(?:in|for)\s+[a-z]"
-    r"|\bdeployed\s+(?:in|to|for|by)\s+[a-z]"
+    r"|\bdeployed\s+(?:in|to|for|by|via|through)\s+[a-z]"
     r"|\bused\s+(?:in|for|to|by|as)\s+[a-z]"
     r"|\b(?:applied|applicable|targets?|targeting)\s+(?:to|for|in)\s+[a-z]"
     r"|\buseful\s+(?:to|for|in)\s+[a-z]"
