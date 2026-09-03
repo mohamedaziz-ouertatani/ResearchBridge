@@ -19,6 +19,17 @@ def _app(text: str, source_paper: str = "Some Paper") -> SourceApplication:
     return SourceApplication(application=text, source_paper=source_paper, paper_id=str(uuid.uuid4()))
 
 
+# Filler opportunity text used throughout below, deliberately >=16
+# characters (MIN_OPPORTUNITY_TEXT_LENGTH) so these tests exercise their
+# own stated concern (formatting/citation parsing) without incidentally
+# tripping the separate content-length validation - see
+# test_parse_response_raises_when_a_tier_is_too_short below for that
+# check's own dedicated tests.
+ALPHA = "alpha opportunity"
+BETA = "beta opportunity"
+GAMMA = "gamma opportunity"
+
+
 # --- build_prompt -----------------------------------------------------------
 
 
@@ -67,7 +78,7 @@ def test_build_prompt_system_prompt_reflects_the_actual_application_count() -> N
 
 
 def test_parse_response_accepts_three_valid_tiers_in_order() -> None:
-    text = "Direct: fraud-scoring API [1]\nAdjacent: risk platform [1][2]\nSpeculative: fraud network [2]"
+    text = "Direct: fraud-scoring API [1]\nAdjacent: fraud risk platform [1][2]\nSpeculative: fraud detection network [2]"
 
     result = parse_response(text, application_count=2)
 
@@ -83,18 +94,22 @@ def test_parse_response_accepts_comma_separated_citations_in_one_bracket() -> No
     # prompt's own example) and as "[1,2]" (comma-separated in one
     # bracket) interchangeably - a line using the second style must not
     # silently parse as having zero citations
-    text = "Direct: a [1]\nAdjacent: b [1,2]\nSpeculative: c [1, 2]"
+    text = f"Direct: {ALPHA} [1]\nAdjacent: {BETA} [1,2]\nSpeculative: {GAMMA} [1, 2]"
 
     result = parse_response(text, application_count=2)
 
     assert result[1].source_application_indices == [1, 2]
     assert result[2].source_application_indices == [1, 2]
-    assert result[1].opportunity == "b"
-    assert result[2].opportunity == "c"
+    assert result[1].opportunity == BETA
+    assert result[2].opportunity == GAMMA
 
 
 def test_parse_response_reorders_tiers_regardless_of_model_output_order() -> None:
-    text = "Speculative: fraud network [1]\nDirect: fraud-scoring API [1]\nAdjacent: risk platform [1]"
+    text = (
+        "Speculative: fraud detection network [1]\n"
+        "Direct: fraud-scoring API [1]\n"
+        "Adjacent: fraud risk platform [1]"
+    )
 
     result = parse_response(text, application_count=1)
 
@@ -102,35 +117,40 @@ def test_parse_response_reorders_tiers_regardless_of_model_output_order() -> Non
 
 
 def test_parse_response_raises_on_missing_tier() -> None:
-    text = "Direct: fraud-scoring API [1]\nAdjacent: risk platform [1]"
+    text = "Direct: fraud-scoring API [1]\nAdjacent: fraud risk platform [1]"
 
     with pytest.raises(ValueError, match="missing tier"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_raises_on_duplicate_tier() -> None:
-    text = "Direct: first [1]\nDirect: second [1]\nAdjacent: risk platform [1]\nSpeculative: network [1]"
+    text = (
+        "Direct: first opportunity idea [1]\n"
+        "Direct: second opportunity idea [1]\n"
+        "Adjacent: fraud risk platform [1]\n"
+        "Speculative: fraud detection network [1]"
+    )
 
     with pytest.raises(ValueError, match="duplicate direct"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_raises_on_out_of_range_citation() -> None:
-    text = "Direct: fraud-scoring API [5]\nAdjacent: risk platform [1]\nSpeculative: network [1]"
+    text = "Direct: fraud-scoring API [5]\nAdjacent: fraud risk platform [1]\nSpeculative: fraud detection network [1]"
 
     with pytest.raises(ValueError, match="out of range"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_raises_when_a_tier_has_no_citation() -> None:
-    text = "Direct: fraud-scoring API\nAdjacent: risk platform [1]\nSpeculative: network [1]"
+    text = "Direct: fraud-scoring API\nAdjacent: fraud risk platform [1]\nSpeculative: fraud detection network [1]"
 
     with pytest.raises(ValueError, match="direct opportunity has no citation"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_raises_when_a_tier_has_no_text_beyond_its_citation() -> None:
-    text = "Direct: [1]\nAdjacent: risk platform [1]\nSpeculative: network [1]"
+    text = "Direct: [1]\nAdjacent: fraud risk platform [1]\nSpeculative: fraud detection network [1]"
 
     with pytest.raises(ValueError, match="no text beyond its citation"):
         parse_response(text, application_count=1)
@@ -140,14 +160,46 @@ def test_parse_response_ignores_unrelated_lines() -> None:
     text = (
         "Here are three opportunities:\n"
         "Direct: fraud-scoring API [1]\n"
-        "Adjacent: risk platform [1]\n"
-        "Speculative: network [1]\n"
+        "Adjacent: fraud risk platform [1]\n"
+        "Speculative: fraud detection network [1]\n"
         "Let me know if you'd like more detail."
     )
 
     result = parse_response(text, application_count=1)
 
     assert len(result) == 3
+
+
+# --- content-quality validation (MIN_OPPORTUNITY_TEXT_LENGTH) ---------------
+# Item 8 of the assessment hardening list: systematic cross-model
+# verification surfaced a real, repeatedly-reproducible failure mode in the
+# DEFAULT model specifically (qwen2.5:3b, not the other 3 locally-available
+# models tested) - a structurally perfect line whose "opportunity" is a bare
+# category word ("Evaluate", "Metrics", "Scale"), which the format/citation
+# checks above all happily accept.
+
+
+def test_parse_response_raises_when_a_tier_is_too_short() -> None:
+    # real, repeatedly-reproduced output from the default model
+    # (qwen2.5:3b) on a single-application case: syntactically valid,
+    # semantically empty
+    text = "Direct: Evaluate [1]\nAdjacent: Compare [1]\nSpeculative: Scale [1]"
+
+    with pytest.raises(ValueError, match="too short to be a real opportunity"):
+        parse_response(text, application_count=1)
+
+
+def test_parse_response_accepts_a_short_but_real_squished_product_name() -> None:
+    # non-regression: a genuine single-token product name (no spaces) must
+    # not be penalized just because it has no internal word boundary - a
+    # character-length check, not a word-count one, was chosen specifically
+    # to avoid this false rejection (also real default-model output, seen
+    # on a different case)
+    text = "Direct: HealthWellnessPlatform [1]\nAdjacent: fraud risk platform [1]\nSpeculative: fraud detection network [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert result[0].opportunity == "HealthWellnessPlatform"
 
 
 # --- formatting robustness (_normalize_tier_line) ----------------------------
@@ -160,59 +212,59 @@ def test_parse_response_ignores_unrelated_lines() -> None:
 
 
 def test_parse_response_accepts_plain_baseline() -> None:
-    text = "Direct: a [1]\nAdjacent: b [1]\nSpeculative: c [1]"
+    text = f"Direct: {ALPHA} [1]\nAdjacent: {BETA} [1]\nSpeculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_accepts_markdown_bold_labels() -> None:
-    text = "**Direct:** a [1]\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+    text = f"**Direct:** {ALPHA} [1]\n**Adjacent:** {BETA} [1]\n**Speculative:** {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_accepts_numbered_dot_list() -> None:
-    text = "1. Direct: a [1]\n2. Adjacent: b [1]\n3. Speculative: c [1]"
+    text = f"1. Direct: {ALPHA} [1]\n2. Adjacent: {BETA} [1]\n3. Speculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_accepts_numbered_parenthesis_list() -> None:
-    text = "1) Direct: a [1]\n2) Adjacent: b [1]\n3) Speculative: c [1]"
+    text = f"1) Direct: {ALPHA} [1]\n2) Adjacent: {BETA} [1]\n3) Speculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_accepts_numbered_and_markdown_combined() -> None:
-    text = "1. **Direct:** a [1]\n2. **Adjacent:** b [1]\n3. **Speculative:** c [1]"
+    text = f"1. **Direct:** {ALPHA} [1]\n2. **Adjacent:** {BETA} [1]\n3. **Speculative:** {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_accepts_mixed_formatting_across_tiers() -> None:
     # each tier written in a different style in the same response
-    text = "1. Direct: a [1]\n**Adjacent:** b [1]\n- Speculative: c [1]"
+    text = f"1. Direct: {ALPHA} [1]\n**Adjacent:** {BETA} [1]\n- Speculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 # --- preserved regression coverage: normalization must not loosen validation
 
 
 def test_parse_response_still_handles_eight_applications() -> None:
-    text = "Direct: a [7]\nAdjacent: b [7,8]\nSpeculative: c [1,2,3,4,5,6,7,8]"
+    text = f"Direct: {ALPHA} [7]\nAdjacent: {BETA} [7,8]\nSpeculative: {GAMMA} [1,2,3,4,5,6,7,8]"
 
     result = parse_response(text, application_count=8)
 
@@ -222,7 +274,7 @@ def test_parse_response_still_handles_eight_applications() -> None:
 
 
 def test_parse_response_dedupes_repeated_citation_in_one_bracket() -> None:
-    text = "Direct: a [1,1]\nAdjacent: b [1]\nSpeculative: c [1]"
+    text = f"Direct: {ALPHA} [1,1]\nAdjacent: {BETA} [1]\nSpeculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
@@ -230,7 +282,7 @@ def test_parse_response_dedupes_repeated_citation_in_one_bracket() -> None:
 
 
 def test_parse_response_dedupes_repeated_citation_across_separate_brackets() -> None:
-    text = "Direct: a [1][1]\nAdjacent: b [1]\nSpeculative: c [1]"
+    text = f"Direct: {ALPHA} [1][1]\nAdjacent: {BETA} [1]\nSpeculative: {GAMMA} [1]"
 
     result = parse_response(text, application_count=1)
 
@@ -239,14 +291,14 @@ def test_parse_response_dedupes_repeated_citation_across_separate_brackets() -> 
 
 def test_parse_response_still_raises_on_out_of_range_citation_with_markdown() -> None:
     # normalization must not accidentally widen the valid citation range
-    text = "**Direct:** a [5]\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+    text = f"**Direct:** {ALPHA} [5]\n**Adjacent:** {BETA} [1]\n**Speculative:** {GAMMA} [1]"
 
     with pytest.raises(ValueError, match="out of range"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_still_raises_on_missing_tier_with_numbered_formatting() -> None:
-    text = "1. Direct: a [1]\n2. Adjacent: b [1]"
+    text = f"1. Direct: {ALPHA} [1]\n2. Adjacent: {BETA} [1]"
 
     with pytest.raises(ValueError, match="missing tier"):
         parse_response(text, application_count=1)
@@ -257,7 +309,7 @@ def test_parse_response_still_rejects_malformed_synonym_tier_names() -> None:
     # tier word the model was never asked to use suddenly recognized, even
     # if it reads as a plausible synonym ("Indirect" for Adjacent,
     # "Long-term" for Speculative)
-    text = "Direct: a [1]\nIndirect: b [1]\nLong-term: c [1]"
+    text = f"Direct: {ALPHA} [1]\nIndirect: {BETA} [1]\nLong-term: {GAMMA} [1]"
 
     with pytest.raises(ValueError, match="missing tier"):
         parse_response(text, application_count=1)
@@ -268,26 +320,26 @@ def test_parse_response_still_ignores_irrelevant_prose_with_list_markers() -> No
     # just because normalization strips its leading "- "
     text = (
         "- Here is my analysis:\n"
-        "Direct: a [1]\n"
-        "Adjacent: b [1]\n"
-        "Speculative: c [1]\n"
+        f"Direct: {ALPHA} [1]\n"
+        f"Adjacent: {BETA} [1]\n"
+        f"Speculative: {GAMMA} [1]\n"
         "- Hope this helps!"
     )
 
     result = parse_response(text, application_count=1)
 
-    assert [o.opportunity for o in result] == ["a", "b", "c"]
+    assert [o.opportunity for o in result] == [ALPHA, BETA, GAMMA]
 
 
 def test_parse_response_still_raises_when_a_markdown_wrapped_tier_has_no_citation() -> None:
-    text = "**Direct:** a\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+    text = f"**Direct:** {ALPHA}\n**Adjacent:** {BETA} [1]\n**Speculative:** {GAMMA} [1]"
 
     with pytest.raises(ValueError, match="direct opportunity has no citation"):
         parse_response(text, application_count=1)
 
 
 def test_parse_response_still_raises_on_duplicate_tier_with_numbered_formatting() -> None:
-    text = "1. Direct: a [1]\n2. Direct: b [1]\n3. Adjacent: c [1]\n4. Speculative: d [1]"
+    text = f"1. Direct: {ALPHA} [1]\n2. Direct: {BETA} [1]\n3. Adjacent: {GAMMA} [1]\n4. Speculative: {ALPHA} [1]"
 
     with pytest.raises(ValueError, match="duplicate direct"):
         parse_response(text, application_count=1)
@@ -335,7 +387,7 @@ def test_synthesize_returns_validated_result(monkeypatch: pytest.MonkeyPatch) ->
     apps = [_app("fraud screening"), _app("credit scoring")]
     _mock_ollama_response(
         monkeypatch,
-        "Direct: fraud-scoring API [1]\nAdjacent: risk platform [1][2]\nSpeculative: fraud network [2]",
+        "Direct: fraud-scoring API [1]\nAdjacent: fraud risk platform [1][2]\nSpeculative: fraud detection network [2]",
     )
 
     result = synthesize_opportunities(apps)
@@ -351,7 +403,7 @@ def test_synthesize_retries_once_then_succeeds(monkeypatch: pytest.MonkeyPatch) 
     bad_response.raise_for_status = Mock()
     good_response = Mock()
     good_response.json.return_value = {
-        "message": {"content": "Direct: a [1]\nAdjacent: b [1]\nSpeculative: c [1]"}
+        "message": {"content": f"Direct: {ALPHA} [1]\nAdjacent: {BETA} [1]\nSpeculative: {GAMMA} [1]"}
     }
     good_response.raise_for_status = Mock()
     mock_post = Mock(side_effect=[bad_response, good_response])
@@ -360,6 +412,30 @@ def test_synthesize_retries_once_then_succeeds(monkeypatch: pytest.MonkeyPatch) 
     result = synthesize_opportunities(apps)
 
     assert len(result.opportunities) == 3
+    assert mock_post.call_count == 2
+
+
+def test_synthesize_retries_once_after_a_too_short_response_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    # the content-length check must feed the same retry-then-fail-closed
+    # path as every other validation failure, not a special case
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    apps = [_app("fraud screening")]
+    degenerate_response = Mock()
+    degenerate_response.json.return_value = {
+        "message": {"content": "Direct: Evaluate [1]\nAdjacent: Compare [1]\nSpeculative: Scale [1]"}
+    }
+    degenerate_response.raise_for_status = Mock()
+    good_response = Mock()
+    good_response.json.return_value = {
+        "message": {"content": f"Direct: {ALPHA} [1]\nAdjacent: {BETA} [1]\nSpeculative: {GAMMA} [1]"}
+    }
+    good_response.raise_for_status = Mock()
+    mock_post = Mock(side_effect=[degenerate_response, good_response])
+    monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
+
+    result = synthesize_opportunities(apps)
+
+    assert [o.opportunity for o in result.opportunities] == [ALPHA, BETA, GAMMA]
     assert mock_post.call_count == 2
 
 
