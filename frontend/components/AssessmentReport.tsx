@@ -39,7 +39,7 @@ const GRADEABLE_ROLES: EvidenceRole[] = [
   "opportunity",
 ];
 
-function groupByRole(evidence: AssessmentEvidence[]) {
+export function groupByRole(evidence: AssessmentEvidence[]) {
   const byRole = new Map<EvidenceRole, AssessmentEvidence[]>();
   for (const item of evidence) {
     const existing = byRole.get(item.role);
