@@ -7,12 +7,43 @@ retrieval + reading already-extracted claims, no new model calls):
   Sec 2A's "Uploaded-Paper Path" - text/section extraction happens inside
   build_assessment() via assessment/representation.py, not here. This
   route's only job is turning the upload into raw_text.
+
+Upload endpoint security review (item 6 of the assessment hardening
+list). Fixed, both with real reproductions before and after (see
+test_assessment_api.py): (1) no upload size cap at all - `await
+file.read()` loaded an arbitrarily large body fully into memory before
+any validation ran, a trivial memory-exhaustion DoS; now capped at
+MAX_UPLOAD_BYTES via _read_capped's chunked read, rejecting with 413 as
+soon as the cap is crossed rather than after buffering the whole thing.
+(2) a file merely NAMED ".pdf" but not actually valid PDF bytes crashed
+with an unhandled pymupdf.FileDataError -> bare 500, instead of a clean
+422 - now caught and reported as a validation error.
+
+Assessed and deliberately NOT changed, to avoid guessing at fixes for
+risks that aren't concretely demonstrated here: (a) no auth on this
+route - by design (see api/app.py's own docstring: this is a local-only
+tool, CORS-restricted to the dev frontend origins only as a browser-
+same-origin convenience, not a real access-control boundary against a
+direct request) - adding auth would be a project-wide architecture
+change, out of scope for one endpoint's review. (b) no per-request rate
+limiting - same local-only reasoning; there is no shared/multi-tenant
+deployment target yet to rate-limit against. (c) no PDF "decompression
+bomb" / adversarial-page-count guard on pymupdf's own parsing - MuPDF is
+a mature, actively maintained C library and no concrete exploit or
+resource-exhaustion reproduction was found against it here; the
+MAX_UPLOAD_BYTES cap already bounds the size of the input pymupdf ever
+sees. (d) filename is never used to open/write anything on disk (only
+regex-matched against an arxiv-id pattern in assessment/matching.py and
+stored as a plain DB string, rendered as JSX text in the frontend, never
+via dangerouslySetInnerHTML) - no path-traversal or stored-XSS route
+found.
 """
 
 from __future__ import annotations
 
 import uuid
 
+import pymupdf
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.orm import Session
@@ -44,6 +75,18 @@ from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvide
 from researchbridge.embedding.base import Embedder
 
 router = APIRouter(prefix="/api/assessments")
+
+# Item 6 of the assessment hardening list (security review of the upload
+# endpoint): `await file.read()` had no size cap at all - a single upload
+# of arbitrary size was read entirely into memory before any validation
+# ran, a trivial memory-exhaustion DoS on this local-only, unauthenticated
+# endpoint (see api/app.py's own docstring: CORS-restricted to the dev
+# frontend, but that is not an auth boundary against a direct request).
+# 25MB is generous for a real paper PDF/text file (the corpus's actual PDFs
+# run a few MB) while still bounding worst-case memory use per upload to a
+# known, small constant.
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 MAX_LIST_LIMIT = 100
 _REVIEW_FILTERS = {"all", "reviewed", "needs_review"}
@@ -169,18 +212,44 @@ def create_assessment(
     return _to_out(session, assessment, research_input)
 
 
+async def _read_capped(file: UploadFile, max_bytes: int) -> bytes:
+    """Reads `file` in fixed-size chunks, rejecting with 413 as soon as
+    max_bytes is exceeded - unlike a bare `await file.read()`, this never
+    holds more than one chunk beyond the cap in memory regardless of how
+    large the actual upload is."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413, detail=f"uploaded file exceeds the {max_bytes // (1024 * 1024)}MB limit"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.post("/upload", response_model=ResearchAssessmentOut)
 async def create_assessment_from_upload(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     embedder: Embedder = Depends(get_embedder),
 ) -> ResearchAssessmentOut:
-    content = await file.read()
+    content = await _read_capped(file, MAX_UPLOAD_BYTES)
     if not content:
         raise HTTPException(status_code=422, detail="uploaded file is empty")
 
     filename = file.filename or ""
-    text = extract_text(content) if filename.lower().endswith(".pdf") else content.decode("utf-8", errors="replace")
+    if filename.lower().endswith(".pdf"):
+        try:
+            text = extract_text(content)
+        except pymupdf.FileDataError:
+            raise HTTPException(status_code=422, detail="uploaded file is not a valid PDF") from None
+    else:
+        text = content.decode("utf-8", errors="replace")
     if not text.strip():
         raise HTTPException(status_code=422, detail="no extractable text found in the uploaded file")
 

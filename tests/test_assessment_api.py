@@ -452,6 +452,40 @@ def test_upload_rejects_a_pdf_with_no_extractable_text(client, monkeypatch) -> N
     assert response.status_code == 422
 
 
+def test_upload_rejects_a_file_named_pdf_that_is_not_actually_a_valid_pdf(client) -> None:
+    # Item 6 (upload endpoint security review): before this was fixed, a
+    # real (unmocked) invalid-PDF-bytes upload crashed with an unhandled
+    # pymupdf.FileDataError -> 500, instead of a clean validation error.
+    response = client.post(
+        "/api/assessments/upload", files={"file": ("paper.pdf", b"not a real pdf at all", "application/pdf")}
+    )
+
+    assert response.status_code == 422
+    assert "not a valid PDF" in response.json()["detail"]
+
+
+def test_upload_rejects_a_file_over_the_size_limit(client) -> None:
+    # Item 6: `await file.read()` previously had no cap at all - an upload
+    # of arbitrary size was read fully into memory before any validation,
+    # a trivial memory-exhaustion DoS.
+    import researchbridge.api.assessment_routes as routes_module
+
+    oversized = b"x" * (routes_module.MAX_UPLOAD_BYTES + 1)
+    response = client.post("/api/assessments/upload", files={"file": ("paper.txt", oversized, "text/plain")})
+
+    assert response.status_code == 413
+
+
+def test_upload_accepts_a_file_right_at_the_size_limit(client, embedder) -> None:
+    import researchbridge.api.assessment_routes as routes_module
+
+    at_limit = b"Detecting fraud in financial transactions remains a major challenge. " * 1000
+    at_limit = at_limit[: routes_module.MAX_UPLOAD_BYTES]
+    response = client.post("/api/assessments/upload", files={"file": ("paper.txt", at_limit, "text/plain")})
+
+    assert response.status_code == 200
+
+
 def test_new_assessment_is_not_human_reviewed_by_default(client) -> None:
     body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers"}).json()
 
