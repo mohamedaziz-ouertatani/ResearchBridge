@@ -1,37 +1,17 @@
-import type { ComponentType } from "react";
-
 // react-force-graph draws to a <canvas> and reads `window` at import time -
 // it cannot run during server-side rendering.
 //
-// The "react-force-graph" barrel unconditionally imports its VR/AR bundles
-// alongside ForceGraph2D, and those assume the A-Frame ecosystem's usual
-// script-tag setup: window.AFRAME and window.THREE already populated before
-// they load. Without that they throw ReferenceErrors at module-evaluation
-// time and crash the whole page, even though this app only ever renders the
-// 2D graph and never touches the VR/AR code paths. Populate window.THREE
-// with the real "three" module (a direct dependency in package.json, pinned
-// to the version react-force-graph itself resolves, so an upgrade of either
-// package can't silently break this import) so any eager
-// `class X extends THREE.Y` evaluates correctly, and stub window.AFRAME
-// with a no-op proxy since nothing here ever registers a real A-Frame scene.
+// This app only ever renders the 2D graph and never touches VR/AR. The
+// umbrella "react-force-graph" package unconditionally bundles ForceGraph2D
+// together with its 3D/AR/VR siblings (3d-force-graph, -ar, -vr), which
+// drag in the A-Frame ecosystem and their own separately-versioned copies
+// of three.js - triggering three.js's "Multiple instances of Three.js
+// being imported" console warning and shipping a lot of unused code to the
+// client. "react-force-graph-2d" is the same underlying ForceGraph engine
+// (force-graph, plain <canvas> - no three.js at all) published standalone,
+// so importing it directly avoids all of that rather than working around it.
 export function loadForceGraph2D() {
-  const globalWindow = typeof window !== "undefined" ? (window as unknown as { AFRAME?: unknown; THREE?: unknown }) : undefined;
-  if (globalWindow && !globalWindow.AFRAME) {
-    globalWindow.AFRAME = new Proxy({}, { get: () => () => undefined });
-  }
-  const threeReady =
-    globalWindow && !globalWindow.THREE
-      ? // "three" ships no type declarations here and this import exists purely to
-        // populate a runtime global, not to use typed exports - see comment above.
-        // @ts-expect-error -- untyped module, see comment above
-        import("three").then((THREE) => {
-          // ES module namespace objects are frozen; several three.js loader
-          // add-ons patch themselves onto window.THREE directly
-          // (`THREE.ColladaLoader = ...`), so it must be a plain, extensible object.
-          globalWindow.THREE = { ...THREE };
-        })
-      : Promise.resolve();
-  return threeReady.then(() => import("react-force-graph")).then((mod) => mod.ForceGraph2D);
+  return import("react-force-graph-2d").then((mod) => mod.default);
 }
 
 // next/dynamic() strips the generic type parameters off ForceGraph2D, so its
