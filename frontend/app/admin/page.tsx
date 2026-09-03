@@ -10,6 +10,7 @@ import {
   type PipelineStatus,
   type RetrievalEvalResult,
 } from "@/lib/adminApi";
+import { gapsApi } from "@/lib/gapsApi";
 import { AdminStats } from "@/components/AdminStats";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
@@ -49,7 +50,8 @@ type PipelineTab =
   | "embedding"
   | "retrieval_eval"
   | "extraction_eval"
-  | "citations_fetch";
+  | "citations_fetch"
+  | "gap_detection";
 type Tab = PipelineTab | "stats";
 
 const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
@@ -62,12 +64,19 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   retrieval_eval: "retrieval eval",
   extraction_eval: "extraction eval",
   citations_fetch: "citation management",
+  gap_detection: "gap detection",
 };
 
 const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", "core"];
 
+// Every tab's pipeline key matches its tab name 1:1 except the four
+// ingestion sources (prefixed "ingestion_") and gap detection, whose key
+// is "gaps" - gaps_routes.py's PIPELINE_KEY, set before this page ever
+// monitored it, not renamed to match this tab's name.
 function runningKeyForTab(tab: PipelineTab): PipelineKey {
-  return INGESTION_TABS.includes(tab) ? (`ingestion_${tab}` as PipelineKey) : (tab as PipelineKey);
+  if (INGESTION_TABS.includes(tab)) return `ingestion_${tab}` as PipelineKey;
+  if (tab === "gap_detection") return "gaps";
+  return tab as PipelineKey;
 }
 
 // Preset topics per source, matching the stratification buckets used
@@ -171,20 +180,20 @@ export default function AdminPipeline() {
       <div className="pt-12">
         <span className="eyebrow">pipeline status</span>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
-          Run history for ingestion, extraction, and embedding, plus a way to start a new run of
-          each. Gap detection can be triggered from the{" "}
+          Run history for ingestion, extraction, embedding, citation fetching, and gap detection,
+          plus a way to start a new run of each. Gap detection can also be triggered from the{" "}
           <Link href="/gaps" className="underline hover:text-[var(--ink)]">
             candidate gaps
           </Link>{" "}
-          page.
+          page — both trigger the same background job, so either one shows the other&apos;s progress.
         </p>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
           The corpus is built by a chain of stages: ingestion pulls raw papers in from an external
           source (arXiv, Springer Nature, Semantic Scholar, or CORE), extraction pulls structured claims
-          and evidence out of each paper&apos;s text, and embedding turns that text into the
-          vectors search and gap detection rely on. Each tab below runs and monitors one stage; a
-          paper generally needs to pass through all three before it&apos;s fully usable elsewhere
-          in the app.
+          and evidence out of each paper&apos;s text, embedding turns that text into the vectors search
+          relies on, and gap detection compares each paper&apos;s neighborhood for recurring
+          limitation patterns. Each tab below runs and monitors one stage; a paper generally needs
+          to pass through extraction and embedding before it&apos;s eligible for gap detection.
         </p>
 
         {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
@@ -438,6 +447,18 @@ export default function AdminPipeline() {
                     forceWarning="This reprocesses every paper eligible for the selected source, including ones that already have citation edges from it, instead of only papers without any yet. It won't delete existing edges, but re-fetches for the whole corpus again, which takes a long time and uses many more API calls."
                   />
                 </>
+              )}
+
+              {tab === "gap_detection" && (
+                <RunSection
+                  title="gap detection runs"
+                  pipelineKey="gaps"
+                  runs={status.gap_detection_runs}
+                  running={status.running.gaps}
+                  fields={[]}
+                  onRun={() => gapsApi.detect()}
+                  onStarted={reload}
+                />
               )}
 
               {tab === "stats" && <AdminStats status={status} />}

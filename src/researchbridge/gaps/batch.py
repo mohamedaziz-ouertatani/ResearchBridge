@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from researchbridge.db.models import CandidateGap, Embedding, Paper
+from researchbridge.db.models import CandidateGap, Embedding, GapDetectionRun, Paper
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.gaps.cluster import DEFAULT_MIN_CLUSTER_SIZE, DEFAULT_SIMILARITY_THRESHOLD
@@ -54,11 +54,18 @@ def run_all(
     similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     force: bool = False,
     save: bool = False,
+    run: GapDetectionRun | None = None,
 ) -> BatchSummary:
+    """run: an optional in-progress GapDetectionRun row to update after every
+    paper, not just once the whole batch finishes - without this, a long
+    -running detection pass (loads an embedder, compares each seed against
+    its whole neighborhood) would show all-zeros in the admin UI the entire
+    time it's running, only jumping to real numbers at the very end."""
     summary = BatchSummary()
     seed_ids = _select_seed_papers(session, force)
     total_embedded = _count_embedded(session)
     summary.papers_skipped = total_embedded - len(seed_ids)
+    _sync_run(session, run, summary)
 
     for paper_id in seed_ids:
         summary.papers_seen += 1
@@ -67,6 +74,7 @@ def run_all(
         except Exception:
             logger.exception("Gap detection failed for paper %s", paper_id)
             summary.papers_failed += 1
+            _sync_run(session, run, summary)
             continue
 
         if result.status == "no_relevant_papers":
@@ -78,8 +86,22 @@ def run_all(
         if result.drafts and save:
             saved = save_candidate_gaps(session, result.drafts, similarity_threshold)
             summary.gaps_saved += len(saved)
+        _sync_run(session, run, summary)
 
     return summary
+
+
+def _sync_run(session: Session, run: GapDetectionRun | None, summary: BatchSummary) -> None:
+    if run is None:
+        return
+    run.papers_seen = summary.papers_seen
+    run.papers_skipped = summary.papers_skipped
+    run.papers_failed = summary.papers_failed
+    run.no_relevant_papers = summary.no_relevant_papers
+    run.insufficient_evidence = summary.insufficient_evidence
+    run.gaps_found = summary.gaps_found
+    run.gaps_saved = summary.gaps_saved
+    session.commit()  # updates both the run row and any gaps saved this iteration
 
 
 def _select_seed_papers(session: Session, force: bool) -> list[uuid.UUID]:

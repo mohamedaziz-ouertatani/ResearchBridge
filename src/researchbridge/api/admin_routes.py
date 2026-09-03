@@ -51,12 +51,14 @@ from researchbridge.db.models import (
     EmbeddingRun,
     ExtractedClaim,
     ExtractionRun,
+    GapDetectionRun,
     IngestionError,
     IngestionRun,
     Paper,
     PaperCitation,
     ResearchAssessment,
 )
+from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.extraction.cli_evaluate import DEFAULT_RESULTS_PATH as EXTRACTION_EVAL_RESULTS_PATH
 from researchbridge.retrieval.cli_evaluate import DEFAULT_RESULTS_PATH as RETRIEVAL_EVAL_RESULTS_PATH
 
@@ -73,7 +75,15 @@ PIPELINE_KEYS = (
     "retrieval_eval",
     "extraction_eval",
     "citations_fetch",
+    "gaps",
 )
+""""gaps" is gaps_routes.py's PIPELINE_KEY, not one this router's own trigger
+endpoints start - POST /api/gaps/detect (--all --save, no params) is the
+only way to launch it. It's included here anyway so the generic /{key}/log
+and /{key}/stop endpoints, and the `running` flag below, work for it the
+same as every admin-triggered pipeline - one shared subprocess registry
+(pipeline_triggers.py), one status shape, regardless of which router
+started the subprocess."""
 
 NOTIFICATION_RUNS_PER_TYPE = 15
 NOTIFICATION_LIMIT = 30
@@ -93,6 +103,7 @@ RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
     "extraction": (ExtractionRun, None),
     "embedding": (EmbeddingRun, None),
     "citations_fetch": (CitationFetchRun, None),
+    "gaps": (GapDetectionRun, None),
 }
 
 
@@ -132,6 +143,21 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         ],
         embedding_runs=[
             _to_run(run, ("papers_processed", "papers_skipped")) for run in _recent(session, EmbeddingRun)
+        ],
+        gap_detection_runs=[
+            _to_run(
+                run,
+                (
+                    "papers_seen",
+                    "papers_skipped",
+                    "papers_failed",
+                    "no_relevant_papers",
+                    "insufficient_evidence",
+                    "gaps_found",
+                    "gaps_saved",
+                ),
+            )
+            for run in _recent(session, GapDetectionRun)
         ],
         running={key: is_running(key) for key in PIPELINE_KEYS},
     )
@@ -191,6 +217,17 @@ def notifications(session: Session = Depends(get_session)) -> list[Notification]
                 type=f"citations_fetch_{run.status}",
                 severity=_severity(run.status),
                 message=_citations_fetch_message(run),
+                created_at=run.finished_at or run.started_at,
+            )
+        )
+
+    for run in _recent_finished(session, GapDetectionRun):
+        items.append(
+            Notification(
+                id=f"run:{run.id}",
+                type=f"gap_detection_{run.status}",
+                severity=_severity(run.status),
+                message=_gap_detection_message(run),
                 created_at=run.finished_at or run.started_at,
             )
         )
@@ -284,6 +321,15 @@ def _citations_fetch_message(run: CitationFetchRun) -> str:
     )
 
 
+def _gap_detection_message(run: GapDetectionRun) -> str:
+    forced = " (forced)" if run.force else ""
+    if run.status == "failed":
+        return f"Gap detection run failed{forced}: {run.error_summary or 'unknown error'}"
+    if run.status == "stopped":
+        return f"Gap detection run stopped{forced}: {run.gaps_saved} gap(s) saved so far"
+    return f"Gap detection run completed{forced}: {run.gaps_saved} gap(s) saved, {run.papers_failed} paper(s) failed"
+
+
 def _corpus_health(session: Session) -> CorpusHealth:
     """Cheap count queries flagging papers stuck mid-pipeline or unreachable
     by a citation source - see CorpusHealth's field docstrings for what each
@@ -311,11 +357,20 @@ def _corpus_health(session: Session) -> CorpusHealth:
         select(func.count()).select_from(Paper).where(eligible_for_citations, ~has_citation_edge)
     ).scalar_one()
 
+    is_embedded = exists().where(Embedding.paper_id == Paper.id, Embedding.embedding_type == EMBEDDING_TYPE)
+    has_candidate_gap = exists().where(CandidateGap.seed_paper_id == Paper.id)
+    not_gap_processed = session.execute(
+        select(func.count())
+        .select_from(Paper)
+        .where(is_embedded, Paper.excluded_at.is_(None), ~has_candidate_gap)
+    ).scalar_one()
+
     return CorpusHealth(
         missing_doi=missing_doi,
         excluded=excluded,
         claims_without_embeddings=claims_without_embeddings,
         no_citation_coverage=no_citation_coverage,
+        not_gap_processed=not_gap_processed,
     )
 
 

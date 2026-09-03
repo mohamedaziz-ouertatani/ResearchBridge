@@ -117,7 +117,7 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
           Papers stuck mid-pipeline or unreachable by a citation source - not necessarily broken, just
           worth knowing about before trusting a downstream count.
         </p>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
           <HealthStat
             label="missing DOI"
             value={status.corpus_health.missing_doi}
@@ -141,6 +141,12 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             value={status.corpus_health.no_citation_coverage}
             total={status.total_papers}
             info="Eligible for Semantic Scholar or CrossRef citation fetching (has a DOI, or came from Semantic Scholar) but hasn't been fetched yet."
+          />
+          <HealthStat
+            label="not gap processed"
+            value={status.corpus_health.not_gap_processed}
+            total={status.total_papers}
+            info="Embedded and not excluded, but gap detection hasn't used it as a seed paper yet - the backlog the next gap detection run would work through."
           />
         </div>
       </StatGroup>
@@ -178,7 +184,9 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
       </StatGroup>
 
       <StatGroup title="gap review">
-        <dl className="flex flex-wrap gap-x-10 gap-y-3">
+        <GapDetectionLastRun runs={status.gap_detection_runs} />
+
+        <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
           <Stat label="pending" value={status.gap_stats.pending} />
           <Stat label="approved" value={status.gap_stats.approved} />
           <Stat label="rejected" value={status.gap_stats.rejected} />
@@ -337,6 +345,32 @@ function ProportionBar({ label, value, total }: { label: string; value: number; 
       <span className="mt-1 block h-2 rounded-[1px] bg-[var(--rule-soft)]">
         <span className="block h-full rounded-[1px] bg-[var(--ink-faint)]" style={{ width: `${pct}%` }} />
       </span>
+    </div>
+  );
+}
+
+/** "Did the last gap detection batch run, when, and what did it find" -
+    a summary line, not the full history (see the gap detection tab on the
+    admin page for that). Distinct from the pending/approved/rejected
+    counts right below it: those describe review state, this describes
+    whether the detection job itself ran and succeeded. */
+function GapDetectionLastRun({ runs }: { runs: PipelineRun[] }) {
+  const last = runs[0];
+  if (!last) {
+    return <p className="text-[0.8125rem] text-[var(--ink-faint)]">Gap detection has never been run.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.8125rem]">
+      <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">last detection run</span>
+      <span className="readout">{last.status}</span>
+      <span className="text-[var(--ink-faint)]">{new Date(last.started_at).toLocaleString()}</span>
+      <span className="text-[var(--ink-soft)]">
+        {Object.entries(last.counts)
+          .map(([key, value]) => `${key.replace(/_/g, " ")}: ${value.toLocaleString()}`)
+          .join(" · ")}
+      </span>
+      {last.error_summary && <span className="text-[var(--live)]">{last.error_summary}</span>}
     </div>
   );
 }

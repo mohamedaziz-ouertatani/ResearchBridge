@@ -55,7 +55,7 @@ def _truncate_all(engine) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE TABLE embedding_runs, embeddings, "
+                "TRUNCATE TABLE embedding_runs, embeddings, gap_detection_runs, "
                 "extraction_errors, extraction_runs, extracted_claims, evidence, "
                 "ingestion_errors, ingestion_runs, paper_citations, "
                 "paper_categories, paper_authors, authors, papers RESTART IDENTITY CASCADE"

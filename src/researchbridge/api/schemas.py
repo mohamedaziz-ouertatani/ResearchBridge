@@ -382,6 +382,11 @@ class CorpusHealth(BaseModel):
     """Papers eligible for at least one citation source (has a DOI, or
     source="semantic_scholar") with zero outgoing PaperCitation edges from
     any source yet."""
+    not_gap_processed: int
+    """Embedded, non-excluded papers gap detection hasn't seen yet - the
+    same seed-selection criterion as gaps/batch.py's _select_seed_papers
+    (force=False), so this is exactly the backlog a plain `rb-gaps-detect
+    --all --save` run would work through next."""
 
 
 class GapReviewStats(BaseModel):
@@ -414,12 +419,19 @@ class PipelineStatus(BaseModel):
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]
     citation_fetch_runs: list[PipelineRunOut]
+    gap_detection_runs: list[PipelineRunOut]
+    """Run history for rb-gaps-detect --all, same shape as the other *_runs
+    lists. Started via POST /api/gaps/detect (gaps_routes.py's own trigger,
+    always --all --save, no configurable params) rather than one of this
+    router's own /{stage}/run endpoints, but tracked in the same
+    pipeline_triggers subprocess registry under key "gaps" - see
+    `running` below."""
     running: dict[str, bool]
     """Whether an admin-triggered subprocess is currently alive per pipeline
-    key ("ingestion_arxiv", "ingestion_springer", "ingestion_semantic_scholar",
-    "ingestion_core", "extraction", "embedding", "retrieval_eval") - see
-    pipeline_triggers.py. Independent of the *_runs history above: a run
-    row can say "running" from a crashed/killed process, this reflects only
+    key - see PIPELINE_KEYS in admin_routes.py for the full, current set
+    (ingestion x4, extraction, embedding, retrieval_eval, extraction_eval,
+    citations_fetch). Independent of the *_runs history above: a run row
+    can say "running" from a crashed/killed process, this reflects only
     what this server process itself is still tracking."""
 
 
@@ -433,8 +445,11 @@ class Notification(BaseModel):
     count."""
     type: str
     """One of: ingestion_completed, ingestion_failed, extraction_completed,
-    extraction_failed, embedding_completed, embedding_failed, needs_review,
-    gaps_pending."""
+    extraction_failed, embedding_completed, embedding_failed,
+    citations_fetch_completed, citations_fetch_failed,
+    gap_detection_completed, gap_detection_failed, needs_review,
+    gaps_pending. Any of the run-based types can also end in "_stopped"
+    (an operator-stopped run, same severity as "_completed")."""
     severity: str
     """"info" or "error" - error for a failed run, info otherwise."""
     message: str

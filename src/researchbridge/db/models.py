@@ -281,6 +281,34 @@ class EmbeddingRun(Base):
     force: Mapped[bool] = mapped_column(nullable=False, default=False)
 
 
+class GapDetectionRun(Base):
+    """One rb-gaps-detect --all run - same run-history shape as
+    IngestionRun/ExtractionRun/EmbeddingRun/CitationFetchRun, updated
+    incrementally as the batch processes seed papers (see gaps/batch.py's
+    _sync_run) rather than only once the whole run finishes.
+
+    Distinct from CandidateGap.status: this table tracks whether the batch
+    itself ran and how far it got, not the review state of what it found -
+    a run can complete with gaps_saved=0 and that's a real, non-error
+    outcome (see BatchSummary's no_relevant_papers/insufficient_evidence)."""
+
+    __tablename__ = "gap_detection_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    papers_seen: Mapped[int] = mapped_column(Integer, default=0)
+    papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
+    papers_failed: Mapped[int] = mapped_column(Integer, default=0)
+    no_relevant_papers: Mapped[int] = mapped_column(Integer, default=0)
+    insufficient_evidence: Mapped[int] = mapped_column(Integer, default=0)
+    gaps_found: Mapped[int] = mapped_column(Integer, default=0)
+    gaps_saved: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    force: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+
 class CandidateGap(Base):
     """Phase 3 (Sec 32): an inferred recurring pattern across a paper's neighborhood.
 

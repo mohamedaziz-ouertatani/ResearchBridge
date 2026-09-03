@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
 from researchbridge.config import load_config
-from researchbridge.db.models import Paper
+from researchbridge.db.models import GapDetectionRun, Paper
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.embedding.model import SentenceTransformerEmbedder
 from researchbridge.gaps.batch import run_all
@@ -117,15 +118,33 @@ def _run_batch(session, embedder, args: argparse.Namespace) -> None:
     mode = "saving" if args.save else "dry run"
     print(f"Running gap detection over every embedded paper ({mode})...")
 
-    summary = run_all(
-        session,
-        embedder,
-        top_k=args.top_k,
-        min_cluster_size=args.min_cluster_size,
-        similarity_threshold=args.threshold,
-        force=args.force,
-        save=args.save,
-    )
+    run = GapDetectionRun(status="running", force=args.force)
+    session.add(run)
+    session.commit()
+
+    try:
+        summary = run_all(
+            session,
+            embedder,
+            top_k=args.top_k,
+            min_cluster_size=args.min_cluster_size,
+            similarity_threshold=args.threshold,
+            force=args.force,
+            save=args.save,
+            run=run,
+        )
+    except Exception as exc:
+        run.status = "failed"
+        run.error_summary = str(exc)[:2000]
+        run.finished_at = datetime.now(UTC)
+        session.commit()
+        raise
+
+    # run's counts are already kept current by run_all (see batch.py's
+    # _sync_run) - only the terminal status/finished_at need setting here.
+    run.status = "completed"
+    run.finished_at = datetime.now(UTC)
+    session.commit()
 
     print(f"Papers seen:          {summary.papers_seen}")
     print(f"Papers skipped:       {summary.papers_skipped} (already had a candidate gap)")

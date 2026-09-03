@@ -21,6 +21,7 @@ from researchbridge.db.models import (
     Evidence,
     ExtractedClaim,
     ExtractionRun,
+    GapDetectionRun,
     IngestionError,
     IngestionRun,
     Paper,
@@ -350,6 +351,43 @@ def test_pipeline_status_lists_recent_citation_fetch_runs(client, session) -> No
     assert run["counts"]["edges_already_existed"] == 7
 
 
+def test_pipeline_status_lists_recent_gap_detection_runs(client, session) -> None:
+    session.add(
+        GapDetectionRun(
+            status="completed", started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+            papers_seen=10, papers_skipped=2, papers_failed=1, no_relevant_papers=3,
+            insufficient_evidence=2, gaps_found=5, gaps_saved=4,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert len(body["gap_detection_runs"]) == 1
+    run = body["gap_detection_runs"][0]
+    assert run["status"] == "completed"
+    assert run["source"] is None
+    assert run["counts"]["papers_seen"] == 10
+    assert run["counts"]["gaps_found"] == 5
+    assert run["counts"]["gaps_saved"] == 4
+
+
+def test_pipeline_status_reports_corpus_health_not_gap_processed(client, session, embedder) -> None:
+    seed = _add_paper(session, embedder, "p1", embed=True)
+    _add_paper(session, embedder, "p2", embed=True)
+    _add_paper(session, embedder, "p3", embed=False)  # not embedded: not eligible, doesn't count
+    session.flush()
+    session.add(CandidateGap(
+        seed_paper_id=seed.id, gap_type="inference", observation="x", contributing_paper_count=2,
+        similarity_threshold=0.5, detection_method="heuristic", status="pending",
+    ))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["corpus_health"]["not_gap_processed"] == 1  # only p2
+
+
 def test_pipeline_status_surfaces_error_summary(client, session) -> None:
     session.add(
         IngestionRun(
@@ -599,6 +637,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "retrieval_eval": False,
         "extraction_eval": False,
         "citations_fetch": False,
+        "gaps": False,
     }
 
 
@@ -989,6 +1028,22 @@ def test_stop_citations_fetch_marks_the_running_row_stopped(client, session, mon
     assert run.finished_at is not None
 
 
+def test_stop_gaps_marks_the_running_row_stopped(client, session, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    session.add(GapDetectionRun(status="running"))
+    session.commit()
+    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+
+    response = client.post("/api/admin/gaps/stop")
+
+    assert response.status_code == 200
+    assert response.json() == {"stopped": True, "pipeline": "gaps"}
+    run = session.execute(select(GapDetectionRun)).scalar_one()
+    assert run.status == "stopped"
+    assert run.finished_at is not None
+
+
 def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
     from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning
@@ -1020,6 +1075,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "retrieval_eval": False,
         "extraction_eval": False,
         "citations_fetch": False,
+        "gaps": False,
     }
 
 
@@ -1056,6 +1112,39 @@ def test_notifications_includes_failed_citation_fetch_run(client, session) -> No
     assert body[0]["type"] == "citations_fetch_failed"
     assert body[0]["severity"] == "error"
     assert "rate limited" in body[0]["message"]
+
+
+def test_notifications_includes_completed_gap_detection_run(client, session) -> None:
+    session.add(
+        GapDetectionRun(
+            status="completed", started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+            gaps_saved=4, papers_failed=0,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert len(body) == 1
+    assert body[0]["type"] == "gap_detection_completed"
+    assert body[0]["severity"] == "info"
+    assert "4 gap(s) saved" in body[0]["message"]
+
+
+def test_notifications_includes_failed_gap_detection_run(client, session) -> None:
+    session.add(
+        GapDetectionRun(
+            status="failed", started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+            error_summary="embedder unavailable",
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/notifications").json()
+
+    assert body[0]["type"] == "gap_detection_failed"
+    assert body[0]["severity"] == "error"
+    assert "embedder unavailable" in body[0]["message"]
 
 
 def test_notifications_includes_completed_extraction_run(client, session) -> None:

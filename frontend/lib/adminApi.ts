@@ -19,7 +19,8 @@ export type PipelineKey =
   | "embedding"
   | "retrieval_eval"
   | "extraction_eval"
-  | "citations_fetch";
+  | "citations_fetch"
+  | "gaps";
 
 export type AssessmentStats = {
   total: number;
@@ -31,6 +32,7 @@ export type CorpusHealth = {
   excluded: number;
   claims_without_embeddings: number;
   no_citation_coverage: number;
+  not_gap_processed: number;
 };
 
 export type GapReviewStats = {
@@ -57,6 +59,7 @@ export type PipelineStatus = {
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];
   citation_fetch_runs: PipelineRun[];
+  gap_detection_runs: PipelineRun[];
   running: Record<PipelineKey, boolean>;
 };
 
