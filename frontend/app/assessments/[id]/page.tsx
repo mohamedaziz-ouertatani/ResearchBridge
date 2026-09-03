@@ -40,7 +40,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
 
       {assessment && (
         <div className="pt-12">
-          <AssessmentReport assessment={assessment} />
+          <AssessmentReport assessment={assessment} onAssessmentUpdated={setAssessment} />
           <SimilarityGraph assessmentId={id} />
         </div>
       )}

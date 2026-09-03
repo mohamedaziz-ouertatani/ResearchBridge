@@ -111,6 +111,13 @@ def build_assessment(
                     "application": app.application,
                     "source_paper": app.source_paper,
                     "paper_id": str(app.paper_id),
+                    # carried so a later, on-demand opportunity synthesis
+                    # (assessment/opportunity_synthesis.py) can link its own
+                    # ResearchAssessmentEvidence rows back to the same real
+                    # evidence this application already traces to, instead
+                    # of inventing new evidence for a field this project
+                    # never fabricates grounding for.
+                    "evidence_id": str(app.evidence_id),
                 }
                 for app in applications.applications
             ]

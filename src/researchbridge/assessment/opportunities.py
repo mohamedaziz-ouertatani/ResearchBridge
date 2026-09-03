@@ -20,9 +20,20 @@ Direct/Adjacent/Speculative opportunity without either
     comes with it.
 
 assess_opportunities() exists as a stable interface point (same shape as
-the other assess_* functions in this package) purely so that wiring in a
-real implementation later is a localized change to this one function,
-not a rework of build_assessment()'s call site.
+the other assess_* functions in this package) so that build_assessment()
+never has to special-case this field.
+
+(b) was taken, narrowly and on-demand: see assessment/opportunity_
+synthesis.py and docs/superpowers/specs/
+2026-09-03-opportunities-synthesis-design.md. That module is deliberately
+NOT called from here - every other assess_* function is synchronous,
+deterministic, and has no external-service dependency inside
+build_assessment(), and opportunity synthesis (a local LLM call) would
+break that invariant for every assessment if wired in here, even for
+users who never look at this section. Instead it's triggered on demand
+via POST /api/assessments/{id}/opportunities, after the assessment
+already exists - this function keeps returning NULL during
+build_assessment() itself, exactly as before.
 """
 
 from __future__ import annotations

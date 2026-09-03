@@ -34,6 +34,11 @@ from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.export import build_docx, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
 from researchbridge.assessment.matching import match_uploaded_paper
+from researchbridge.assessment.opportunity_synthesis import (
+    OpportunitySynthesisUnavailable,
+    SourceApplication,
+    synthesize_opportunities,
+)
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
@@ -285,6 +290,87 @@ def rerun_assessment(
         raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
 
     assessment = build_assessment(session, original.research_input_id, embedder)
+
+    research_input = session.get(ResearchInput, assessment.research_input_id)
+    return _to_out(session, assessment, research_input)
+
+
+@router.post("/{assessment_id}/opportunities", response_model=ResearchAssessmentOut)
+def synthesize_assessment_opportunities(
+    assessment_id: uuid.UUID, session: Session = Depends(get_session)
+) -> ResearchAssessmentOut:
+    """Synthesizes and persists Direct/Adjacent/Speculative product
+    opportunities from this assessment's own potential_applications - see
+    docs/superpowers/specs/2026-09-03-opportunities-synthesis-design.md.
+    Unlike every other assess_* field, this one is generated on demand
+    (not during build_assessment()) by a local LLM: 422 if there are no
+    applications to ground it in, 503 if OLLAMA_ENABLED is false or the
+    model can't produce a validly-cited result after one retry - never a
+    partial result persisted."""
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+    if not assessment.potential_applications:
+        raise HTTPException(status_code=422, detail="no potential applications to ground opportunity synthesis in")
+
+    applications = [
+        SourceApplication(
+            application=a["application"],
+            source_paper=a["source_paper"],
+            paper_id=a["paper_id"],
+            evidence_id=a.get("evidence_id"),
+        )
+        for a in assessment.potential_applications
+    ]
+
+    try:
+        result = synthesize_opportunities(applications)
+    except OpportunitySynthesisUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    assessment.potential_opportunities = [
+        {
+            "tier": opp.tier,
+            "opportunity": opp.opportunity,
+            "source_applications": [
+                {
+                    "application": applications[i - 1].application,
+                    "paper_id": applications[i - 1].paper_id,
+                    "paper_title": applications[i - 1].source_paper,
+                }
+                for i in opp.source_application_indices
+            ],
+        }
+        for opp in result.opportunities
+    ]
+
+    # Link the same real evidence the cited applications already trace to -
+    # never fabricated for this field. This route can be called again on
+    # the same assessment (e.g. to regenerate after a failed/unsatisfying
+    # attempt), so any evidence links from a previous synthesis are cleared
+    # first - otherwise a re-run citing the same application a second time
+    # would violate the unique constraint on (assessment_id, evidence_id,
+    # role) instead of just replacing the old link.
+    session.execute(
+        delete(ResearchAssessmentEvidence).where(
+            ResearchAssessmentEvidence.research_assessment_id == assessment.id,
+            ResearchAssessmentEvidence.role == "opportunity",
+        )
+    )
+    cited_evidence_ids = {
+        applications[i - 1].evidence_id
+        for opp in result.opportunities
+        for i in opp.source_application_indices
+        if applications[i - 1].evidence_id is not None
+    }
+    for evidence_id in cited_evidence_ids:
+        session.add(
+            ResearchAssessmentEvidence(
+                research_assessment_id=assessment.id, evidence_id=uuid.UUID(evidence_id), role="opportunity"
+            )
+        )
+
+    session.commit()
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)

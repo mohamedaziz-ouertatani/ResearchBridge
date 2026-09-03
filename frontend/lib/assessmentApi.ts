@@ -32,6 +32,20 @@ export type PotentialApplication = {
   paper_id: string;
 };
 
+/** One application already shown above, cited as grounding for a
+ * synthesized opportunity - see potential_opportunities below. */
+export type OpportunitySourceApplication = {
+  application: string;
+  paper_id: string;
+  paper_title: string;
+};
+
+export type PotentialOpportunity = {
+  tier: "direct" | "adjacent" | "speculative";
+  opportunity: string;
+  source_applications: OpportunitySourceApplication[];
+};
+
 export type ResearchAssessment = {
   id: string;
   research_input: ResearchInput;
@@ -46,7 +60,7 @@ export type ResearchAssessment = {
   potential_applications: PotentialApplication[] | null;
   technical_feasibility_level: string;
   technical_feasibility_reasoning: string | null;
-  potential_opportunities: unknown[] | null;
+  potential_opportunities: PotentialOpportunity[] | null;
   risks_and_limitations: string | null;
   external_validation_needed: string;
   recommendation: string | null;
@@ -150,6 +164,15 @@ export const assessmentApi = {
     }),
 
   rerun: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}/rerun`, { method: "POST" }),
+
+  /** Synthesizes Direct/Adjacent/Speculative opportunities via a local LLM
+   * (off unless the backend has OLLAMA_ENABLED=true) and persists them -
+   * 422 if the assessment has no potential_applications to ground this in,
+   * 503 if the local model is unavailable or unable to produce a validly
+   * cited result after one retry. See docs/superpowers/specs/
+   * 2026-09-03-opportunities-synthesis-design.md. */
+  synthesizeOpportunities: (id: string) =>
+    request<ResearchAssessment>(`/api/assessments/${id}/opportunities`, { method: "POST" }),
 
   /** Deletes the whole assessment thread (every rerun for the same input,
    * not just this one id) - see the backend route's docstring. */

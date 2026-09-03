@@ -6,6 +6,8 @@ import {
   type AssessmentEvidence,
   type AssessmentHistoryItem,
   type EvidenceRole,
+  type PotentialApplication,
+  type PotentialOpportunity,
   type ResearchAssessment,
 } from "@/lib/assessmentApi";
 import { api, API_BASE } from "@/lib/api";
@@ -49,7 +51,20 @@ export function groupByRole(evidence: AssessmentEvidence[]) {
   return byRole;
 }
 
-export function AssessmentReport({ assessment }: { assessment: ResearchAssessment }) {
+export function AssessmentReport({
+  assessment,
+  onAssessmentUpdated,
+}: {
+  assessment: ResearchAssessment;
+  /** Called with the full updated assessment after opportunity synthesis
+   * persists new evidence links - lets a parent that owns assessment state
+   * (see app/assessments/[id]/page.tsx) refresh the "grounded fields" tally
+   * and evidence gutter immediately, instead of only Opportunities' own
+   * local state changing. Optional: omitting it still updates the
+   * opportunities section itself (Opportunities keeps its own state too),
+   * just not the rest of the report until the next fetch. */
+  onAssessmentUpdated?: (updated: ResearchAssessment) => void;
+}) {
   const byRole = groupByRole(assessment.evidence);
   const groundedCount = GRADEABLE_ROLES.filter((role) => (byRole.get(role)?.length ?? 0) > 0).length;
 
@@ -181,7 +196,12 @@ export function AssessmentReport({ assessment }: { assessment: ResearchAssessmen
       </Field>
 
       <Field label="product / technology opportunities" evidence={byRole.get("opportunity")}>
-        <Unassessed reason="Not generated. Naming a product opportunity means inventing a claim the literature does not make, so this is left to a human reviewer." />
+        <Opportunities
+          assessmentId={assessment.id}
+          applications={assessment.potential_applications}
+          opportunities={assessment.potential_opportunities}
+          onSynthesized={onAssessmentUpdated}
+        />
       </Field>
 
       <Field
@@ -708,4 +728,108 @@ function Preformatted({ text }: { text: string }) {
 
 function Unassessed({ reason }: { reason: string }) {
   return <p className="max-w-[58ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">{reason}</p>;
+}
+
+const TIER_LABEL: Record<PotentialOpportunity["tier"], string> = {
+  direct: "direct",
+  adjacent: "adjacent",
+  speculative: "speculative",
+};
+
+/*
+  The one field in this report synthesized by a local LLM rather than
+  extracted - see docs/superpowers/specs/2026-09-03-opportunities-synthesis-
+  design.md. Off unless the backend has OLLAMA_ENABLED=true (the button
+  simply 503s, shown as an inline error, if not) - never generated during
+  the initial assessment, only on explicit request here, and every citation
+  the model produced was already checked against real application indices
+  server-side before this ever renders.
+*/
+function Opportunities({
+  assessmentId,
+  applications,
+  opportunities: initialOpportunities,
+  onSynthesized,
+}: {
+  assessmentId: string;
+  applications: PotentialApplication[] | null;
+  opportunities: PotentialOpportunity[] | null;
+  onSynthesized?: (updated: ResearchAssessment) => void;
+}) {
+  const [opportunities, setOpportunities] = useState(initialOpportunities);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function synthesize() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const updated = await assessmentApi.synthesizeOpportunities(assessmentId);
+      setOpportunities(updated.potential_opportunities);
+      onSynthesized?.(updated);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!applications || applications.length === 0) {
+    return (
+      <Unassessed reason="Not enough evidence: no potential applications were found for this idea to synthesize opportunities from." />
+    );
+  }
+
+  if (!opportunities) {
+    return (
+      <div>
+        <Unassessed reason="Not generated yet. This is the one field synthesized by a local LLM, grounded only in the applications above - never invented from nothing." />
+        <button
+          type="button"
+          onClick={synthesize}
+          disabled={busy}
+          className="eyebrow mt-3 rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-50"
+        >
+          {busy ? "synthesizing…" : "✨ synthesize opportunities"}
+        </button>
+        {failed && (
+          <p className="mt-2 text-[0.75rem] text-[var(--live)]">
+            local LLM unavailable — this section requires an operator to enable it
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <span className="eyebrow text-[var(--ink-faint)]">
+        AI-synthesized from the applications above — not independently verified
+      </span>
+      <ul className="mt-3 space-y-4">
+        {opportunities.map((o) => (
+          <li key={o.tier}>
+            <span className="eyebrow">{TIER_LABEL[o.tier]}</span>
+            <p className="mt-1 font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed">
+              {o.opportunity}
+            </p>
+            <p className="mt-1 text-[0.8125rem] text-[var(--ink-soft)]">
+              from{" "}
+              {o.source_applications.map((source, i) => (
+                <span key={source.paper_id}>
+                  {i > 0 && ", "}
+                  <Link
+                    href={`/papers/${source.paper_id}`}
+                    className="underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+                  >
+                    {source.paper_title}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

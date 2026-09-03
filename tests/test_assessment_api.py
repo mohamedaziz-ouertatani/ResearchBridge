@@ -240,6 +240,101 @@ def test_get_assessment_404s_for_unknown_id(client) -> None:
     assert client.get(f"/api/assessments/{uuid.uuid4()}").status_code == 404
 
 
+# --- POST /{id}/opportunities: on-demand LLM synthesis (see
+# docs/superpowers/specs/2026-09-03-opportunities-synthesis-design.md) ------
+
+
+def _create_with_applications(client, session, embedder) -> dict:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    session.commit()
+    return client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+
+def test_opportunities_404s_for_unknown_assessment(client) -> None:
+    response = client.post(f"/api/assessments/{uuid.uuid4()}/opportunities")
+
+    assert response.status_code == 404
+
+
+def test_opportunities_422s_without_any_potential_applications(client, session) -> None:
+    body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers in the corpus"}).json()
+    assert body["potential_applications"] is None
+
+    response = client.post(f"/api/assessments/{body['id']}/opportunities")
+
+    assert response.status_code == 422
+
+
+def test_opportunities_503s_when_ollama_is_disabled(client, session, embedder) -> None:
+    body = _create_with_applications(client, session, embedder)
+
+    response = client.post(f"/api/assessments/{body['id']}/opportunities")
+
+    assert response.status_code == 503
+    refetched = client.get(f"/api/assessments/{body['id']}").json()
+    assert refetched["potential_opportunities"] is None
+
+
+def test_opportunities_synthesizes_and_persists_when_available(
+    client, session, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import researchbridge.api.assessment_routes as routes_module
+    from researchbridge.assessment.opportunity_synthesis import SynthesisResult, SynthesizedOpportunity
+
+    body = _create_with_applications(client, session, embedder)
+
+    def _fake_synthesize(applications):
+        return SynthesisResult(
+            opportunities=[
+                SynthesizedOpportunity(tier="direct", opportunity="fraud-scoring API", source_application_indices=[1]),
+                SynthesizedOpportunity(tier="adjacent", opportunity="risk platform", source_application_indices=[1]),
+                SynthesizedOpportunity(tier="speculative", opportunity="fraud network", source_application_indices=[1]),
+            ]
+        )
+
+    monkeypatch.setattr(routes_module, "synthesize_opportunities", _fake_synthesize)
+
+    response = client.post(f"/api/assessments/{body['id']}/opportunities")
+
+    assert response.status_code == 200
+    opportunities = response.json()["potential_opportunities"]
+    assert [o["tier"] for o in opportunities] == ["direct", "adjacent", "speculative"]
+    assert opportunities[0]["opportunity"] == "fraud-scoring API"
+    assert opportunities[0]["source_applications"] == [
+        {
+            "application": "real-time payment fraud screening",
+            "paper_id": body["potential_applications"][0]["paper_id"],
+            "paper_title": "graph transformers for fraud detection",
+        }
+    ]
+
+
+def test_opportunities_persist_across_a_fresh_fetch(
+    client, session, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import researchbridge.api.assessment_routes as routes_module
+    from researchbridge.assessment.opportunity_synthesis import SynthesisResult, SynthesizedOpportunity
+
+    body = _create_with_applications(client, session, embedder)
+    monkeypatch.setattr(
+        routes_module,
+        "synthesize_opportunities",
+        lambda applications: SynthesisResult(
+            opportunities=[
+                SynthesizedOpportunity(tier="direct", opportunity="a", source_application_indices=[1]),
+                SynthesizedOpportunity(tier="adjacent", opportunity="b", source_application_indices=[1]),
+                SynthesizedOpportunity(tier="speculative", opportunity="c", source_application_indices=[1]),
+            ]
+        ),
+    )
+    client.post(f"/api/assessments/{body['id']}/opportunities")
+
+    fetched = client.get(f"/api/assessments/{body['id']}").json()
+
+    assert [o["tier"] for o in fetched["potential_opportunities"]] == ["direct", "adjacent", "speculative"]
+
+
 def test_assessment_returns_the_evidence_backing_each_field(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
     _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
