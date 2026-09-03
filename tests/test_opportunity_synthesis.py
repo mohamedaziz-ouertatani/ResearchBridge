@@ -43,6 +43,26 @@ def test_build_prompt_escapes_bracketed_numbers_already_in_application_text() ->
     assert "(3)" in user_prompt
 
 
+def test_build_prompt_states_the_valid_citation_range_and_does_not_imply_two_citations() -> None:
+    # regression guard: an earlier prompt's "Adjacent: <opportunity> [n][m]"
+    # example hardcoded a two-citation shape and the real model pattern-
+    # matched it literally even with only one application available,
+    # hallucinating a citation that didn't exist - every single-application
+    # synthesis failed as a result. The prompt must state the real range
+    # and must not show a two-bracket example for any one tier.
+    system_prompt, _ = build_prompt([_app("only application")])
+
+    assert "1" in system_prompt  # the valid range is stated
+    assert "[n][m]" not in system_prompt
+
+
+def test_build_prompt_system_prompt_reflects_the_actual_application_count() -> None:
+    single_prompt, _ = build_prompt([_app("a")])
+    multi_prompt, _ = build_prompt([_app("a"), _app("b"), _app("c")])
+
+    assert single_prompt != multi_prompt
+
+
 # --- parse_response -----------------------------------------------------------
 
 
@@ -55,6 +75,22 @@ def test_parse_response_accepts_three_valid_tiers_in_order() -> None:
     assert result[0].opportunity == "fraud-scoring API"
     assert result[0].source_application_indices == [1]
     assert result[1].source_application_indices == [1, 2]
+
+
+def test_parse_response_accepts_comma_separated_citations_in_one_bracket() -> None:
+    # real model behavior (qwen2.5:3b), not a contrived shape: it writes
+    # multi-citations both as "[1][2]" (separate brackets, matching the
+    # prompt's own example) and as "[1,2]" (comma-separated in one
+    # bracket) interchangeably - a line using the second style must not
+    # silently parse as having zero citations
+    text = "Direct: a [1]\nAdjacent: b [1,2]\nSpeculative: c [1, 2]"
+
+    result = parse_response(text, application_count=2)
+
+    assert result[1].source_application_indices == [1, 2]
+    assert result[2].source_application_indices == [1, 2]
+    assert result[1].opportunity == "b"
+    assert result[2].opportunity == "c"
 
 
 def test_parse_response_reorders_tiers_regardless_of_model_output_order() -> None:

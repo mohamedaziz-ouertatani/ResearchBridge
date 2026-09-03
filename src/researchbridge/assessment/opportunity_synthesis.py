@@ -57,30 +57,77 @@ class SourceApplication:
     paper_id: str
     evidence_id: str | None = None
 
-SYSTEM_PROMPT = (
-    "You are given a numbered list of applications already identified for a research idea, each "
-    "grounded in a specific paper. Propose exactly three product/technology opportunities that "
-    "build on these applications: one Direct (a straightforward product built from one "
-    "application as stated), one Adjacent (a broader product combining or extending the "
-    "applications, still plausible from what's listed), and one Speculative (an ambitious, "
-    "longer-horizon idea, clearly still connected to the applications). Do not invent a "
-    "capability, technology, or claim that isn't implied by the numbered applications. Format "
-    "your response as exactly three lines, in this exact order:\n"
-    "Direct: <opportunity> [n]\n"
-    "Adjacent: <opportunity> [n][m]\n"
-    "Speculative: <opportunity> [n]\n"
-    "where each line's [n] cites which application number(s) it draws from."
-)
+def _build_system_prompt(application_count: int) -> str:
+    """Built per call (not a fixed module constant) so the valid citation
+    range is stated explicitly, anchored to the real application count -
+    found live against the actual model (qwen2.5:3b): an earlier fixed
+    prompt's "Adjacent: <opportunity> [n][m]" example hardcoded a two-
+    citation shape, and the model pattern-matched it literally even with
+    only ONE application available, hallucinating a citation [2] that
+    doesn't exist - a single-application assessment (a common real case,
+    not a contrived edge case) then failed synthesis on every attempt,
+    every retry, 100% of the time. Fixed by (a) using a single, consistent
+    "[n]" example across all three tiers instead of implying Adjacent
+    always needs two, and (b) stating the valid range out loud."""
+    only = "only application" if application_count == 1 else f"applications, numbered 1 to {application_count},"
+    return (
+        f"You are given {application_count} numbered {only} already identified for a research idea, "
+        "each grounded in a specific paper. Propose exactly three product/technology opportunities "
+        "that build on these applications: one Direct (a straightforward product built from one "
+        "application as stated), one Adjacent (a broader product combining or extending the "
+        "applications, still plausible from what's listed), and one Speculative (an ambitious, "
+        "longer-horizon idea, clearly still connected to the applications). Do not invent a "
+        "capability, technology, or claim that isn't implied by the numbered applications. Format "
+        "your response as exactly three lines, in this exact order:\n"
+        "Direct: <opportunity> [n]\n"
+        "Adjacent: <opportunity> [n]\n"
+        "Speculative: <opportunity> [n]\n"
+        f"where each line's [n] cites which application number(s) it draws from - only use numbers "
+        f"from 1 to {application_count}, and cite more than one only if more than one application "
+        "genuinely supports that specific opportunity."
+    )
 
-_CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 _TIER_LINE_RE = re.compile(r"^\s*(direct|adjacent|speculative)\s*:\s*(.+)$", re.IGNORECASE)
+
+# Matches a single-number bracket like "[3]" - used only to escape a
+# literal citation-shaped substring already present in an application's
+# own text (e.g. a copied bibliography reference) before it's numbered
+# into the prompt, so extraction can't mistake it for a marker the model
+# itself emitted. Deliberately narrower than _CITATION_GROUP_RE below.
+_SINGLE_BRACKET_NUMBER_RE = re.compile(r"\[(\d+)\]")
+
+# Matches one bracket group containing one or more digits, comma-and/or
+# space-separated - e.g. "[3]", "[3,4]", "[3, 4, 5]". Found live against
+# the real model (qwen2.5:3b): it writes multi-citations BOTH as separate
+# brackets ("[1][2]", what the prompt's own example shows) AND as a
+# comma-separated list inside one bracket ("[1,2]", "[1, 3, 5]") - the
+# first version of this parser only recognized the first style, so a line
+# citing multiple applications the second way silently parsed as having
+# NO citation at all and failed validation on every retry.
+_CITATION_GROUP_RE = re.compile(r"\[([\d,\s]+)\]")
 
 
 def _escape_bracketed_numbers(text: str) -> str:
     """Same guard as qa/summarize.py's _escape_bracketed_numbers: neutralizes
     a literal [n] substring inside application text so citation extraction
     can't mistake it for a citation marker the model itself emitted."""
-    return _CITATION_PATTERN.sub(lambda m: f"({m.group(1)})", text)
+    return _SINGLE_BRACKET_NUMBER_RE.sub(lambda m: f"({m.group(1)})", text)
+
+
+def _extract_citation_numbers(text: str) -> list[int]:
+    """Every citation number in `text`, in order of first appearance,
+    deduplicated - handling both "[1][2]" and "[1,2]"/"[1, 2]" bracket
+    styles (see _CITATION_GROUP_RE)."""
+    numbers: list[int] = []
+    for group in _CITATION_GROUP_RE.finditer(text):
+        for piece in group.group(1).split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            n = int(piece)
+            if n not in numbers:
+                numbers.append(n)
+    return numbers
 
 
 def build_prompt(applications: list[SourceApplication]) -> tuple[str, str]:
@@ -90,7 +137,7 @@ def build_prompt(applications: list[SourceApplication]) -> tuple[str, str]:
         for i, app in enumerate(applications, start=1)
     )
     user_prompt = f"Applications:\n{numbered}"
-    return SYSTEM_PROMPT, user_prompt
+    return _build_system_prompt(len(applications)), user_prompt
 
 
 @dataclass
@@ -117,17 +164,14 @@ def parse_response(text: str, application_count: int) -> list[SynthesizedOpportu
         assert tier in _TIERS
         body = match.group(2).strip()
 
-        citations: list[int] = []
-        for cite_match in _CITATION_PATTERN.finditer(body):
-            n = int(cite_match.group(1))
+        citations = _extract_citation_numbers(body)
+        for n in citations:
             if n < 1 or n > application_count:
                 raise ValueError(f"citation [{n}] is out of range for {application_count} applications")
-            if n not in citations:
-                citations.append(n)
         if not citations:
             raise ValueError(f"{tier} opportunity has no citation")
 
-        opportunity_text = _CITATION_PATTERN.sub("", body).strip()
+        opportunity_text = _CITATION_GROUP_RE.sub("", body).strip()
         if not opportunity_text:
             raise ValueError(f"{tier} opportunity has no text beyond its citation")
 
