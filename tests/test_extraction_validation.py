@@ -193,6 +193,98 @@ def test_abbreviation_period_does_not_truncate_the_qualifying_context() -> None:
     assert result.is_valid is True
 
 
+# --- Traffic-congestion-idea investigation regression set (2026-09-03) ---
+# Gate 1 behavior for all 10 cases from that investigation, cases 7/8 being
+# Fix B (structural, not vocabulary, additions - see module docstring's
+# _DEPLOYMENT_CLAUSE_RE/_ACTOR_SETTING_RE comments for what changed and why).
+# Case 1 (the enumeration false positive) is Gate 2's job - see
+# test_assessment_applications.py - Gate 1 is intentionally permissive of
+# enumeration on its own, since it has no paper context to know an
+# enumerated item restates the paper's own task.
+
+
+def test_traffic_case2_bare_task_restatement_is_rejected() -> None:
+    text = "The proposed model is useful for predicting student performance."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_traffic_case3_software_applications_noun_sense_is_rejected() -> None:
+    text = "software applications for technology-oriented learning"
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_traffic_case4_generic_future_research_usefulness_is_rejected() -> None:
+    text = "This approach could be useful for future research."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_traffic_case5_generic_domain_statement_is_rejected() -> None:
+    text = "This method has applications in machine learning and artificial intelligence."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_traffic_case6_research_task_restatement_is_rejected() -> None:
+    # "the model" + "applied to" + a bare task complement with no actor,
+    # institution, or qualifying context beyond the task's own object -
+    # same shape as case2, phrased with a different verb
+    text = "The model can be applied to traffic congestion prediction."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_traffic_case7_deployment_by_a_named_authority_is_accepted() -> None:
+    # Fix B: "authorities" added to the actor/institution lexicon -
+    # structurally the same category as the already-present "agencies" /
+    # "regulators" / "government", not a new kind of signal
+    text = "The system can be deployed by city traffic authorities to monitor congestion and optimize traffic flow."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_traffic_case8_support_actor_in_downstream_action_is_accepted() -> None:
+    # Fix B: new structural "support <actor> in <downstream action>-ing"
+    # pattern, matched by word-class not a curated actor/action vocabulary
+    # - "commuters" and "selecting alternative routes" are never named
+    # explicitly in the regex, only the grammatical shape is
+    text = "The predictions can support commuters in selecting alternative routes during periods of heavy congestion."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_traffic_case9_named_deployment_domain_is_accepted() -> None:
+    text = "The method can be applied in intelligent transportation systems for real-time traffic management."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_traffic_case10_own_contribution_disguised_as_application_is_rejected() -> None:
+    text = "We develop an application that predicts traffic congestion using LSTM."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_support_verb_alone_without_downstream_gerund_is_still_rejected() -> None:
+    # Fix B's new "support X in Y-ing" pattern must not become a bare
+    # "support" bypass - no "in <gerund>" complement, so no signal fires
+    text = "This library provides broad support for many use cases."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
 def test_results_claim_without_metric_language_is_rejected() -> None:
     text = "This paper studies the problem of efficient graph coloring."
     result = validate_claim_type("results", text)

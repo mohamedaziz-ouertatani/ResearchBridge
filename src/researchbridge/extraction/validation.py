@@ -174,6 +174,15 @@ _ABBREVIATION_RE = re.compile(r"\b(e\.g|i\.e|etc)\.", re.IGNORECASE)
 # X"). No tiering by verb - see the module docstring above for why that
 # was tried and rejected. Each alternative requires at least one
 # following word so an empty/truncated complement never matches.
+# Fix B (2026-09-03 investigation): "support commuters in selecting
+# alternative routes" and similar genuine deployment claims were false
+# negatives - "support" was not a recognized deployment verb at all.
+# Added as a grammatical SHAPE ("support <actor> in <downstream action>-
+# ing"), not a curated actor/action word list: the actor and the gerund
+# complement are matched by word class ([a-z]+), so this recognizes any
+# "support X in Y-ing" construction rather than a fixed vocabulary of
+# actors ("commuters") or actions ("selecting routes"). See
+# _DOWNSTREAM_ACTION_RE below for the matching self-sufficiency check.
 _DEPLOYMENT_CLAUSE_RE = re.compile(
     r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+[a-z]"
     r"|\b(?:is\s+)?applicable\s+(?:to|in)\s+[a-z]"
@@ -182,7 +191,8 @@ _DEPLOYMENT_CLAUSE_RE = re.compile(
     r"|\bdeployed\s+(?:in|to|for|by)\s+[a-z]"
     r"|\bused\s+(?:in|for|to|by|as)\s+[a-z]"
     r"|\b(?:applied|applicable|targets?|targeting)\s+(?:to|for|in)\s+[a-z]"
-    r"|\buseful\s+(?:to|for|in)\s+[a-z]",
+    r"|\buseful\s+(?:to|for|in)\s+[a-z]"
+    r"|\bsupport(?:s|ed|ing)?\s+[a-z]+\s+in\s+[a-z]",
     re.IGNORECASE,
 )
 
@@ -205,7 +215,7 @@ _ACTOR_SETTING_RE = re.compile(
     r"|\bpolicymakers?\b|\binstructors?\b|\bteachers?\b|\beducators?\b"
     r"|\badvisors?\b|\bcounselors?\b|\bpractitioners?\b|\bindustry\b"
     r"|\borganizations?\b|\bcompanies\b|\bbusinesses?\b|\benterprises?\b"
-    r"|\bgovernments?\b|\bagenc(y|ies)\b|\bdecision[- ]makers?\b|\bstakeholders?\b"
+    r"|\bgovernments?\b|\bagenc(y|ies)\b|\bauthorit(y|ies)\b|\bdecision[- ]makers?\b|\bstakeholders?\b"
     r"|\b\w+(ologists?|icians?)\b"
     r"|\bin (clinical|industrial|educational|practical|real-world) (practice|settings?|use|contexts?)\b"
     r"|\bat scale\b|\bin the field\b|\bin practice\b",
@@ -215,12 +225,18 @@ _ACTOR_SETTING_RE = re.compile(
 # Downstream actions distinct from the paper's own predictive/detection/
 # classification verb - a human or institutional response taken as a
 # RESULT of the system's output, not the system's own computation.
+# The last alternative is Fix B's "support X in Y-ing" shape, mirrored
+# here so it's self-sufficient the same way enumeration is below (Sec 97
+# comment): supporting a named actor IN performing an action is, by its
+# own grammar, both an actor reference and a downstream action - it does
+# not need a separate curated actor/action word to also match.
 _DOWNSTREAM_ACTION_RE = re.compile(
     r"\binterventions?\b|\btriage\b|\bmanual review\b|\bcounsel(l)?ing\b"
     r"|\btreatment plan(ning)?\b|\bresource allocation\b|\bpolicy( ?making)?\b"
     r"|\bremediation\b|\bprioriti[sz](e|ation|ing)\b|\bdecision support\b"
     r"|\brisk mitigation\b|\bearly (intervention|warning)\b|\bscreening\b"
-    r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b",
+    r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b"
+    r"|\bsupport(?:s|ed|ing)?\s+[a-z]+\s+in\s+[a-z]+ing\b",
     re.IGNORECASE,
 )
 
