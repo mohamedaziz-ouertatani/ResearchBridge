@@ -83,9 +83,25 @@ _ACHIEVEMENT_VERB_RE = re.compile(
 # competing metric/achievement signal in the same text; the strong tier
 # is trusted either way, since "remains an open problem"/"future work"
 # is not something a results sentence says in passing.
+#
+# The strong tier's own trust-it-either-way stance is exactly why
+# "open (question|problem)" needs its own narrower guard (2026-09-04
+# investigation, found live-testing the assessment pipeline with real
+# ideas): it matched "six existing OPEN QUESTION ANSWERING datasets" in a
+# real paper describing its own benchmark contribution - a standard NLP
+# task name ("open [-domain/-book/-ended] question answering"), not a
+# stated gap, and the strong tier has no competing-signal check to catch
+# it. Verified against the whole corpus before narrowing anything: of 169
+# real "open question"/"open problem" occurrences, the word immediately
+# following was "answering" in exactly the 3 that were this false
+# positive (2 identical claims, "Visual Open Question Answering (Visual
+# OpenQA)" and "open question answering datasets") and never for any
+# other following word sampled ("in", "whether", "is", "posed", "of",
+# "to", ...) - all genuine gap language. Narrow negative lookahead rather
+# than a broader exclusion, to avoid guessing past what the data showed.
 _STRONG_GAP_LANGUAGE_RE = re.compile(
     r"\bfuture work\b|\bwe leave\b|\bwe plan to\b|\bfurther exploration\b"
-    r"|\bremains? (an? )?open\b|\bopen (question|problem)\b"
+    r"|\bremains? (an? )?open\b|\bopen (question|problem)\b(?!\s+answering)"
     r"|\byet to be\b|\bhas not been\b|\bhave not been\b|\bno existing\b"
     r"|\black(s|ing)?( of)?\b|\bunexplored\b|\bunderexplored\b"
     r"|\bstill unknown\b|\bunaddressed\b|\bnot yet been\b"

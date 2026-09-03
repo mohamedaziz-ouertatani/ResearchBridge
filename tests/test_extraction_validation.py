@@ -77,6 +77,39 @@ def test_gap_between_is_still_accepted_when_not_a_computation_verb() -> None:
     assert result.tier == "weak"
 
 
+def test_open_question_answering_task_name_is_not_a_research_gap() -> None:
+    # real production example (2026-09-04 investigation, found live-testing
+    # the assessment pipeline with real ideas): "open (question|problem)"
+    # matched "six existing open question answering datasets" - a standard
+    # NLP task name ("open question answering"), not a stated gap. The
+    # claim actually describes the paper's own benchmark contribution.
+    # Verified against the whole corpus before narrowing: every other
+    # "open question"/"open problem" occurrence sampled was genuine gap
+    # language - only "answering" immediately after was a false positive.
+    text = (
+        "To address this, we present MultiMedQA, a benchmark combining six existing open "
+        "question answering datasets spanning professional medical exams, research, and "
+        "consumer queries; and HealthSearchQA, a new free-response dataset of medical "
+        "questions searched online."
+    )
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+
+
+def test_open_question_is_still_accepted_when_not_a_task_name() -> None:
+    # regression guard: the new lookahead must not reject every "open
+    # question"/"open problem" - only the "... answering" task-name shape
+    for text in [
+        "Whether such capabilities generalize to unseen domains remains an open question.",
+        "This is an open problem in the field, and future work should address it.",
+        "An open question in previous studies is how to filter out common memorization.",
+    ]:
+        result = validate_claim_type("research_gap", text)
+        assert result.is_valid is True, text
+        assert result.tier == "strong", text
+
+
 def test_method_sentence_mislabeled_as_applications_is_rejected() -> None:
     text = "We propose a transformer-based architecture trained on paired image-text data."
     result = validate_claim_type("applications", text)
