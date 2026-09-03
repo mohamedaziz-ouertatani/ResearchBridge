@@ -246,6 +246,57 @@ def test_enumeration_is_accepted_without_a_curated_actor_word() -> None:
     assert result.is_valid is True
 
 
+def test_enumeration_with_a_comma_before_such_as_is_accepted() -> None:
+    # Fix C (2026-09-04, found building a claim-revalidation backfill): the
+    # original enumeration alternative required "such as"/"including"
+    # immediately after "application(s)" with no comma - ordinary written
+    # English ("...numerous real-world applications, such as robotics,
+    # autonomous vehicles...") was silently rejected as having no
+    # deployment context at all. Real corpus case.
+    text = (
+        "Instance segmentation is an important pre-processing task in numerous "
+        "real-world applications, such as robotics, autonomous vehicles, and "
+        "human-computer interaction."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_enumeration_with_an_intervening_phrase_before_such_as_is_accepted() -> None:
+    # real corpus case: "applications OF KRL, such as..." - a short
+    # prepositional phrase (of/for/in + noun) between "application(s)" and
+    # the enumeration trigger, previously unmatched
+    text = (
+        "We also review the real-world applications of KRL, such as language "
+        "modeling, question answering, information retrieval, and recommender systems."
+    )
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
+def test_method_enumeration_is_still_rejected_even_though_it_mentions_applications() -> None:
+    # regression guard: Fix C's widened "applications ... such as" pattern
+    # must not swallow a METHOD/tool enumeration merely because the word
+    # "application(s)" or "applied" appears elsewhere in the same
+    # sentence - the trigger must still be anchored to "application(s)"
+    # itself, immediately or via a short of/for/in phrase, not any word
+    # in the sentence
+    for text in [
+        "Parallel processing infrastructure, such as Hadoop, and programming "
+        "models, such as MapReduce, are being used to promptly process that "
+        "amount of data.",
+        "Machine learning classifiers, including Support Vector Machines (SVM), "
+        "Extreme Gradient Boosting (XGBoost), and Random Forest (RF), were "
+        "applied to enhance performance.",
+        "eXplainable AI (XAI) techniques, such as SHAP and LIME, are applied to "
+        "analyze predictions and identify key linguistic features.",
+    ]:
+        result = validate_claim_type("applications", text)
+        assert result.is_valid is False, text
+
+
 def test_abbreviation_period_does_not_truncate_the_qualifying_context() -> None:
     # real corpus case: "e.g." mid-sentence must not cut off "organization"
     # (an actor) that appears later in the same clause

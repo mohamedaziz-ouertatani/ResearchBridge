@@ -222,10 +222,34 @@ _ABBREVIATION_RE = re.compile(r"\b(e\.g|i\.e|etc)\.", re.IGNORECASE)
 # "support X in Y-ing" construction rather than a fixed vocabulary of
 # actors ("commuters") or actions ("selecting routes"). See
 # _DOWNSTREAM_ACTION_RE below for the matching self-sufficiency check.
+#
+# Fix C (2026-09-04, found building a claim-revalidation backfill): the
+# "applications... such as X" alternative above requires the enumeration
+# trigger immediately after "application(s)" - it never matches "the
+# real-world applications OF KRL, such as language modeling, question
+# answering..." (a genuine enumerated-applications survey sentence) or
+# even the much more common "...numerous real-world applications, SUCH
+# AS robotics, autonomous vehicles..." (a comma between "applications"
+# and "such as" - completely ordinary written English, not an edge
+# case). Both were silently rejected as "no deployment context found."
+# Verified against the whole corpus before writing this (not guessed):
+# sampled every currently-rejected applications claim containing "such
+# as"/"including" - the majority are genuinely NOT applications
+# ("algorithms including SVM, XGBoost...", "tools such as Hadoop..." -
+# enumerating the paper's own METHOD components, correctly rejected, and
+# specifically NOT matched by this new alternative since it requires
+# "application(s)" to appear immediately before the trigger or
+# immediately after one of a small closed set of prepositions
+# (of/for/in) - "algorithms including X" has no "application(s)" word
+# anywhere nearby, so this alternative simply never fires for it. The
+# intervening noun phrase after of/for/in is bounded to 30 characters so
+# this can't reach across an unrelated later "such as" clause in a long
+# sentence.
 _DEPLOYMENT_CLAUSE_RE = re.compile(
     r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+[a-z]"
     r"|\b(?:is\s+)?applicable\s+(?:to|in)\s+[a-z]"
     r"|\bapplications?\s+(?:such as|include|in|to|for)\s+[a-z]"
+    r"|\bapplications?\s*(?:,\s*|\s+(?:of|for|in)\s+[A-Za-z0-9][\w\-' ]{0,30}?,\s*)(?:such as|includes?|including)\s+[a-z]"
     r"|\breal-world applications?\s+(?:in|for)\s+[a-z]"
     r"|\bdeployed\s+(?:in|to|for|by)\s+[a-z]"
     r"|\bused\s+(?:in|for|to|by|as)\s+[a-z]"
