@@ -94,6 +94,29 @@ _STRONG_GAP_LANGUAGE_RE = re.compile(
 )
 _WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture research\b|\bgap (in|between)\b", re.IGNORECASE)
 
+# A second, distinct false-positive shape for "gap (in|between)", found in a
+# real ResearchAssessment export (2026-09-03 investigation): "continuously
+# computes the gap between 'Average Daily Demand' and 'Instantaneous
+# Demand'... to fill the gaps" is describing the paper's own TECHNICAL
+# METRIC (a numeric difference the method computes), not a gap in the
+# literature - and it has no competing metric/achievement language
+# (_has_result_signal doesn't fire: no percentage, no AUC/F1, no
+# "outperforms"), so it slipped through where the sibling "closes 15.4% of
+# the gap between..." case is already caught. Same "gap between" phrase,
+# different failure mode: there the giveaway was a co-occurring metric
+# (a RESULT), here it's a co-occurring computation VERB (a METHOD
+# description) - "computes/calculates/measures/determines THE gap"
+# reads as "our system quantifies a difference," never as "the field
+# hasn't addressed X." Deliberately narrow (four verbs, immediately
+# governing "gap") rather than a broad STEM-word blocklist, to avoid
+# rejecting a genuine "a gap exists between the accuracy we compute and
+# what is achievable" - that phrasing doesn't match this shape.
+_TECHNICAL_GAP_METRIC_RE = re.compile(
+    r"\b(?:comput(?:e|es|ed|ing)|calculat(?:e|es|ed|ing)|measur(?:e|es|ed|ing)|determin(?:e|es|ed|ing))"
+    r"\s+(?:the\s+)?gap\b",
+    re.IGNORECASE,
+)
+
 # Real application/use-context language - Gate 1 of a two-gate design (see
 # docs/superpowers/specs/2026-09-02-applications-evidence-grounding-design.md).
 # This gate asks a narrow, context-free question: does this sentence, read
@@ -354,7 +377,11 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
     if claim_type == "research_gap":
         if _STRONG_GAP_LANGUAGE_RE.search(text):
             return ValidationResult(True, tier="strong")
-        if _WEAK_GAP_LANGUAGE_RE.search(text) and not _has_result_signal(text):
+        if (
+            _WEAK_GAP_LANGUAGE_RE.search(text)
+            and not _has_result_signal(text)
+            and not _TECHNICAL_GAP_METRIC_RE.search(text)
+        ):
             return ValidationResult(True, tier="weak")
         return ValidationResult(
             False, "no unresolved-problem/future-work language found; not a stated research gap"

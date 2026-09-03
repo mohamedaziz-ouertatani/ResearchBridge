@@ -44,6 +44,39 @@ def test_genuine_research_gap_sentence_is_accepted() -> None:
     assert result.is_valid is True
 
 
+def test_computed_technical_gap_is_rejected_even_with_no_competing_metric() -> None:
+    # real production example (2026-09-03 investigation, found reviewing an
+    # actual exported ResearchAssessment): "computes the gap between
+    # Average Daily Demand and Instantaneous Demand" is the paper's own
+    # method - a numeric difference it calculates, not a stated gap in the
+    # literature. Distinct from test_results_sentence_with_literal_word_gap
+    # _is_rejected above: there the giveaway was a competing metric/percent
+    # (_has_result_signal), here there is none at all - the giveaway is the
+    # governing verb ("computes ... the gap") describing a calculation.
+    text = (
+        "This paper presents a novel solution that is based on an Artificial Intelligence Agent "
+        "that continuously computes the gap between “Average Daily Demand” and "
+        "“Instantaneous Demand” of a consumer, and allows the Battery Banks to discharge "
+        "just enough to fill the gaps and eliminate kinks in the energy usage graph."
+    )
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+
+
+def test_gap_between_is_still_accepted_when_not_a_computation_verb() -> None:
+    # regression guard: the new technical-gap-metric check must not reject
+    # every "gap between" sentence via the weak tier - only ones governed
+    # by a computation verb (computes/calculates/measures/determines)
+    # immediately before it. No strong-tier language here either, so this
+    # exercises the weak-tier path specifically.
+    text = "There is a significant gap between the accuracy achievable in theory and what current systems reach in practice."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "weak"
+
+
 def test_method_sentence_mislabeled_as_applications_is_rejected() -> None:
     text = "We propose a transformer-based architecture trained on paired image-text data."
     result = validate_claim_type("applications", text)
