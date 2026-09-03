@@ -89,6 +89,24 @@ def _build_system_prompt(application_count: int) -> str:
 
 _TIER_LINE_RE = re.compile(r"^\s*(direct|adjacent|speculative)\s*:\s*(.+)$", re.IGNORECASE)
 
+# Strips purely cosmetic formatting a model might wrap a tier label in - a
+# leading list/bullet marker ("1. ", "1) ", "- ", "* ", "• ") and any
+# "**" markdown-bold markers anywhere in the line - before _TIER_LINE_RE
+# ever sees it. Investigated live (2026-09-03 stress-testing pass, see
+# docs/superpowers/specs/2026-09-03-opportunities-synthesis-design.md):
+# 3/3 locally-tested models (qwen2.5:3b, phi3:mini, qwen2.5-coder:7b)
+# consistently wrote plain "Direct: ..." with no markdown or numbering, so
+# this is forward-hardening against a model swap, not a fix for an
+# observed failure - every case this touches previously failed CLOSED
+# (missing-tier ValueError), never produced wrong data. Formatting-only:
+# does not change what counts as a valid tier word, a valid citation, or
+# a valid range - it only changes what counts as the start of a line.
+_LEADING_LIST_MARKER_RE = re.compile(r"^\s*(?:[-*•]\s+|\d+[.)]\s+)")
+
+
+def _normalize_tier_line(line: str) -> str:
+    return _LEADING_LIST_MARKER_RE.sub("", line).replace("**", "")
+
 # Matches a single-number bracket like "[3]" - used only to escape a
 # literal citation-shaped substring already present in an application's
 # own text (e.g. a copied bibliography reference) before it's numbered
@@ -157,7 +175,8 @@ def parse_response(text: str, application_count: int) -> list[SynthesizedOpportu
     by_tier: dict[Tier, SynthesizedOpportunity] = {}
 
     for raw_line in text.splitlines():
-        match = _TIER_LINE_RE.match(raw_line)
+        line = _normalize_tier_line(raw_line)
+        match = _TIER_LINE_RE.match(line)
         if not match:
             continue
         tier = match.group(1).lower()

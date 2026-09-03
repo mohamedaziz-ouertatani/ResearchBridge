@@ -150,6 +150,149 @@ def test_parse_response_ignores_unrelated_lines() -> None:
     assert len(result) == 3
 
 
+# --- formatting robustness (_normalize_tier_line) ----------------------------
+# 2026-09-03 stress-testing pass, see docs/superpowers/specs/
+# 2026-09-03-opportunities-synthesis-design.md: found live that 3/3 tested
+# models write plain "Direct: ..." with no markdown or numbering, so none
+# of these are observed failures - forward-hardening in case a future
+# OLLAMA_MODEL swap writes differently. Formatting-only: none of these
+# change what counts as a valid tier word, citation, or range.
+
+
+def test_parse_response_accepts_plain_baseline() -> None:
+    text = "Direct: a [1]\nAdjacent: b [1]\nSpeculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_accepts_markdown_bold_labels() -> None:
+    text = "**Direct:** a [1]\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_accepts_numbered_dot_list() -> None:
+    text = "1. Direct: a [1]\n2. Adjacent: b [1]\n3. Speculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_accepts_numbered_parenthesis_list() -> None:
+    text = "1) Direct: a [1]\n2) Adjacent: b [1]\n3) Speculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_accepts_numbered_and_markdown_combined() -> None:
+    text = "1. **Direct:** a [1]\n2. **Adjacent:** b [1]\n3. **Speculative:** c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_accepts_mixed_formatting_across_tiers() -> None:
+    # each tier written in a different style in the same response
+    text = "1. Direct: a [1]\n**Adjacent:** b [1]\n- Speculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+# --- preserved regression coverage: normalization must not loosen validation
+
+
+def test_parse_response_still_handles_eight_applications() -> None:
+    text = "Direct: a [7]\nAdjacent: b [7,8]\nSpeculative: c [1,2,3,4,5,6,7,8]"
+
+    result = parse_response(text, application_count=8)
+
+    assert result[0].source_application_indices == [7]
+    assert result[1].source_application_indices == [7, 8]
+    assert result[2].source_application_indices == [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def test_parse_response_dedupes_repeated_citation_in_one_bracket() -> None:
+    text = "Direct: a [1,1]\nAdjacent: b [1]\nSpeculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert result[0].source_application_indices == [1]
+
+
+def test_parse_response_dedupes_repeated_citation_across_separate_brackets() -> None:
+    text = "Direct: a [1][1]\nAdjacent: b [1]\nSpeculative: c [1]"
+
+    result = parse_response(text, application_count=1)
+
+    assert result[0].source_application_indices == [1]
+
+
+def test_parse_response_still_raises_on_out_of_range_citation_with_markdown() -> None:
+    # normalization must not accidentally widen the valid citation range
+    text = "**Direct:** a [5]\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+
+    with pytest.raises(ValueError, match="out of range"):
+        parse_response(text, application_count=1)
+
+
+def test_parse_response_still_raises_on_missing_tier_with_numbered_formatting() -> None:
+    text = "1. Direct: a [1]\n2. Adjacent: b [1]"
+
+    with pytest.raises(ValueError, match="missing tier"):
+        parse_response(text, application_count=1)
+
+
+def test_parse_response_still_rejects_malformed_synonym_tier_names() -> None:
+    # normalization strips list/markdown noise only - it must never make a
+    # tier word the model was never asked to use suddenly recognized, even
+    # if it reads as a plausible synonym ("Indirect" for Adjacent,
+    # "Long-term" for Speculative)
+    text = "Direct: a [1]\nIndirect: b [1]\nLong-term: c [1]"
+
+    with pytest.raises(ValueError, match="missing tier"):
+        parse_response(text, application_count=1)
+
+
+def test_parse_response_still_ignores_irrelevant_prose_with_list_markers() -> None:
+    # a bullet-prefixed prose line must not be mistaken for a tier line
+    # just because normalization strips its leading "- "
+    text = (
+        "- Here is my analysis:\n"
+        "Direct: a [1]\n"
+        "Adjacent: b [1]\n"
+        "Speculative: c [1]\n"
+        "- Hope this helps!"
+    )
+
+    result = parse_response(text, application_count=1)
+
+    assert [o.opportunity for o in result] == ["a", "b", "c"]
+
+
+def test_parse_response_still_raises_when_a_markdown_wrapped_tier_has_no_citation() -> None:
+    text = "**Direct:** a\n**Adjacent:** b [1]\n**Speculative:** c [1]"
+
+    with pytest.raises(ValueError, match="direct opportunity has no citation"):
+        parse_response(text, application_count=1)
+
+
+def test_parse_response_still_raises_on_duplicate_tier_with_numbered_formatting() -> None:
+    text = "1. Direct: a [1]\n2. Direct: b [1]\n3. Adjacent: c [1]\n4. Speculative: d [1]"
+
+    with pytest.raises(ValueError, match="duplicate direct"):
+        parse_response(text, application_count=1)
+
+
 # --- synthesize_opportunities (Ollama call mocked) --------------------------
 
 
