@@ -193,6 +193,35 @@ def test_abbreviation_period_does_not_truncate_the_qualifying_context() -> None:
     assert result.is_valid is True
 
 
+def test_generic_given_user_qualifier_is_rejected() -> None:
+    # Fix C: real residual false positive noted in assessment/applications
+    # .py's OWN_TASK_OVERLAP_THRESHOLD comment - "for a given user" reads
+    # as "for" + a following word, satisfying _QUALIFYING_CONTEXT_RE's
+    # fallback, but names no actor/institution/setting beyond the system's
+    # own subject - a bare task restatement, same failure mode as the
+    # reported "useful for predicting performance level of students" bug
+    text = "This model is useful for predicting future trip patterns for a given user."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_generic_individual_users_qualifier_is_rejected() -> None:
+    text = "The system is applicable to personalizing recommendations for individual users."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_a_named_actor_after_a_generic_user_phrase_is_still_accepted() -> None:
+    # the vague-user exclusion must not blind the checker to a genuine
+    # named actor appearing elsewhere in the same clause
+    text = "Can be used by clinicians to support a given user in adjusting their treatment plan."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
 # --- Traffic-congestion-idea investigation regression set (2026-09-03) ---
 # Gate 1 behavior for all 10 cases from that investigation, cases 7/8 being
 # Fix B (structural, not vocabulary, additions - see module docstring's

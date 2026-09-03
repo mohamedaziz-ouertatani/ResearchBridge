@@ -250,9 +250,29 @@ _QUALIFYING_CONTEXT_RE = re.compile(r"\b(in|for|at|by|within|across|among)\s+[a-
 # Known-vague qualifiers that would otherwise satisfy _QUALIFYING_CONTEXT_RE
 # without naming anything concrete - "in general" contains "in general[a-z]"
 # but names no real context.
+#
+# Fix C (2026-09-03 investigation, closing one of the two residual Gate 1
+# false positives noted in assessment/applications.py's
+# OWN_TASK_OVERLAP_THRESHOLD comment): "for a given user" / "for an
+# individual user" and similar generic-user phrasing satisfied this fallback
+# ("for a g[iven user]" reads as "for" + a following word) without naming
+# any real actor, institution, or setting - it is a restatement of the
+# system's OWN subject ("a user" of the system being described), the same
+# failure mode "in general" already guards against, just with a noun phrase
+# instead of an adverb. Unlike the companion "in QPE"/bare-acronym false
+# positive documented alongside this one, this fix is a closed, low-risk
+# addition: it only ever REMOVES acceptance for a specific vague phrasing,
+# and cannot be confused with a genuine named actor the way rejecting bare
+# acronyms would reject real institutions like "NHS"/"NASA" that also
+# happen to be all-caps (verified this collision is real: "...for NHS."
+# and "...for QPE." are accepted through the exact same code path, so a
+# bare-acronym exclusion can't discriminate them without corpus-level
+# tuning this investigation didn't have access to run - left unaddressed,
+# same as the module already documents).
 _VAGUE_QUALIFIER_RE = re.compile(
     r"\bin general\b|\bfor future (work|studies|research)\b|\bin the future\b"
-    r"|\bfor general purposes\b|\bfor further research\b|\bin future\b",
+    r"|\bfor general purposes\b|\bfor further research\b|\bin future\b"
+    r"|\bfor (?:(?:a|an|the|any)\s+)?(?:given|individual|specific|particular|single) users?\b",
     re.IGNORECASE,
 )
 
