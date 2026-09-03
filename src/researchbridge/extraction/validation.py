@@ -288,18 +288,30 @@ _ACTOR_SETTING_RE = re.compile(
 # Downstream actions distinct from the paper's own predictive/detection/
 # classification verb - a human or institutional response taken as a
 # RESULT of the system's output, not the system's own computation.
-# The last alternative is Fix B's "support X in Y-ing" shape, mirrored
-# here so it's self-sufficient the same way enumeration is below (Sec 97
+# The "support X in Y-ing" alternative is Fix B's shape, mirrored here so
+# it's self-sufficient the same way enumeration is below (Sec 97
 # comment): supporting a named actor IN performing an action is, by its
 # own grammar, both an actor reference and a downstream action - it does
 # not need a separate curated actor/action word to also match.
+#
+# The "inform(s/ed/ing) ... decision(s)" alternative is the same kind of
+# grammatical SHAPE, added 2026-09-04 investigating applications'
+# unusually high (97%) rejection rate across the corpus: "zLend is
+# deployed in production, informing real lending decisions via third-
+# party API integrations" is unambiguous real-world deployment language -
+# a system that INFORMS decisions is providing decision support in
+# substance - but the curated phrase "decision support" doesn't literally
+# appear, only its meaning. Matches "inform(s/ed/ing) <=3 words>
+# decision(s)" rather than a fixed vocabulary, same reasoning as "support
+# X in Y-ing" above.
 _DOWNSTREAM_ACTION_RE = re.compile(
     r"\binterventions?\b|\btriage\b|\bmanual review\b|\bcounsel(l)?ing\b"
     r"|\btreatment plan(ning)?\b|\bresource allocation\b|\bpolicy( ?making)?\b"
     r"|\bremediation\b|\bprioriti[sz](e|ation|ing)\b|\bdecision support\b"
     r"|\brisk mitigation\b|\bearly (intervention|warning)\b|\bscreening\b"
     r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b"
-    r"|\bsupport(?:s|ed|ing)?\s+[a-z]+\s+in\s+[a-z]+ing\b",
+    r"|\bsupport(?:s|ed|ing)?\s+[a-z]+\s+in\s+[a-z]+ing\b"
+    r"|\binform(?:s|ed|ing)?\s+(?:[a-z]+\s+){0,3}decisions?\b",
     re.IGNORECASE,
 )
 

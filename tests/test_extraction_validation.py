@@ -182,6 +182,19 @@ def test_application_naming_a_downstream_action_is_accepted() -> None:
     assert result.is_valid is True
 
 
+def test_application_informing_decisions_is_accepted_as_a_downstream_action() -> None:
+    # real corpus case found investigating applications' 97% corpus-wide
+    # rejection rate (2026-09-04): "zLend is deployed in production,
+    # informing real lending decisions via third-party API integrations"
+    # is unambiguous deployment language, but the curated phrase "decision
+    # support" doesn't literally appear - only its meaning ("informing...
+    # decisions"). Matches the shape, not a fixed vocabulary.
+    text = "zLend is deployed in production, informing real lending decisions via third-party API integrations."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+
+
 def test_application_naming_an_external_setting_is_accepted() -> None:
     # no actor/action keyword, but a genuine "in X" domain qualifier beyond
     # the bare task object - must still be accepted
