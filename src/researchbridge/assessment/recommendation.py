@@ -20,12 +20,35 @@ this rule table the same way once real assessments exist to check it
 against.
 
 Confidence reflects how many of the three underlying signals were
-actually assessed (novelty != "not_assessed", a research gap was found,
-feasibility != "not_assessed") - not a claim about how likely the
-recommendation is to be right:
-- high: all three assessed
-- medium: exactly two assessed
-- low: zero or one assessed
+actually assessed WITH STRENGTH, not merely present - not a claim about
+how likely the recommendation is to be right:
+- high: all three signals are strong
+- medium: exactly two are strong
+- low: zero or one is strong
+
+"Strong" is deliberately a stricter bar than "assessed" (which still
+drives the RECOMMENDATION category below, unchanged):
+- novelty: assessed at all (novelty_level != "not_assessed") - no
+  further gradient exists to draw on without inventing one.
+- research gap: found AND research_gap_is_strong is True (both distance-
+  close AND the gap text itself isn't generic boilerplate - see gap.py's
+  is_closely_grounded/is_strongly_stated docstrings).
+- feasibility: technical_feasibility_level == "high" specifically, not
+  "medium" - feasibility.py's own docstring already defines "medium" as
+  single-source grounding and "high" as 2+ independent sources, so this
+  reuses an existing distinction rather than inventing one.
+
+Found live-testing real ideas (2026-09-04): a fraud-detection assessment
+reported "HIGH PRIORITY / high confidence" backed by a single-source
+"medium" feasibility grounding and a research-gap sentence that was pure
+"future research" boilerplate (extraction/validation.py's weak tier) -
+every signal technically had SOME value, so assessed_count was 3/3,
+but none of the three was actually strong. A reader has no way to tell
+"high confidence, solidly grounded" from "high confidence, thin on every
+axis" under the old formula. The RECOMMENDATION category is unchanged by
+this - "medium" feasibility and any found gap still count toward HIGH
+PRIORITY exactly as before; only what counts as a STRONG signal for
+confidence purposes changed.
 
 Recommendation, checked in this order:
 1. INSUFFICIENT EVIDENCE - nothing was assessed at all.
@@ -57,6 +80,7 @@ class RecommendationResult:
 def assess_recommendation(
     novelty_level: str,
     research_gap_text: str | None,
+    research_gap_is_strong: bool,
     technical_feasibility_level: str,
 ) -> RecommendationResult:
     novelty_assessed = novelty_level != "not_assessed"
@@ -79,9 +103,13 @@ def assess_recommendation(
     else:
         recommendation = "MEDIUM PRIORITY"
 
-    if assessed_count == 3:
+    # Confidence: a stricter bar than "assessed" - see module docstring.
+    gap_is_strong = gap_found and research_gap_is_strong
+    feasibility_is_strong = technical_feasibility_level == "high"
+    strong_count = sum([novelty_assessed, gap_is_strong, feasibility_is_strong])
+    if strong_count == 3:
         confidence = "high"
-    elif assessed_count == 2:
+    elif strong_count == 2:
         confidence = "medium"
     else:
         confidence = "low"
@@ -89,6 +117,7 @@ def assess_recommendation(
     reasoning = _build_reasoning(
         novelty_level=novelty_level,
         gap_found=gap_found,
+        gap_is_strong=gap_is_strong,
         technical_feasibility_level=technical_feasibility_level,
         recommendation=recommendation,
         confidence=confidence,
@@ -98,18 +127,29 @@ def assess_recommendation(
 
 
 def _build_reasoning(
-    *, novelty_level: str, gap_found: bool, technical_feasibility_level: str, recommendation: str, confidence: str
+    *,
+    novelty_level: str,
+    gap_found: bool,
+    gap_is_strong: bool,
+    technical_feasibility_level: str,
+    recommendation: str,
+    confidence: str,
 ) -> str:
     novelty_line = (
         f"Novelty signal: {novelty_level}"
         if novelty_level != "not_assessed"
         else "Novelty signal: not assessed (insufficient retrieved evidence)"
     )
-    gap_line = (
-        "Research gap evidence: a gap was found in the retrieved literature"
-        if gap_found
-        else "Research gap evidence: none found or not assessed"
-    )
+    if not gap_found:
+        gap_line = "Research gap evidence: none found or not assessed"
+    elif gap_is_strong:
+        gap_line = "Research gap evidence: a gap was found in the retrieved literature (strongly grounded)"
+    else:
+        gap_line = (
+            "Research gap evidence: a gap was found in the retrieved literature, but the "
+            "source is only loosely related or the gap statement itself is generic - "
+            "treated as present but not strong for confidence purposes"
+        )
     feasibility_line = (
         f"Technical feasibility grounding: {technical_feasibility_level}"
         if technical_feasibility_level != "not_assessed"

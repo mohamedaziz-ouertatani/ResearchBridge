@@ -46,6 +46,27 @@ novelty.py's tighter NEAR_DISTANCE (0.35), not just RELEVANCE_DISTANCE
 (0.65). The report field (`text`) is unaffected either way - it still
 surfaces within the looser band - this only marks whether recommendation
 should treat it as a strong signal.
+
+is_strongly_stated: a third signal, orthogonal to is_closely_grounded -
+distance measures whether the SOURCE PAPER is a close topical match;
+this measures whether the GAP TEXT ITSELF is a specific, substantive
+statement rather than generic boilerplate. Found live-testing real ideas
+(2026-09-04): a fraud-detection assessment reported "HIGH PRIORITY / high
+confidence" whose gap evidence was "Extensive experiments yield empirical
+insights into current methods' limitations and suggest promising avenues
+for future research" - textbook generic "future research" boilerplate,
+extraction/validation.py's own weak tier (a source paper close enough to
+be topically relevant, but a sentence with no specific content). Confidence
+was "high" only because assessed_count treated "a value exists" as
+equivalent to "strong evidence" - the same class of bug is_closely_grounded
+already fixed for the distance axis. True for source="input_specific" only
+when the underlying claim's validation_tier is "strong" (never "weak" -
+see extraction/validation.py's own docstring on why the weak tier is
+"ambiguous" by design); always True for "reused_candidate_gap" (a human
+already reviewed and approved it) and for the inferred cross-paper cluster
+path (multiple independent papers corroborating the same pattern is
+already a stronger signal than any single sentence's wording, by
+construction - see min_cluster_size).
 """
 
 from __future__ import annotations
@@ -78,6 +99,7 @@ class GapAssessmentResult:
     candidate_gap_id: uuid.UUID | None
     evidence_ids: list[uuid.UUID]
     is_closely_grounded: bool = False
+    is_strongly_stated: bool = False
     status: str = "not_assessed"  # "not_assessed" | "not_found" | "found"
 
 
@@ -142,7 +164,13 @@ def _reuse_approved_candidate_gap(
         ).scalars()
     )
     return GapAssessmentResult(
-        source="reused_candidate_gap", text=gap.observation, candidate_gap_id=gap.id, evidence_ids=evidence_ids
+        source="reused_candidate_gap",
+        text=gap.observation,
+        candidate_gap_id=gap.id,
+        evidence_ids=evidence_ids,
+        # a human already reviewed and approved this - not re-judged on
+        # wording the way a fresh extracted claim is
+        is_strongly_stated=True,
     )
 
 
@@ -156,7 +184,10 @@ def _explicit_research_gap_claim(
     actually is to the input; that defeats the point of scoping this to
     the assessment's own neighborhood."""
     rows = session.execute(
-        select(ExtractedClaim.paper_id, ExtractedClaim.text, ExtractedClaim.evidence_id, Paper.title)
+        select(
+            ExtractedClaim.paper_id, ExtractedClaim.text, ExtractedClaim.evidence_id, Paper.title,
+            ExtractedClaim.validation_tier,
+        )
         .join(Evidence, Evidence.id == ExtractedClaim.evidence_id)
         .join(Paper, Paper.id == ExtractedClaim.paper_id)
         .where(
@@ -165,16 +196,23 @@ def _explicit_research_gap_claim(
             Evidence.extraction_method != "stub",
         )
     ).all()
-    by_paper_id = {row.paper_id: (row.text, row.evidence_id, row.title) for row in rows}
+    by_paper_id = {row.paper_id: (row.text, row.evidence_id, row.title, row.validation_tier) for row in rows}
 
     for paper_id in relevant_paper_ids:
         if paper_id in by_paper_id:
-            text, evidence_id, paper_title = by_paper_id[paper_id]
+            text, evidence_id, paper_title, validation_tier = by_paper_id[paper_id]
             return GapAssessmentResult(
                 source="input_specific",
                 text=f'Explicitly stated in "{paper_title}": "{text}"',
                 candidate_gap_id=None,
                 evidence_ids=[evidence_id],
+                # "strong" tier means unambiguous gap language ("remains an
+                # open problem"); "weak" means boilerplate that could just as
+                # easily be generic filler ("future research") - see
+                # extraction/validation.py's own strong/weak tier docstring.
+                # Never fabricate a strength judgment the extractor didn't
+                # already make.
+                is_strongly_stated=(validation_tier == "strong"),
             )
     return None
 
@@ -207,4 +245,13 @@ def _inferred_cross_paper_gap(
         f'(inference, not stated by any single author): "{top.representative_text}"'
     )
     evidence_ids = [member.evidence_id for member in top.members]
-    return GapAssessmentResult(source="input_specific", text=text, candidate_gap_id=None, evidence_ids=evidence_ids)
+    return GapAssessmentResult(
+        source="input_specific",
+        text=text,
+        candidate_gap_id=None,
+        evidence_ids=evidence_ids,
+        # multiple independent papers corroborating the same pattern is
+        # already a stronger signal than any single sentence's wording -
+        # min_cluster_size already enforces the corroboration
+        is_strongly_stated=True,
+    )

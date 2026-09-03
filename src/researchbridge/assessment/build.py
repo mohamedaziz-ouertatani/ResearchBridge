@@ -88,6 +88,10 @@ def build_assessment(
         # only count the gap as "found" for recommendation purposes if it's
         # closely grounded - the report field still shows gap.text regardless
         research_gap_text=(gap.text if gap.is_closely_grounded else None),
+        # a distinct, stricter signal for CONFIDENCE specifically - see
+        # gap.py's own docstring on is_strongly_stated for why "found" and
+        # "strongly stated" need to stay separate checks
+        research_gap_is_strong=gap.is_closely_grounded and gap.is_strongly_stated,
         technical_feasibility_level=feasibility.level,
     )
 

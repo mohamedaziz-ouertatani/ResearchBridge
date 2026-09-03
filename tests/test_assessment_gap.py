@@ -48,7 +48,10 @@ def _paper(session, source_id: str, title: str = "a paper") -> Paper:
     return paper
 
 
-def _claim(session, paper: Paper, claim_type: str, text: str, extraction_method: str = "hybrid") -> uuid.UUID:
+def _claim(
+    session, paper: Paper, claim_type: str, text: str, extraction_method: str = "hybrid",
+    validation_tier: str | None = None,
+) -> uuid.UUID:
     evidence = Evidence(
         paper_id=paper.id, evidence_type=claim_type, section=None, text=text,
         extraction_method=extraction_method, model_version="v1", confidence="medium",
@@ -56,7 +59,10 @@ def _claim(session, paper: Paper, claim_type: str, text: str, extraction_method:
     session.add(evidence)
     session.flush()
     session.add(
-        ExtractedClaim(paper_id=paper.id, claim_type=claim_type, text=text, evidence_id=evidence.id, confidence="medium")
+        ExtractedClaim(
+            paper_id=paper.id, claim_type=claim_type, text=text, evidence_id=evidence.id, confidence="medium",
+            validation_tier=validation_tier,
+        )
     )
     return evidence.id
 
@@ -366,6 +372,85 @@ def test_no_gap_found_is_not_closely_grounded(session_factory, embedder) -> None
     result = assess_research_gap(session_factory(), [], embedder)
 
     assert result.is_closely_grounded is False
+
+
+# --- is_strongly_stated: orthogonal to is_closely_grounded, see gap.py's own
+# docstring - distance measures the SOURCE PAPER's relevance, this measures
+# whether the GAP TEXT ITSELF is substantive rather than generic boilerplate.
+# 2026-09-04: found live-testing real ideas that a "future research"
+# boilerplate sentence (extraction/validation.py's weak tier) counted
+# exactly the same as an unambiguous "remains an open problem" statement
+# (strong tier) toward recommendation.py's confidence.
+
+
+def test_explicit_gap_is_strongly_stated_when_validation_tier_is_strong(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Explicit Gap Paper")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists", validation_tier="strong")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.is_strongly_stated is True
+
+
+def test_explicit_gap_is_not_strongly_stated_when_validation_tier_is_weak(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Explicit Gap Paper")
+    _claim(
+        session, paper, "research_gap", "suggests promising avenues for future research", validation_tier="weak",
+    )
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    # still surfaced as the report field and can still be closely grounded -
+    # just not a strong signal for recommendation confidence purposes
+    assert result.text is not None
+    assert result.is_strongly_stated is False
+
+
+def test_reused_candidate_gap_is_always_strongly_stated(session_factory, embedder) -> None:
+    # a human already reviewed and approved it - not re-judged on wording
+    session = session_factory()
+    seed = _paper(session, "seed")
+    other = _paper(session, "other")
+    evidence_id = _claim(session, other, "limitations", "offline only")
+    _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
+    session.commit()
+
+    result = assess_research_gap(session, [(seed.id, NEAR), (other.id, NEAR)], embedder)
+
+    session.close()
+    assert result.is_strongly_stated is True
+
+
+def test_inferred_gap_is_always_strongly_stated(session_factory, embedder) -> None:
+    # multi-paper corroboration is itself a strength signal, independent of
+    # any single claim's own wording/tier
+    session = session_factory()
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+    _claim(session, a, "limitations", "tested only offline in this setup")
+    _claim(session, b, "limitations", "we test the model only offline in our setup")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(a.id, NEAR), (b.id, NEAR), (c.id, NEAR)], embedder, min_cluster_size=3, similarity_threshold=0.3
+    )
+
+    session.close()
+    assert result.is_strongly_stated is True
+
+
+def test_no_gap_found_is_not_strongly_stated(session_factory, embedder) -> None:
+    result = assess_research_gap(session_factory(), [], embedder)
+
+    assert result.is_strongly_stated is False
 
 
 def test_status_is_not_assessed_when_no_relevant_papers_retrieved(session_factory, embedder) -> None:
