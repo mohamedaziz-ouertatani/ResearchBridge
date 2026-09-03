@@ -173,6 +173,50 @@ def test_own_task_overlap_rejects_a_near_total_paraphrase_of_the_papers_own_task
     assert result.applications == []
 
 
+def test_own_task_overlap_rejects_an_enumerated_item_that_paraphrases_the_papers_own_task(embedder) -> None:
+    # Fix A / the reported false positive: a generic field-applications
+    # enumeration sentence buries the paper's own task as one item among
+    # several unrelated ones. The whole-sentence embedding is diluted by
+    # the other items and never crosses OWN_TASK_OVERLAP_THRESHOLD, even
+    # though the buried item is a near-total paraphrase of the paper's own
+    # task on its own - Gate 1 accepts this sentence (see
+    # test_extraction_validation.py; enumeration is a legitimate Gate 1
+    # signal on its own), so Gate 2 must catch it using paper context.
+    task_text = "predicts traffic congestion fifteen to thirty minutes in advance"
+    task = _claim("method", task_text)
+    app = _claim(
+        "applications",
+        "Machine learning can be used in many applications such as face detection, speech "
+        f"recognition, medical diagnostics, statistical arbitrage, {task_text}, etc.",
+    )
+    paper_id = uuid.uuid4()
+
+    result = assess_applications([(paper_id, "Traffic Paper", NEAR, [task, app])], embedder)
+
+    assert result.status == "no_evidence"
+    assert result.applications == []
+
+
+def test_own_task_overlap_accepts_enumerated_items_that_do_not_match_the_papers_own_task(embedder) -> None:
+    # regression guard: a genuine enumeration where no item overlaps the
+    # paper's own task must still be accepted - this is the assessment-
+    # level counterpart of extraction/validation.py's
+    # test_enumeration_is_accepted_without_a_curated_actor_word
+    task = _claim("method", "grounds natural language phrases to image regions")
+    app = _claim(
+        "applications",
+        "Visual grounding has widespread applications such as object search, video analysis, "
+        "automation, robot navigation, and augmented reality.",
+    )
+    paper_id = uuid.uuid4()
+
+    result = assess_applications([(paper_id, "Grounding Paper", NEAR, [task, app])], embedder)
+
+    assert result.status == "found"
+    assert len(result.applications) == 1
+    assert result.applications[0].application == app[1]
+
+
 def test_own_task_overlap_only_compares_against_the_same_paper(embedder) -> None:
     # paper A's application claim happens to closely paraphrase paper B's
     # task, not its own - must not be rejected for a cross-paper match

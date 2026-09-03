@@ -44,6 +44,7 @@ assess_* functions.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -93,6 +94,46 @@ _TASK_CLAIM_TYPES = ("problem", "method", "main_contribution", "results")
 # docs/superpowers/plans/2026-09-02-applications-evidence-grounding.md.
 OWN_TASK_OVERLAP_THRESHOLD = 0.92
 
+# Fix A (2026-09-03 investigation): a real false positive slipped past both
+# gates - "Machine learning can be used in many applications such as face
+# detection, speech recognition, medical diagnostics, statistical
+# arbitrage, traffic prediction, etc." for a paper whose own task IS
+# traffic prediction. Gate 1 correctly accepts this sentence (it is a
+# genuine multi-item enumeration - see
+# extraction/validation.py::test_enumeration_is_accepted_without_a_curated_actor_word,
+# which the same sentence shape must keep passing). The bug is here: the
+# whole-sentence embedding compared against own-task claims mixes the one
+# matching item ("traffic prediction") with four unrelated items (face
+# detection, speech recognition, ...), diluting cosine similarity well
+# below OWN_TASK_OVERLAP_THRESHOLD even though "traffic prediction" alone
+# is a near-total paraphrase of the paper's own task.
+#
+# Fix: in addition to comparing the whole applications claim, split an
+# enumeration-shaped claim ("X such as A, B, C" / "X including A, B, C")
+# into its individual listed items and compare each item's own embedding
+# against the paper's own task claims too. A restatement buried in a list
+# is now visible at the item level, without changing what Gate 1 accepts
+# or diluting genuine enumerations where no item matches the paper's own
+# task (see test_own_task_overlap_accepts_enumerated_items_that_do_not_match_the_papers_own_task).
+_ENUMERATION_SPLIT_RE = re.compile(r"\b(?:such as|including)\b", re.IGNORECASE)
+_ITEM_SEPARATOR_RE = re.compile(r",|\band\b", re.IGNORECASE)
+_TRAILING_ETC_RE = re.compile(r"\betc\.?\s*$", re.IGNORECASE)
+
+
+def _enumerated_items(text: str) -> list[str]:
+    """The individual items of an 'X such as A, B, and C' / 'X including A,
+    B, C' claim, or [] if the text isn't phrased as an enumeration."""
+    split = _ENUMERATION_SPLIT_RE.split(text, maxsplit=1)
+    if len(split) < 2:
+        return []
+    list_text = re.split(r"[.;]", split[1], maxsplit=1)[0]
+    items = []
+    for raw_item in _ITEM_SEPARATOR_RE.split(list_text):
+        item = _TRAILING_ETC_RE.sub("", raw_item).strip(" .")
+        if item:
+            items.append(item)
+    return items
+
 
 @dataclass
 class ApplicationRecord:
@@ -137,18 +178,27 @@ def assess_applications(papers_with_claims: list[PaperWithClaims], embedder: Emb
                 task_texts_by_paper.setdefault(paper_id, []).append(text)
 
     app_texts = [c[2] for c in app_candidates]
+    items_by_candidate: list[list[str]] = [_enumerated_items(text) for text in app_texts]
+    all_item_texts = [item for items in items_by_candidate for item in items]
     all_task_texts = [t for texts in task_texts_by_paper.values() for t in texts]
-    vectors = embedder.embed_texts(app_texts + all_task_texts)
+
+    vectors = embedder.embed_texts(app_texts + all_item_texts + all_task_texts)
     app_vectors = vectors[: len(app_texts)]
-    task_vectors = vectors[len(app_texts) :]
+    item_vectors = vectors[len(app_texts) : len(app_texts) + len(all_item_texts)]
+    task_vectors = vectors[len(app_texts) + len(all_item_texts) :]
     vector_by_task_text: dict[str, list[float]] = dict(zip(all_task_texts, task_vectors, strict=True))
+    vector_by_item_text: dict[str, list[float]] = dict(zip(all_item_texts, item_vectors, strict=True))
 
     applications: list[ApplicationRecord] = []
     evidence_ids: list[uuid.UUID] = []
-    for (paper_id, title, text, evidence_id), app_vector in zip(app_candidates, app_vectors, strict=True):
+    for i, ((paper_id, title, text, evidence_id), app_vector) in enumerate(
+        zip(app_candidates, app_vectors, strict=True)
+    ):
         own_task_texts = task_texts_by_paper.get(paper_id, [])
-        if own_task_texts and _restates_own_task(app_vector, own_task_texts, vector_by_task_text):
-            continue
+        if own_task_texts:
+            candidate_vectors = [app_vector] + [vector_by_item_text[item] for item in items_by_candidate[i]]
+            if _restates_own_task(candidate_vectors, own_task_texts, vector_by_task_text):
+                continue
         applications.append(
             ApplicationRecord(application=text, source_paper=title, paper_id=paper_id, evidence_id=evidence_id)
         )
@@ -160,11 +210,19 @@ def assess_applications(papers_with_claims: list[PaperWithClaims], embedder: Emb
 
 
 def _restates_own_task(
-    app_vector: list[float], own_task_texts: list[str], vector_by_task_text: dict[str, list[float]]
+    candidate_vectors: list[list[float]],
+    own_task_texts: list[str],
+    vector_by_task_text: dict[str, list[float]],
 ) -> bool:
+    """True if the claim's whole-sentence vector, OR any of its individual
+    enumerated-item vectors (see _enumerated_items), overlaps an own-task
+    claim above threshold - see Fix A comment above OWN_TASK_OVERLAP_THRESHOLD."""
     own_vectors = [vector_by_task_text[t] for t in own_task_texts]
-    overlap = max(_cosine(app_vector, v) for v in own_vectors)
-    return overlap >= OWN_TASK_OVERLAP_THRESHOLD
+    return any(
+        _cosine(candidate_vector, own_vector) >= OWN_TASK_OVERLAP_THRESHOLD
+        for candidate_vector in candidate_vectors
+        for own_vector in own_vectors
+    )
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
