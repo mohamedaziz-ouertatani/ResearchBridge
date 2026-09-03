@@ -240,6 +240,32 @@ def test_application_naming_an_external_setting_is_accepted() -> None:
     assert result.is_valid is True
 
 
+def test_qualifying_context_fallback_only_acceptance_is_tier_weak() -> None:
+    # the documented "in QPE" vs "in NHS" collision: both are accepted (Gate
+    # 1 has no paper context to tell a paper's own acronym from a real
+    # institution), but the acceptance path is the weakest of the four
+    # (no named actor/institution/downstream-action/enumeration), so it's
+    # tier="weak" - Gate 2 (assessment/applications.py, which HAS paper
+    # context) uses this to apply extra scrutiny. Same code path either way.
+    for text in [
+        "The method is useful for improving forecasts, particularly for QPE.",
+        "The method is useful for improving healthcare outcomes, particularly for NHS.",
+    ]:
+        result = validate_claim_type("applications", text)
+        assert result.is_valid is True, text
+        assert result.tier == "weak", text
+
+
+def test_named_actor_acceptance_is_still_tier_strong() -> None:
+    # regression guard: the weak-tier addition must not downgrade genuine
+    # actor/institution/downstream-action/enumeration acceptances
+    text = "Deployed by banks to flag suspicious transactions for manual review by compliance teams."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
 def test_bare_predictive_task_with_no_qualifier_is_rejected() -> None:
     # same shape as the reported bug but phrased with "applied to" instead
     # of "useful for" - must still be rejected, since the complement names
@@ -587,3 +613,15 @@ def test_rejected_claim_has_no_tier() -> None:
 
     assert result.is_valid is False
     assert result.tier is None
+
+
+def test_application_is_weakly_grounded_matches_the_persisted_tier() -> None:
+    # the public re-derivation Gate 2 calls must agree with what
+    # validate_claim_type itself persists as validation_tier="weak"
+    from researchbridge.extraction.validation import application_is_weakly_grounded
+
+    weak_text = "The method is useful for improving forecasts, particularly for QPE."
+    strong_text = "Deployed by banks to flag suspicious transactions for manual review by compliance teams."
+
+    assert application_is_weakly_grounded(weak_text) is True
+    assert application_is_weakly_grounded(strong_text) is False

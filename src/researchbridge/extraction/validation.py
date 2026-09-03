@@ -398,10 +398,14 @@ class ValidationResult:
     reason: str | None = None
     tier: str | None = None
     """"strong" or "weak" for an accepted research_gap claim (which regex
-    tier matched); "strong" for an accepted applications claim (there is
-    no "weak" applications tier - hedged/generic language is rejected
-    outright, not accepted-but-flagged); None for every other claim_type,
-    and None for any rejected claim. Persisted downstream
+    tier matched); "strong" or "weak" for an accepted applications claim
+    too, but a different axis - hedged/generic language is still rejected
+    outright (never accepted-but-flagged), "weak" here instead means
+    "accepted only via the generic qualifying-context fallback, not a
+    named actor/institution/downstream-action/enumeration" (see
+    _has_application_signal's docstring for the "in QPE" vs "in NHS"
+    collision this exists to flag for Gate 2); None for every other
+    claim_type, and None for any rejected claim. Persisted downstream
     (extracted_claims.validation_tier)."""
 
 
@@ -409,7 +413,23 @@ def _has_result_signal(text: str) -> bool:
     return bool(_RESULT_METRIC_RE.search(text) or _ACHIEVEMENT_VERB_RE.search(text))
 
 
-def _has_application_signal(text: str) -> bool:
+def _has_application_signal(text: str) -> tuple[bool, bool]:
+    """Returns (accepted, accepted_only_via_qualifying_context_fallback).
+
+    The second value is the "in QPE" vs "in NHS" collision this module's
+    own docstring already documents: _QUALIFYING_CONTEXT_RE's generic
+    "prep + word" fallback accepts a genuine named institution ("for NHS")
+    and a paper's own self-referential acronym ("for QPE") through the
+    exact same code path, with no way to tell them apart lexically. Rather
+    than guess at a lexical fix (verified live that a bare-acronym
+    exclusion would also reject real institutions - see
+    assessment/opportunity_synthesis.py's sibling investigation for the
+    same "can't fix blind" conclusion reached the same way), this flags
+    fallback-only acceptances so Gate 2 (assessment/applications.py, which
+    HAS the paper's own other claims to compare against) can apply extra
+    scrutiny specifically to the weakest of the four acceptance paths -
+    named actor/institution and downstream-action and enumeration are all
+    concrete, unambiguous signals; the fallback is not."""
     normalized = _ABBREVIATION_RE.sub(r"\1", text)
     masked = _TECH_NOUN_APPLICATION_RE.sub(" ", normalized)
 
@@ -420,15 +440,25 @@ def _has_application_signal(text: str) -> bool:
         complement = masked[match.end() : boundary]
 
         if _ACTOR_SETTING_RE.search(full_span) or _DOWNSTREAM_ACTION_RE.search(full_span):
-            return True
+            return True, False
         if _ENUMERATION_RE.search(full_span):
-            return True
+            return True, False
         if _VAGUE_QUALIFIER_RE.search(complement):
             continue
         if _QUALIFYING_CONTEXT_RE.search(complement):
-            return True
+            return True, True
 
-    return False
+    return False, False
+
+
+def application_is_weakly_grounded(text: str) -> bool:
+    """Public re-derivation of the same fallback-only check for an ALREADY-
+    accepted applications claim's text, used by assessment/applications
+    .py's Gate 2 (which has paper context this module never does) to apply
+    extra own-task-overlap scrutiny to claims that only passed Gate 1 via
+    the weak fallback - see _has_application_signal's docstring."""
+    _accepted, is_weak = _has_application_signal(text)
+    return is_weak
 
 
 def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
@@ -453,14 +483,21 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
         )
 
     if claim_type == "applications":
-        if not _has_application_signal(text):
+        accepted, is_weak = _has_application_signal(text)
+        if not accepted:
             return ValidationResult(
                 False,
                 "no concrete deployment context (actor, institution, downstream action, or "
                 "named external setting) found; reads as method, result, restated task, or "
                 "generic/vague text",
             )
-        return ValidationResult(True, tier="strong")
+        # "weak" here means "accepted only via the generic qualifying-
+        # context fallback" (see _has_application_signal's docstring) -
+        # unlike research_gap's weak tier, this is never itself grounds
+        # for rejection (Gate 1 has no paper context to judge further);
+        # it exists so Gate 2 can apply extra scrutiny where it has that
+        # context and this module doesn't.
+        return ValidationResult(True, tier=("weak" if is_weak else "strong"))
 
     if claim_type == "results":
         if not _has_result_signal(text):
