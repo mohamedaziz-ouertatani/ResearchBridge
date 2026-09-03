@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-09-02T23:41:12.218232+00:00",
+  "k": 10,
+  "query_sets": {
+    "self": {
+      "queries": 40,
+      "skipped": 0,
+      "results": [
+        {
+          "method": "tfidf",
+          "precision": 0.10000000000000005,
+          "recall": 1.0,
+          "ndcg": 0.9875,
+          "mrr": 0.9833333333333334
+        },
+        {
+          "method": "bm25",
+          "precision": 0.10000000000000005,
+          "recall": 1.0,
+          "ndcg": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "method": "embedding",
+          "precision": 0.10000000000000005,
+          "recall": 1.0,
+          "ndcg": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "method": "hybrid",
+          "precision": 0.10000000000000005,
+          "recall": 1.0,
+          "ndcg": 1.0,
+          "mrr": 1.0
+        }
+      ]
+    },
+    "topical": {
+      "queries": 15,
+      "skipped": 0,
+      "results": [
+        {
+          "method": "tfidf",
+          "precision": 0.2,
+          "recall": 0.18286753007341244,
+          "ndcg": 0.22923283116244744,
+          "mrr": 0.48445868945868936
+        },
+        {
+          "method": "bm25",
+          "precision": 0.25333333333333335,
+          "recall": 0.21267534208710678,
+          "ndcg": 0.2893065232604544,
+          "mrr": 0.4853968253968254
+        },
+        {
+          "method": "embedding",
+          "precision": 0.42000000000000004,
+          "recall": 0.35469988072929254,
+          "ndcg": 0.44577801198542294,
+          "mrr": 0.6327777777777778
+        },
+        {
+          "method": "hybrid",
+          "precision": 0.38,
+          "recall": 0.3198143686378981,
+          "ndcg": 0.40452959456521864,
+          "mrr": 0.5706349206349206
+        }
+      ]
+    }
+  }
+}

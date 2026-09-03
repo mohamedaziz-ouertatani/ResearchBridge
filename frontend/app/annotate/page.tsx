@@ -28,7 +28,7 @@ export default function AnnotateEntry() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-[62rem] px-6 py-24">
+    <main className="mx-auto max-w-[80rem] px-6 py-24">
       {error ? (
         <>
           <p className="text-[1.0625rem] text-[var(--ink-soft)]">{error}</p>

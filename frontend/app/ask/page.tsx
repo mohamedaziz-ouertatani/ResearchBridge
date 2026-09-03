@@ -79,7 +79,7 @@ export default function AskPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
+    <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">
       <Nav />
 
       <section className="pt-12">

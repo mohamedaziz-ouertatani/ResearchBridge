@@ -26,7 +26,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
   }, [id]);
 
   return (
-    <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
+    <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] py-5">
         <Link href="/" className="eyebrow hover:text-[var(--ink)]">
           ← ResearchBridge

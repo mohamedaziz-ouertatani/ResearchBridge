@@ -16,21 +16,27 @@ not a rework of the content logic.
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 from researchbridge.api.schemas import AssessmentEvidenceOut, ResearchAssessmentOut
+from researchbridge.assessment.export_charts import (
+    INK,
+    INK_FAINT,
+    INK_SOFT,
+    RULE,
+    evidence_bar_chart_png,
+    level_gauge_png,
+)
 
 # The same ink-gray palette and font pairing as the web report (globals.css /
 # layout.tsx) - Space Grotesk for headings/labels, Source Serif 4 for body
 # text and quotes. No color accents: teal and amber are reserved for cosine
 # distance and the active/typing state respectively, neither of which applies
-# to a static export.
-INK = "#14181d"
-INK_SOFT = "#4a545f"
-INK_FAINT = "#78838f"
-RULE = "#c6cbd2"
+# to a static export. (INK/INK_SOFT/INK_FAINT/RULE live in export_charts so
+# the chart helpers share the same palette without importing this module.)
 
 FONTS_DIR = Path(__file__).parent / "fonts"
 
@@ -47,6 +53,10 @@ _GAP_UNASSESSED_REASONS = {
     "checked_no_gap_found": "No gap was found in the retrieved literature for this input.",
     None: "No gap was found in the retrieved literature for this input.",
 }
+
+_COMPARISON_CLAIM_RE = re.compile(r'^-\s*"([^"]*)":\s*(.*)$')
+"""Matches one line of comparison_summary, same pattern as the web report's
+ComparisonSummary component (AssessmentReport.tsx)."""
 
 _APPLICATIONS_UNASSESSED_REASONS = {
     "not_assessed": "No relevant paper was retrieved for this input, so applications could not be assessed.",
@@ -141,6 +151,23 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             body=assessment.external_validation_needed,
         ),
     ]
+
+
+def _stats_tiles(assessment: ResearchAssessmentOut, related: list[RelatedPaper]) -> list[tuple[str, str]]:
+    """The stats panel's four (label, value) tiles - confidence and
+    human-reviewed are already on the assessment; evidence-quote and
+    papers-cited counts are derived here rather than stored, since they're
+    always recomputable from assessment.evidence."""
+    return [
+        ("confidence", assessment.confidence or "—"),
+        ("evidence quotes", str(len(assessment.evidence))),
+        ("papers cited", str(len(related))),
+        ("human reviewed", "yes" if assessment.human_reviewed else "no"),
+    ]
+
+
+def _section_evidence_counts(sections: list[ReportSection]) -> list[tuple[str, int]]:
+    return [(section.label, len(section.evidence)) for section in sections]
 
 
 _LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
@@ -273,6 +300,71 @@ def _docx_hyperlink(paragraph, text: str, url: str, *, color: str = INK_SOFT, si
     paragraph._p.append(hyperlink)
 
 
+def _docx_stats_table(document, assessment: ResearchAssessmentOut, related: list[RelatedPaper]) -> None:
+    """The confidence/evidence/papers/reviewed stats panel, as a 4-column,
+    borderless table - each cell is a small label over a large value, same
+    "stat tile" idea as the PDF path's _pdf_stats_table."""
+    from docx.shared import Pt
+
+    tiles = _stats_tiles(assessment, related)
+    table = document.add_table(rows=2, cols=len(tiles))
+    table.autofit = True
+    for col, (label, value) in enumerate(tiles):
+        label_run = table.rows[0].cells[col].paragraphs[0].add_run(label.upper())
+        label_run.font.name = "Space Grotesk"
+        label_run.font.size = Pt(7)
+        label_run.font.bold = True
+        label_run.font.color.rgb = _docx_rgb(INK_FAINT)
+
+        value_run = table.rows[1].cells[col].paragraphs[0].add_run(value)
+        value_run.font.name = "Space Grotesk"
+        value_run.font.size = Pt(14)
+        value_run.font.bold = True
+        value_run.font.color.rgb = _docx_rgb(INK)
+
+
+def _docx_comparison_summary(document, text: str) -> None:
+    """Same fix as the PDF path's comparison_summary() closure: render each
+    block/claim as its own paragraph instead of one add_paragraph(text) call
+    - python-docx's add_t() stores a literal "\\n" as ordinary text (it does
+    not emit a <w:br/>), so Word does not treat it as a line break either."""
+    from docx.shared import Pt
+
+    for block in text.split("\n\n"):
+        if not block:
+            continue
+        heading, *claim_lines = block.split("\n")
+        heading_p = document.add_paragraph()
+        heading_p.paragraph_format.space_before = Pt(8)
+        heading_p.paragraph_format.space_after = Pt(2)
+        heading_run = heading_p.add_run(heading)
+        heading_run.font.name = "Space Grotesk"
+        heading_run.font.bold = True
+        heading_run.font.size = Pt(10.5)
+        heading_run.font.color.rgb = _docx_rgb(INK)
+
+        for line in claim_lines:
+            match = _COMPARISON_CLAIM_RE.match(line)
+            if not match:
+                continue
+            paper_title, claim_text = match.group(1), match.group(2)
+
+            claim_p = document.add_paragraph()
+            claim_p.paragraph_format.left_indent = Pt(14)
+            claim_p.paragraph_format.space_after = Pt(0)
+            claim_run = claim_p.add_run(claim_text)
+            claim_run.font.color.rgb = _docx_rgb(INK_SOFT)
+
+            source_p = document.add_paragraph()
+            source_p.paragraph_format.left_indent = Pt(14)
+            source_p.paragraph_format.space_after = Pt(8)
+            source_run = source_p.add_run(paper_title.upper())
+            source_run.font.name = "Space Grotesk"
+            source_run.font.bold = True
+            source_run.font.size = Pt(7.5)
+            source_run.font.color.rgb = _docx_rgb(INK_FAINT)
+
+
 def _docx_footer(document, assessment: ResearchAssessmentOut, generated_at: datetime) -> None:
     from docx.shared import Pt
 
@@ -289,7 +381,7 @@ def _docx_footer(document, assessment: ResearchAssessmentOut, generated_at: date
 
 def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     import docx
-    from docx.shared import Pt
+    from docx.shared import Inches, Pt
 
     document = docx.Document()
 
@@ -324,6 +416,19 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     meta_run.font.color.rgb = _docx_rgb(INK_SOFT)
     _docx_bottom_border(meta, RULE)
 
+    related = _related_papers(assessment)
+    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
+
+    _docx_stats_table(document, assessment, related)
+
+    sections = build_report_sections(assessment)
+    counts = _section_evidence_counts(sections)
+    chart = evidence_bar_chart_png(counts, width_pt=460)
+    if chart:
+        chart_png, _height_pt = chart
+        _docx_eyebrow(document, "evidence by section")
+        document.add_picture(io.BytesIO(chart_png), width=Inches(6.0))
+
     _docx_eyebrow(document, "input")
     document.add_paragraph(assessment.research_input.raw_text)
     input_type = document.add_paragraph()
@@ -331,17 +436,20 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     input_type_run.font.size = Pt(9.5)
     input_type_run.font.color.rgb = _docx_rgb(INK_FAINT)
 
-    related = _related_papers(assessment)
-    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
-
-    for section in build_report_sections(assessment):
+    for section in sections:
         label = section.label
         dots = _level_dots(section.level)
         if section.level:
             label += f"  ·  {section.level.replace('_', ' ')}"
         _docx_eyebrow(document, label, heading=True, dots=dots)
 
-        if section.body:
+        if section.level:
+            gauge_png = level_gauge_png(section.level)
+            document.add_picture(io.BytesIO(gauge_png), width=Inches(1.9))
+
+        if section.body and section.label == "Existing solutions":
+            _docx_comparison_summary(document, section.body)
+        elif section.body:
             document.add_paragraph(section.body)
         elif section.unassessed_reason:
             reason = document.add_paragraph()
@@ -449,6 +557,31 @@ def _pdf_styles():
         "bullet": ParagraphStyle(
             "bullet", fontName="SourceSerif4", fontSize=10.5, textColor=INK, leading=15, leftIndent=12, spaceAfter=2
         ),
+        "comparison_heading": ParagraphStyle(
+            "comparison_heading", fontName="SpaceGrotesk-Bold", fontSize=9.5, textColor=INK, leading=13, spaceAfter=4
+        ),
+        "comparison_claim": ParagraphStyle(
+            "comparison_claim",
+            fontName="SourceSerif4",
+            fontSize=10,
+            textColor=INK_SOFT,
+            leading=14,
+            leftIndent=12,
+            spaceAfter=1,
+        ),
+        "comparison_source": ParagraphStyle(
+            "comparison_source",
+            fontName="SpaceGrotesk-Bold",
+            fontSize=7.5,
+            textColor=INK_FAINT,
+            leftIndent=12,
+            spaceAfter=8,
+        ),
+        # Two-line markup (label <br/> value) for each stats-panel tile -
+        # the two sizes/colors come from inline <font> tags in the markup
+        # itself, so this base style only needs to set the leading that
+        # keeps those two lines readable.
+        "stat_tile": ParagraphStyle("stat_tile", fontName="SourceSerif4", fontSize=7, leading=18),
     }
 
 
@@ -495,6 +628,36 @@ class _AssessmentDocTemplate:
             self.canv.addOutlineEntry(flowable.getPlainText(), key, level=0, closed=False)
 
 
+def _pdf_stats_table(assessment: ResearchAssessmentOut, related: list[RelatedPaper], styles, content_width: float):
+    """The confidence/evidence/papers/reviewed stats panel, as a borderless
+    4-column Table - each cell is a two-line Paragraph (label over value),
+    same "stat tile" idea as the docx path's _docx_stats_table."""
+    from reportlab.platypus import Paragraph, Table, TableStyle
+
+    tiles = _stats_tiles(assessment, related)
+    cells = [
+        Paragraph(
+            f'<font name="SpaceGrotesk-Bold" size="7" color="{INK_FAINT}">{_escape(label.upper())}</font>'
+            f'<br/><font name="SpaceGrotesk-Bold" size="14" color="{INK}">{_escape(value)}</font>',
+            styles["stat_tile"],
+        )
+        for label, value in tiles
+    ]
+    table = Table([cells], colWidths=[content_width / len(cells)] * len(cells))
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    return table
+
+
 def _pdf_link(text: str, url: str | None, *, color: str) -> str:
     """reportlab's `<link>` tag (not HTML's `<a>`) is the documented way to
     make part of a Paragraph clickable - it's the one markup tag guaranteed
@@ -508,7 +671,13 @@ def _pdf_link(text: str, url: str | None, *, color: str) -> str:
 def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     from reportlab.lib.colors import HexColor
     from reportlab.lib.pagesizes import LETTER
-    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate
+    from reportlab.platypus import (
+        Image,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+    )
     from reportlab.platypus.flowables import HRFlowable
 
     class _DocTemplate(_AssessmentDocTemplate, SimpleDocTemplate):
@@ -517,12 +686,39 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     _register_pdf_fonts()
     styles = _pdf_styles()
     story = []
+    margin = 0.9 * 72
+    content_width = LETTER[0] - 2 * margin
 
     def para(text: str, style: str, *, markup: str | None = None) -> None:
         story.append(Paragraph(markup if markup is not None else _escape(text), styles[style]))
 
+    def comparison_summary(text: str) -> None:
+        """comparison_summary is pre-formatted into blocks (heading, then
+        "- "paper": claim" lines - assessment/existing_solutions.py). A plain
+        para(text, "body") call collapses all of that onto one flowed
+        paragraph, since reportlab treats "\\n" as ordinary whitespace, not a
+        line break - so each block/line needs its own Paragraph, the same
+        structure the web report's ComparisonSummary component renders."""
+        for block in text.split("\n\n"):
+            if not block:
+                continue
+            heading, *claim_lines = block.split("\n")
+            para(heading, "comparison_heading")
+            for line in claim_lines:
+                match = _COMPARISON_CLAIM_RE.match(line)
+                if not match:
+                    continue
+                paper_title, claim_text = match.group(1), match.group(2)
+                para(claim_text, "comparison_claim")
+                para(paper_title.upper(), "comparison_source")
+
     def rule() -> None:
         story.append(HRFlowable(width="100%", thickness=0.75, color=HexColor(RULE), spaceBefore=6, spaceAfter=14))
+
+    related = _related_papers(assessment)
+    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
+    sections = build_report_sections(assessment)
+    counts = _section_evidence_counts(sections)
 
     para("RESEARCH ASSESSMENT", "title")
     para(assessment.recommendation or "Not assessed", "headline")
@@ -532,6 +728,16 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
         "meta",
     )
     rule()
+
+    story.append(_pdf_stats_table(assessment, related, styles, content_width))
+    story.append(Spacer(1, 16))
+
+    chart = evidence_bar_chart_png(counts, width_pt=content_width)
+    if chart:
+        chart_png, chart_height = chart
+        para("Evidence by section", "eyebrow")
+        story.append(Image(io.BytesIO(chart_png), width=content_width, height=chart_height))
+        story.append(Spacer(1, 10))
 
     para("Input", "eyebrow")
     para(assessment.research_input.raw_text, "body")
@@ -543,10 +749,7 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
 
     story.append(PageBreak())
 
-    related = _related_papers(assessment)
-    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
-
-    for section in build_report_sections(assessment):
+    for section in sections:
         heading = _escape(section.label)
         if section.level:
             heading += f"  ·  {section.level.replace('_', ' ')}"
@@ -555,7 +758,13 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
             heading += f'  <font name="SourceSerif4" size="9" color="{INK_SOFT}">{dots}</font>'
         para(section.label, "section", markup=heading)
 
-        if section.body:
+        if section.level:
+            story.append(Image(io.BytesIO(level_gauge_png(section.level)), width=140, height=10))
+            story.append(Spacer(1, 6))
+
+        if section.body and section.label == "Existing solutions":
+            comparison_summary(section.body)
+        elif section.body:
             para(section.body, "body")
         elif section.unassessed_reason:
             para(section.unassessed_reason, "reason")
@@ -574,9 +783,7 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
             para(paper.title, "bullet", markup=markup)
 
     buffer = io.BytesIO()
-    doc = _DocTemplate(
-        buffer, pagesize=LETTER, topMargin=0.9 * 72, bottomMargin=0.9 * 72, leftMargin=0.9 * 72, rightMargin=0.9 * 72
-    )
+    doc = _DocTemplate(buffer, pagesize=LETTER, topMargin=margin, bottomMargin=margin, leftMargin=margin, rightMargin=margin)
     generated_at = datetime.now(timezone.utc)
     footer = _make_pdf_footer(assessment, generated_at)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

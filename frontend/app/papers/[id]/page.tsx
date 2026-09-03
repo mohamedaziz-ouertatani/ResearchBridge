@@ -106,7 +106,7 @@ export default function PaperDetail({
 
   if (error) {
     return (
-      <main className="mx-auto max-w-[62rem] px-6 py-24 sm:px-8">
+      <main className="mx-auto max-w-[80rem] px-6 py-24 sm:px-8">
         <p className="text-[1.0625rem] text-[var(--ink-soft)]">{error}</p>
         <Link
           href="/corpus"
@@ -119,7 +119,7 @@ export default function PaperDetail({
   }
 
   return (
-    <main className="mx-auto max-w-[62rem] px-6 pb-24 sm:px-8">
+    <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">
       <header className="border-b border-[var(--rule)] py-5">
         <Link href="/corpus" className="eyebrow hover:text-[var(--ink)]">
           ← corpus

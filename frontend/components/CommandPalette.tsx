@@ -20,6 +20,7 @@ const DESTINATIONS: Destination[] = [
   { href: "/ask", label: "ask the corpus", group: "go to" },
   { href: "/assessments", label: "assessments", group: "go to" },
   { href: "/corpus", label: "corpus", group: "go to" },
+  { href: "/trends", label: "trends", group: "go to" },
   { href: "/gaps", label: "gap review", group: "go to" },
   { href: "/annotate", label: "annotation workbench", group: "go to" },
   { href: "/admin", label: "pipeline status", group: "go to" },

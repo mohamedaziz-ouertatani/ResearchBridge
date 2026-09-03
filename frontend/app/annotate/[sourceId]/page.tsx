@@ -175,7 +175,7 @@ export default function Workbench({ params }: { params: Promise<{ sourceId: stri
 
   if (error) {
     return (
-      <main className="mx-auto max-w-[62rem] px-6 py-24">
+      <main className="mx-auto max-w-[80rem] px-6 py-24">
         <p className="text-[1.0625rem] text-[var(--ink-soft)]">{error}</p>
         <Link href="/" className="eyebrow mt-4 inline-block hover:text-[var(--ink)]">
           ← back to the corpus

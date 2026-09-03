@@ -20,29 +20,36 @@ import { adminApi, type Notification } from "@/lib/adminApi";
 */
 
 const SEEN_KEY = "rb-notifications-seen";
+const CLEARED_KEY = "rb-notifications-cleared";
 const POLL_MS = 20000;
 const MAX_SEEN_IDS = 300;
 
-function loadSeen(): Set<string> {
+function loadIdSet(key: string): Set<string> {
   try {
-    const raw = localStorage.getItem(SEEN_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
   } catch {
     return new Set();
   }
 }
 
-function saveSeen(ids: Set<string>) {
+function saveIdSet(key: string, ids: Set<string>) {
   try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(ids).slice(-MAX_SEEN_IDS)));
+    localStorage.setItem(key, JSON.stringify(Array.from(ids).slice(-MAX_SEEN_IDS)));
   } catch {
     // localStorage unavailable (private mode, quota) - degrades to "everything always unread"
   }
 }
 
+const loadSeen = () => loadIdSet(SEEN_KEY);
+const saveSeen = (ids: Set<string>) => saveIdSet(SEEN_KEY, ids);
+const loadCleared = () => loadIdSet(CLEARED_KEY);
+const saveCleared = (ids: Set<string>) => saveIdSet(CLEARED_KEY, ids);
+
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(() => loadSeen());
+  const [clearedIds, setClearedIds] = useState<Set<string>>(() => loadCleared());
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +83,8 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !seenIds.has(n.id)).length;
+  const visibleNotifications = notifications.filter((n) => !clearedIds.has(n.id));
+  const unreadCount = visibleNotifications.filter((n) => !seenIds.has(n.id)).length;
 
   function toggle() {
     setOpen((wasOpen) => {
@@ -91,30 +99,61 @@ export function NotificationBell() {
     });
   }
 
+  function clearNotifications() {
+    const merged = new Set(clearedIds);
+    for (const n of notifications) merged.add(n.id);
+    setClearedIds(merged);
+    saveCleared(merged);
+  }
+
+  function dismissNotification(id: string) {
+    const merged = new Set(clearedIds);
+    merged.add(id);
+    setClearedIds(merged);
+    saveCleared(merged);
+  }
+
   return (
     <div ref={containerRef} className="fixed right-4 bottom-4 z-50">
       {open && (
         <div className="mb-2 max-h-[28rem] w-[22rem] overflow-y-auto border border-[var(--rule)] bg-[var(--panel)] shadow-lg">
-          <div className="sticky top-0 border-b border-[var(--rule-soft)] bg-[var(--panel)] px-3 py-2">
+          <div className="sticky top-0 flex items-center justify-between border-b border-[var(--rule-soft)] bg-[var(--panel)] px-3 py-2">
             <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">notifications</span>
+            {visibleNotifications.length > 0 && (
+              <button
+                onClick={clearNotifications}
+                className="readout text-[0.625rem] text-[var(--ink-faint)] hover:text-[var(--ink)]"
+              >
+                clear
+              </button>
+            )}
           </div>
-          {notifications.length === 0 ? (
+          {visibleNotifications.length === 0 ? (
             <p className="px-3 py-6 text-center text-[0.8125rem] text-[var(--ink-faint)]">Nothing yet.</p>
           ) : (
             <ul>
-              {notifications.map((n) => (
-                <li key={n.id} className="border-b border-[var(--rule-soft)] px-3 py-2.5 last:border-b-0">
-                  <p
-                    className={`line-clamp-3 [overflow-wrap:anywhere] text-[0.8125rem] leading-snug ${
-                      n.severity === "error" ? "text-[var(--live)]" : "text-[var(--ink)]"
-                    }`}
-                    title={n.message}
+              {visibleNotifications.map((n) => (
+                <li key={n.id} className="flex items-start gap-2 border-b border-[var(--rule-soft)] px-3 py-2.5 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`line-clamp-3 [overflow-wrap:anywhere] text-[0.8125rem] leading-snug ${
+                        n.severity === "error" ? "text-[var(--live)]" : "text-[var(--ink)]"
+                      }`}
+                      title={n.message}
+                    >
+                      {n.message}
+                    </p>
+                    <span className="readout mt-1 block text-[0.625rem] text-[var(--ink-faint)]">
+                      {new Date(n.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => dismissNotification(n.id)}
+                    aria-label="Dismiss notification"
+                    className="shrink-0 text-[var(--ink-faint)] hover:text-[var(--ink)]"
                   >
-                    {n.message}
-                  </p>
-                  <span className="readout mt-1 block text-[0.625rem] text-[var(--ink-faint)]">
-                    {new Date(n.created_at).toLocaleString()}
-                  </span>
+                    <XIcon />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -135,6 +174,14 @@ export function NotificationBell() {
         )}
       </button>
     </div>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
   );
 }
 
