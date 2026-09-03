@@ -50,6 +50,7 @@ from dataclasses import dataclass
 
 from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
 from researchbridge.embedding.base import Embedder
+from researchbridge.extraction.validation import application_is_weakly_grounded
 
 ClaimRecord = tuple[str, str, uuid.UUID]  # (claim_type, text, evidence_id)
 PaperWithClaims = tuple[uuid.UUID, str, float, list[ClaimRecord]]  # (paper_id, title, distance, claims)
@@ -93,6 +94,39 @@ _TASK_CLAIM_TYPES = ("problem", "method", "main_contribution", "results")
 # candidate for a future pass, not addressed here - see
 # docs/superpowers/plans/2026-09-02-applications-evidence-grounding.md.
 OWN_TASK_OVERLAP_THRESHOLD = 0.92
+
+# Stricter threshold applied ONLY to claims Gate 1 tagged validation_tier=
+# "weak" (accepted solely via extraction/validation.py's generic
+# _QUALIFYING_CONTEXT_RE fallback - no named actor/institution/downstream-
+# action/enumeration - see application_is_weakly_grounded's docstring).
+# This is the QPE/NHS collision's actual fix: a bare self-referential
+# acronym ("applied in QPE", QPE being the paper's own algorithm) and a
+# genuine named institution ("useful for NHS") are lexically identical to
+# Gate 1, which has no paper context to tell them apart - but Gate 2 does,
+# so it applies the extra scrutiny here instead.
+#
+# Calibrated against the real corpus/embedder (all-MiniLM-L6-v2), not
+# guessed: of 405 (weak-tier applications claim, own-paper task claim)
+# max-similarity pairs, 79 were EXACT-TEXT duplicates (sim=1.000 - the
+# same sentence extracted twice under two different claim_types for the
+# same paper, a distinct dual-extraction phenomenon, not near-restatement
+# - see scripts/backfill_claim_revalidation.py's docstring for the
+# adjacent, still-open issue). Filtering those out, the remaining 326
+# pairs' genuine near-restatements (identical-topic method/report
+# descriptions, e.g. "As the conclusion, over all result of the
+# implementation is satisfactory..." against the same report's own intro,
+# sim=0.973; "we present how CRFs can be applied to chunking in Korean
+# texts" against the paper's own CRF-chunking method claim, sim=0.813)
+# cluster at 0.65 and above, while every verified GENUINE deployment claim
+# sampled (all naming a real external system/platform: "deployed through
+# collaboration between WeBank and Extreme Vision", sim=0.487; "AI-HEALS
+# is deployed via a WeChat Mini Program", sim=0.528; two Flask/C++
+# inference-server deployments, sim=0.315/0.251) sits well below, at most
+# 0.528 - a wide margin under 0.65. 0.65 was chosen over the full-strength
+# 0.92 specifically to catch this clustered restatement band without
+# touching the verified-genuine cases, all of which sit at least ~0.12
+# below it.
+WEAK_TIER_OWN_TASK_OVERLAP_THRESHOLD = 0.65
 
 # Fix A (2026-09-03 investigation): a real false positive slipped past both
 # gates - "Machine learning can be used in many applications such as face
@@ -211,7 +245,12 @@ def assess_applications(papers_with_claims: list[PaperWithClaims], embedder: Emb
         own_task_texts = task_texts_by_paper.get(paper_id, [])
         if own_task_texts:
             candidate_vectors = [app_vector] + [vector_by_item_text[item] for item in items_by_candidate[i]]
-            if _restates_own_task(candidate_vectors, own_task_texts, vector_by_task_text):
+            threshold = (
+                WEAK_TIER_OWN_TASK_OVERLAP_THRESHOLD
+                if application_is_weakly_grounded(text)
+                else OWN_TASK_OVERLAP_THRESHOLD
+            )
+            if _restates_own_task(candidate_vectors, own_task_texts, vector_by_task_text, threshold):
                 continue
         applications.append(
             ApplicationRecord(application=text, source_paper=title, paper_id=paper_id, evidence_id=evidence_id)
@@ -227,13 +266,17 @@ def _restates_own_task(
     candidate_vectors: list[list[float]],
     own_task_texts: list[str],
     vector_by_task_text: dict[str, list[float]],
+    threshold: float,
 ) -> bool:
     """True if the claim's whole-sentence vector, OR any of its individual
     enumerated-item vectors (see _enumerated_items), overlaps an own-task
-    claim above threshold - see Fix A comment above OWN_TASK_OVERLAP_THRESHOLD."""
+    claim above threshold - see Fix A comment above OWN_TASK_OVERLAP_THRESHOLD.
+    threshold is WEAK_TIER_OWN_TASK_OVERLAP_THRESHOLD for a Gate-1-weak
+    candidate, OWN_TASK_OVERLAP_THRESHOLD otherwise - see that constant's
+    docstring for why weak-tier candidates need the stricter bar."""
     own_vectors = [vector_by_task_text[t] for t in own_task_texts]
     return any(
-        _cosine(candidate_vector, own_vector) >= OWN_TASK_OVERLAP_THRESHOLD
+        _cosine(candidate_vector, own_vector) >= threshold
         for candidate_vector in candidate_vectors
         for own_vector in own_vectors
     )

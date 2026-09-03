@@ -255,6 +255,53 @@ def test_own_task_overlap_rejects_a_restated_task_buried_in_a_like_phrased_enume
     assert result.applications == []
 
 
+def test_weak_tier_overlap_rejects_a_qpe_shaped_restatement_below_the_strong_threshold(embedder) -> None:
+    # The actual QPE/NHS bug: a bare self-referential acronym ("applied in
+    # QRS", QRS being the paper's own method) reads identically to Gate 1
+    # as a genuine named institution, so it's only accepted via the
+    # generic qualifying-context fallback (validation_tier="weak" - see
+    # extraction/validation.py::application_is_weakly_grounded). At 0.744
+    # similarity this claim would stay ACCEPTED under the uniform
+    # OWN_TASK_OVERLAP_THRESHOLD (0.92) but must be rejected under the
+    # stricter WEAK_TIER_OWN_TASK_OVERLAP_THRESHOLD (0.65) applied to
+    # weak-tier candidates specifically.
+    task = _claim(
+        "method", "predicts which patients are at risk of readmission using vitals and lab trends"
+    )
+    app = _claim(
+        "applications",
+        "The method is applied in QRS to predict which patients are at risk of readmission using "
+        "vitals and lab trends",
+    )
+    paper_id = uuid.uuid4()
+
+    result = assess_applications([(paper_id, "Readmission Paper", NEAR, [task, app])], embedder)
+
+    assert result.status == "no_evidence"
+    assert result.applications == []
+
+
+def test_weak_tier_overlap_does_not_reject_a_genuinely_distinct_weak_tier_application(embedder) -> None:
+    # non-regression: a weak-tier claim (fallback-only, same bare-acronym
+    # shape as above) about a genuinely DIFFERENT topic from the paper's
+    # own task must still be accepted - the stricter threshold targets
+    # restatement, not the weak tier itself.
+    task = _claim(
+        "method", "predicts which patients are at risk of readmission using vitals and lab trends"
+    )
+    app = _claim(
+        "applications",
+        "The method is applied in QRS for scheduling delivery routes and reducing fuel costs in logistics",
+    )
+    paper_id = uuid.uuid4()
+
+    result = assess_applications([(paper_id, "Readmission Paper", NEAR, [task, app])], embedder)
+
+    assert result.status == "found"
+    assert len(result.applications) == 1
+    assert result.applications[0].application == app[1]
+
+
 def test_own_task_overlap_only_compares_against_the_same_paper(embedder) -> None:
     # paper A's application claim happens to closely paraphrase paper B's
     # task, not its own - must not be rejected for a cross-paper match
