@@ -73,6 +73,35 @@ class ReportSection:
     unassessed_reason: str | None = None
     """Shown instead of body when body is None."""
     evidence: list[AssessmentEvidenceOut] = field(default_factory=list)
+    group: str = "assessment"
+    """Which of GROUP_INFO's three clusters this section prints under - the
+    same context/assessment/notes grouping the web report uses (see
+    REPORT_GROUPS in AssessmentReport.tsx). Both renderers watch for this
+    changing as they walk build_report_sections()'s list and insert a new
+    group heading whenever it does, rather than storing the groups as a
+    separate nested structure - keeping one flat, ordered list is what lets
+    build_report_sections() stay "the one place that decides what goes in
+    the report" per this module's docstring."""
+
+
+# Mirrors REPORT_GROUPS in AssessmentReport.tsx: same three clusters, same
+# index/title/description, so a reader moving between the web report and an
+# export sees the same structure. "context" isn't a ReportSection group (the
+# export's "Input" block predates build_report_sections() and isn't in the
+# list this dict keys off), so both renderers print it explicitly.
+GROUP_INFO: dict[str, tuple[str, str, str]] = {
+    "context": ("01", "context", "What was submitted, and what literature it's being read against."),
+    "assessment": (
+        "02",
+        "assessment",
+        "Grounded judgements - each one counted by how many real passages support it.",
+    ),
+    "notes": (
+        "03",
+        "notes",
+        "What this reading doesn't settle, and how the recommendation was reached.",
+    ),
+}
 
 
 def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSection]:
@@ -149,6 +178,7 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
         ReportSection(
             label="External validation needed",
             body=assessment.external_validation_needed,
+            group="notes",
         ),
     ]
 
@@ -263,6 +293,32 @@ def _docx_eyebrow(document, text: str, *, color: str = INK_FAINT, heading: bool 
         dots_run.font.bold = False
         dots_run.font.color.rgb = _docx_rgb(INK_SOFT)
     return p
+
+
+def _docx_group_heading(document, index: str, title: str, description: str) -> None:
+    """One of the report's three cluster headings (context/assessment/notes)
+    - bigger and bolder than _docx_eyebrow's per-field labels, and given
+    Word's "Heading 1" style so it nests above them in the Navigation pane:
+    Heading 1 group, Heading 2 fields beneath it, same hierarchy the web
+    report's jump-nav shows."""
+    from docx.shared import Pt
+
+    heading = document.add_paragraph(style="Heading 1")
+    heading.paragraph_format.space_before = Pt(20)
+    heading.paragraph_format.space_after = Pt(2)
+    run = heading.add_run(f"{index}  {title.upper()}")
+    run.font.name = "Space Grotesk"
+    run.font.size = Pt(13)
+    run.font.bold = True
+    run.font.color.rgb = _docx_rgb(INK)
+
+    desc = document.add_paragraph()
+    desc.paragraph_format.space_after = Pt(8)
+    desc_run = desc.add_run(description)
+    desc_run.font.name = "Source Serif 4"
+    desc_run.font.size = Pt(9)
+    desc_run.font.italic = True
+    desc_run.font.color.rgb = _docx_rgb(INK_FAINT)
 
 
 def _docx_hyperlink(paragraph, text: str, url: str, *, color: str = INK_SOFT, size_pt: float | None = None) -> None:
@@ -429,6 +485,7 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
         _docx_eyebrow(document, "evidence by section")
         document.add_picture(io.BytesIO(chart_png), width=Inches(6.0))
 
+    _docx_group_heading(document, *GROUP_INFO["context"])
     _docx_eyebrow(document, "input")
     document.add_paragraph(assessment.research_input.raw_text)
     input_type = document.add_paragraph()
@@ -436,7 +493,12 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     input_type_run.font.size = Pt(9.5)
     input_type_run.font.color.rgb = _docx_rgb(INK_FAINT)
 
+    last_group: str | None = None
     for section in sections:
+        if section.group != last_group:
+            _docx_group_heading(document, *GROUP_INFO[section.group])
+            last_group = section.group
+
         label = section.label
         dots = _level_dots(section.level)
         if section.level:
@@ -532,6 +594,14 @@ def _pdf_styles():
         "eyebrow": ParagraphStyle(
             "eyebrow", fontName="SpaceGrotesk-Bold", fontSize=9, textColor=INK_FAINT, spaceBefore=16, spaceAfter=4
         ),
+        # The report's three cluster headings (context/assessment/notes) -
+        # bigger and bolder than "eyebrow"/"section", and given their own
+        # style name so afterFlowable can bookmark them at outline level 0
+        # with the per-field "section" headings nested at level 1 beneath.
+        "group": ParagraphStyle("group", fontName="SpaceGrotesk-Bold", fontSize=13, textColor=INK, spaceBefore=22, spaceAfter=2),
+        "group_description": ParagraphStyle(
+            "group_description", fontName="SourceSerif4-Italic", fontSize=9, textColor=INK_FAINT, spaceAfter=10
+        ),
         # Same look as "eyebrow" - a distinct style name so afterFlowable
         # (see _AssessmentDocTemplate) can tell a report section heading
         # apart from a meta label like "Input" and only bookmark the former.
@@ -621,11 +691,13 @@ class _AssessmentDocTemplate:
 
     def afterFlowable(self, flowable) -> None:
         style = getattr(flowable, "style", None)
-        if style is not None and style.name == "section":
-            key = f"section-{self._bookmark_counter}"
-            self._bookmark_counter += 1
-            self.canv.bookmarkPage(key)
-            self.canv.addOutlineEntry(flowable.getPlainText(), key, level=0, closed=False)
+        if style is None or style.name not in ("group", "section"):
+            return
+        level = 0 if style.name == "group" else 1
+        key = f"section-{self._bookmark_counter}"
+        self._bookmark_counter += 1
+        self.canv.bookmarkPage(key)
+        self.canv.addOutlineEntry(flowable.getPlainText(), key, level=level, closed=False)
 
 
 def _pdf_stats_table(assessment: ResearchAssessmentOut, related: list[RelatedPaper], styles, content_width: float):
@@ -715,6 +787,10 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     def rule() -> None:
         story.append(HRFlowable(width="100%", thickness=0.75, color=HexColor(RULE), spaceBefore=6, spaceAfter=14))
 
+    def group_heading(index: str, title: str, description: str) -> None:
+        para(f"{index}  {title.upper()}", "group")
+        para(description, "group_description")
+
     related = _related_papers(assessment)
     link_by_paper_id = {paper.paper_id: paper.link for paper in related}
     sections = build_report_sections(assessment)
@@ -739,6 +815,7 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
         story.append(Image(io.BytesIO(chart_png), width=content_width, height=chart_height))
         story.append(Spacer(1, 10))
 
+    group_heading(*GROUP_INFO["context"])
     para("Input", "eyebrow")
     para(assessment.research_input.raw_text, "body")
     para(f"Type: {assessment.research_input.input_type}", "meta")
@@ -749,7 +826,12 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
 
     story.append(PageBreak())
 
+    last_group: str | None = None
     for section in sections:
+        if section.group != last_group:
+            group_heading(*GROUP_INFO[section.group])
+            last_group = section.group
+
         heading = _escape(section.label)
         if section.level:
             heading += f"  ·  {section.level.replace('_', ' ')}"

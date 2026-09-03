@@ -51,6 +51,44 @@ export function groupByRole(evidence: AssessmentEvidence[]) {
   return byRole;
 }
 
+/** The report's three groups, used to build both the jump-nav and the
+    section headers below. Kept as one list so the two can't drift apart. */
+const REPORT_GROUPS = [
+  {
+    index: "01",
+    title: "context",
+    description: "What was submitted, and what literature it's being read against.",
+    items: [
+      { id: "input", label: "input" },
+      { id: "related-research", label: "related research" },
+      { id: "when-discussed", label: "when this idea was discussed" },
+    ],
+  },
+  {
+    index: "02",
+    title: "assessment",
+    description: "Grounded judgements - each one counted by how many real passages support it.",
+    items: [
+      { id: "existing-solutions", label: "existing solutions" },
+      { id: "novelty", label: "corpus similarity / novelty signal" },
+      { id: "research-gap", label: "research gap" },
+      { id: "applications", label: "potential applications" },
+      { id: "opportunities", label: "product / technology opportunities" },
+      { id: "feasibility", label: "technical feasibility" },
+      { id: "risks", label: "risks / limitations" },
+    ],
+  },
+  {
+    index: "03",
+    title: "notes",
+    description: "What this reading doesn't settle, and how the recommendation was reached.",
+    items: [
+      { id: "external-validation", label: "external validation needed" },
+      { id: "reasoning", label: "recommendation reasoning" },
+    ],
+  },
+] as const;
+
 export function AssessmentReport({
   assessment,
   onAssessmentUpdated,
@@ -72,192 +110,284 @@ export function AssessmentReport({
   for (const item of assessment.evidence) contributingPapers.set(item.paper_id, item.paper_title);
 
   return (
-    <article className="resolve">
-      <Verdict assessment={assessment} grounded={groundedCount} total={GRADEABLE_ROLES.length} />
+    <article className="resolve lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-12">
+      <ReportNav />
 
-      <AssessmentHistory assessmentId={assessment.id} />
+      <div className="min-w-0">
+        <Verdict assessment={assessment} grounded={groundedCount} total={GRADEABLE_ROLES.length} />
 
-      <Field label="input" gradeable={false}>
-        <p className="font-[family-name:var(--type-text)] text-[1.0625rem] leading-[1.7]">
-          {assessment.research_input.raw_text.length > 600
-            ? `${assessment.research_input.raw_text.slice(0, 600)}…`
-            : assessment.research_input.raw_text}
-        </p>
-        <p className="eyebrow mt-3">
-          {assessment.research_input.input_type === "document" ? "uploaded document" : "research idea"}
-        </p>
-        {assessment.research_input.matched_paper_id && (
-          <p className="mt-2 text-[0.8125rem] text-[var(--ink-soft)]">
-            matched to an existing corpus paper —{" "}
-            <Link
-              href={`/papers/${assessment.research_input.matched_paper_id}`}
-              className="underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
-            >
-              view it
-            </Link>
-          </p>
-        )}
-      </Field>
+        <AssessmentHistory assessmentId={assessment.id} />
 
-      <Field label="related research" gradeable={false}>
-        {contributingPapers.size === 0 ? (
-          <Unassessed reason="No retrieved paper contributed usable extracted claims." />
-        ) : (
-          <>
-            <ul className="space-y-1">
-              {[...contributingPapers].map(([paperId, title]) => (
-                <li key={paperId}>
-                  <Link
-                    href={`/papers/${paperId}`}
-                    className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+        <MobileReportNav />
+
+        <Group {...REPORT_GROUPS[0]}>
+          <Field id="input" label="input" gradeable={false}>
+            <p className="font-[family-name:var(--type-text)] text-[1.0625rem] leading-[1.7]">
+              {assessment.research_input.raw_text.length > 600
+                ? `${assessment.research_input.raw_text.slice(0, 600)}…`
+                : assessment.research_input.raw_text}
+            </p>
+            <p className="eyebrow mt-3">
+              {assessment.research_input.input_type === "document" ? "uploaded document" : "research idea"}
+            </p>
+            {assessment.research_input.matched_paper_id && (
+              <p className="mt-2 text-[0.8125rem] text-[var(--ink-soft)]">
+                matched to an existing corpus paper —{" "}
+                <Link
+                  href={`/papers/${assessment.research_input.matched_paper_id}`}
+                  className="underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+                >
+                  view it
+                </Link>
+              </p>
+            )}
+          </Field>
+
+          <Field id="related-research" label="related research" gradeable={false}>
+            {contributingPapers.size === 0 ? (
+              <Unassessed reason="No retrieved paper contributed usable extracted claims." />
+            ) : (
+              <>
+                <ul className="space-y-1">
+                  {[...contributingPapers].map(([paperId, title]) => (
+                    <li key={paperId}>
+                      <Link
+                        href={`/papers/${paperId}`}
+                        className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed underline decoration-[var(--rule)] underline-offset-4 hover:decoration-[var(--ink)]"
+                      >
+                        {title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="readout mt-3 text-[0.6875rem] text-[var(--ink-faint)]">
+                  {assessment.retrieved_paper_ids.length} retrieved · {contributingPapers.size} contributed evidence
+                </p>
+              </>
+            )}
+          </Field>
+
+          <Field id="when-discussed" label="when this idea was discussed" gradeable={false}>
+            <IdeaYearTrend evidence={assessment.evidence} />
+          </Field>
+        </Group>
+
+        <Group {...REPORT_GROUPS[1]}>
+          <Field id="existing-solutions" label="existing solutions" evidence={byRole.get("comparison")}>
+            {assessment.comparison_summary ? (
+              <ComparisonSummary text={assessment.comparison_summary} />
+            ) : (
+              <Unassessed reason="No retrieved paper had extracted claims to compare against." />
+            )}
+          </Field>
+
+          <Field
+            id="novelty"
+            label="corpus similarity / novelty signal"
+            evidence={byRole.get("novelty")}
+            level={assessment.novelty_level}
+          >
+            {assessment.novelty_reasoning ? (
+              <Prose text={assessment.novelty_reasoning} />
+            ) : (
+              <Unassessed reason="Not enough evidence to judge corpus similarity." />
+            )}
+            <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+              This reflects similarity to the papers retrieved from this corpus, not proof of global
+              originality - the corpus is one CS/AI/ML slice, not the full scientific literature.
+            </p>
+          </Field>
+
+          <Field id="research-gap" label="research gap" evidence={byRole.get("research_gap")}>
+            {assessment.research_gap_text ? (
+              <>
+                <Prose text={assessment.research_gap_text} />
+                {assessment.research_gap_source && (
+                  <p className="eyebrow mt-3">
+                    {assessment.research_gap_source === "reused_candidate_gap"
+                      ? "reused a reviewed candidate gap"
+                      : "found for this input"}
+                  </p>
+                )}
+              </>
+            ) : (
+              <Unassessed
+                reason={
+                  assessment.research_gap_source === "no_relevant_evidence"
+                    ? "Not assessed - insufficient relevant evidence was retrieved for this input to investigate whether a research gap exists."
+                    : "No gap was found in the retrieved literature for this input."
+                }
+              />
+            )}
+          </Field>
+
+          <Field id="applications" label="potential applications" evidence={byRole.get("application")}>
+            {assessment.potential_applications?.length ? (
+              <ul className="space-y-3">
+                {assessment.potential_applications.map((app, i) => (
+                  <li key={i}>
+                    <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed">
+                      {app.application}
+                    </p>
+                    <Link href={`/papers/${app.paper_id}`} className="eyebrow mt-1 inline-block hover:text-[var(--ink)]">
+                      {app.source_paper}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Unassessed
+                reason={
+                  assessment.potential_applications === null
+                    ? "No relevant paper was retrieved for this input, so applications could not be assessed."
+                    : "No retrieved paper stated an application."
+                }
+              />
+            )}
+          </Field>
+
+          <Field id="opportunities" label="product / technology opportunities" evidence={byRole.get("opportunity")}>
+            <Opportunities
+              assessmentId={assessment.id}
+              applications={assessment.potential_applications}
+              opportunities={assessment.potential_opportunities}
+              onSynthesized={onAssessmentUpdated}
+            />
+          </Field>
+
+          <Field
+            id="feasibility"
+            label="technical feasibility"
+            evidence={byRole.get("feasibility")}
+            level={assessment.technical_feasibility_level}
+          >
+            {assessment.technical_feasibility_reasoning ? (
+              <Prose text={assessment.technical_feasibility_reasoning} />
+            ) : (
+              <Unassessed reason="Nothing close enough to ground a feasibility judgement." />
+            )}
+            <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+              This means documented technical grounding in the retrieved literature - a related method
+              or dataset already exists on paper - not a prediction of whether this specific idea will
+              succeed.
+            </p>
+          </Field>
+
+          <Field id="risks" label="risks / limitations" evidence={byRole.get("risk")}>
+            {assessment.risks_and_limitations ? (
+              <Preformatted text={assessment.risks_and_limitations} />
+            ) : (
+              <Unassessed reason="No retrieved paper stated a limitation." />
+            )}
+          </Field>
+        </Group>
+
+        <Group {...REPORT_GROUPS[2]}>
+          <Field id="external-validation" label="external validation needed" gradeable={false}>
+            <Prose text={assessment.external_validation_needed} />
+          </Field>
+
+          <Field id="reasoning" label="recommendation reasoning" gradeable={false}>
+            <Preformatted
+              text={[
+                `Novelty signal: ${assessment.novelty_level}`,
+                assessment.novelty_reasoning ?? "",
+                "",
+                assessment.research_gap_text
+                  ? `Research gap evidence: ${assessment.research_gap_text}`
+                  : `Research gap evidence: ${
+                      assessment.research_gap_source === "no_relevant_evidence"
+                        ? "not assessed - insufficient relevant evidence"
+                        : "none found - relevant literature was checked"
+                    }`,
+                "",
+                `Technical grounding: ${assessment.technical_feasibility_level}`,
+                assessment.technical_feasibility_reasoning ?? "",
+                "",
+                `Recommendation: ${assessment.recommendation ?? "not assessed"}`,
+                `Confidence: ${assessment.confidence ?? "not assessed"}`,
+              ]
+                .filter((line) => line !== undefined)
+                .join("\n")}
+            />
+          </Field>
+        </Group>
+      </div>
+    </article>
+  );
+}
+
+/** Sticky jump-nav for the report's three groups, desktop only - the same
+    list drives MobileReportNav's horizontal chip strip below lg. */
+function ReportNav() {
+  return (
+    <nav aria-label="Report sections" className="hidden lg:sticky lg:top-8 lg:block lg:self-start">
+      <ul className="space-y-6">
+        {REPORT_GROUPS.map((group) => (
+          <li key={group.title}>
+            <span className="eyebrow">
+              {group.index} {group.title}
+            </span>
+            <ul className="mt-2 space-y-1.5 border-l border-[var(--rule-soft)] pl-3">
+              {group.items.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.id}`}
+                    className="block text-[0.8125rem] leading-snug text-[var(--ink-soft)] hover:text-[var(--ink)]"
                   >
-                    {title}
-                  </Link>
+                    {item.label}
+                  </a>
                 </li>
               ))}
             </ul>
-            <p className="readout mt-3 text-[0.6875rem] text-[var(--ink-faint)]">
-              {assessment.retrieved_paper_ids.length} retrieved · {contributingPapers.size} contributed evidence
-            </p>
-          </>
-        )}
-      </Field>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
-      <Field label="when this idea was discussed" gradeable={false}>
-        <IdeaYearTrend evidence={assessment.evidence} />
-      </Field>
+/** Same jump-targets as ReportNav, as a horizontally scrolling chip strip -
+    the sticky rail has no room below lg, but a 14-field report still needs
+    a way to skip ahead without scrolling past everything. */
+function MobileReportNav() {
+  return (
+    <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto border-b border-[var(--rule-soft)] px-1 py-4 lg:hidden">
+      {REPORT_GROUPS.flatMap((group) => group.items).map((item) => (
+        <a
+          key={item.id}
+          href={`#${item.id}`}
+          className="eyebrow shrink-0 rounded-[2px] border border-[var(--rule)] px-2.5 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
+        >
+          {item.label}
+        </a>
+      ))}
+    </div>
+  );
+}
 
-      <Field label="existing solutions" evidence={byRole.get("comparison")}>
-        {assessment.comparison_summary ? (
-          <ComparisonSummary text={assessment.comparison_summary} />
-        ) : (
-          <Unassessed reason="No retrieved paper had extracted claims to compare against." />
-        )}
-      </Field>
-
-      <Field label="corpus similarity / novelty signal" evidence={byRole.get("novelty")} level={assessment.novelty_level}>
-        {assessment.novelty_reasoning ? (
-          <Prose text={assessment.novelty_reasoning} />
-        ) : (
-          <Unassessed reason="Not enough evidence to judge corpus similarity." />
-        )}
-        <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-          This reflects similarity to the papers retrieved from this corpus, not proof of global
-          originality - the corpus is one CS/AI/ML slice, not the full scientific literature.
-        </p>
-      </Field>
-
-      <Field label="research gap" evidence={byRole.get("research_gap")}>
-        {assessment.research_gap_text ? (
-          <>
-            <Prose text={assessment.research_gap_text} />
-            {assessment.research_gap_source && (
-              <p className="eyebrow mt-3">
-                {assessment.research_gap_source === "reused_candidate_gap"
-                  ? "reused a reviewed candidate gap"
-                  : "found for this input"}
-              </p>
-            )}
-          </>
-        ) : (
-          <Unassessed
-            reason={
-              assessment.research_gap_source === "no_relevant_evidence"
-                ? "Not assessed - insufficient relevant evidence was retrieved for this input to investigate whether a research gap exists."
-                : "No gap was found in the retrieved literature for this input."
-            }
-          />
-        )}
-      </Field>
-
-      <Field label="potential applications" evidence={byRole.get("application")}>
-        {assessment.potential_applications?.length ? (
-          <ul className="space-y-3">
-            {assessment.potential_applications.map((app, i) => (
-              <li key={i}>
-                <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed">
-                  {app.application}
-                </p>
-                <Link href={`/papers/${app.paper_id}`} className="eyebrow mt-1 inline-block hover:text-[var(--ink)]">
-                  {app.source_paper}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Unassessed
-            reason={
-              assessment.potential_applications === null
-                ? "No relevant paper was retrieved for this input, so applications could not be assessed."
-                : "No retrieved paper stated an application."
-            }
-          />
-        )}
-      </Field>
-
-      <Field label="product / technology opportunities" evidence={byRole.get("opportunity")}>
-        <Opportunities
-          assessmentId={assessment.id}
-          applications={assessment.potential_applications}
-          opportunities={assessment.potential_opportunities}
-          onSynthesized={onAssessmentUpdated}
-        />
-      </Field>
-
-      <Field
-        label="technical feasibility"
-        evidence={byRole.get("feasibility")}
-        level={assessment.technical_feasibility_level}
-      >
-        {assessment.technical_feasibility_reasoning ? (
-          <Prose text={assessment.technical_feasibility_reasoning} />
-        ) : (
-          <Unassessed reason="Nothing close enough to ground a feasibility judgement." />
-        )}
-        <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-          This means documented technical grounding in the retrieved literature - a related method
-          or dataset already exists on paper - not a prediction of whether this specific idea will
-          succeed.
-        </p>
-      </Field>
-
-      <Field label="risks / limitations" evidence={byRole.get("risk")}>
-        {assessment.risks_and_limitations ? (
-          <Preformatted text={assessment.risks_and_limitations} />
-        ) : (
-          <Unassessed reason="No retrieved paper stated a limitation." />
-        )}
-      </Field>
-
-      <Field label="external validation needed" gradeable={false}>
-        <Prose text={assessment.external_validation_needed} />
-      </Field>
-
-      <Field label="recommendation reasoning" gradeable={false}>
-        <Preformatted
-          text={[
-            `Novelty signal: ${assessment.novelty_level}`,
-            assessment.novelty_reasoning ?? "",
-            "",
-            assessment.research_gap_text
-              ? `Research gap evidence: ${assessment.research_gap_text}`
-              : `Research gap evidence: ${
-                  assessment.research_gap_source === "no_relevant_evidence"
-                    ? "not assessed - insufficient relevant evidence"
-                    : "none found - relevant literature was checked"
-                }`,
-            "",
-            `Technical grounding: ${assessment.technical_feasibility_level}`,
-            assessment.technical_feasibility_reasoning ?? "",
-            "",
-            `Recommendation: ${assessment.recommendation ?? "not assessed"}`,
-            `Confidence: ${assessment.confidence ?? "not assessed"}`,
-          ]
-            .filter((line) => line !== undefined)
-            .join("\n")}
-        />
-      </Field>
-    </article>
+/** A named cluster of Fields, headed by an index + title so the report
+    reads as a few distinct movements rather than one flat list. */
+function Group({
+  index,
+  title,
+  description,
+  children,
+}: {
+  index: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-14 first:mt-10">
+      <div className="flex items-baseline gap-3 border-b border-[var(--rule)] pb-3">
+        <span className="readout text-[0.8125rem] text-[var(--ink-faint)]">{index}</span>
+        <h2 className="display text-[1.1875rem]">{title}</h2>
+      </div>
+      <p className="mt-2 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">{description}</p>
+      <div className="[&>section:last-child]:border-b-0">{children}</div>
+    </section>
   );
 }
 
@@ -352,12 +482,12 @@ function Verdict({
       {failed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">save failed — try again</p>}
       {rerunFailed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">re-run failed — try again</p>}
 
-      <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
-        <div>
+      <dl className="mt-6 flex flex-wrap gap-3">
+        <div className="rounded-[2px] border border-[var(--rule-soft)] px-4 py-2.5">
           <dt className="eyebrow">confidence</dt>
           <dd className="readout mt-1 text-[0.9375rem]">{assessment.confidence ?? "—"}</dd>
         </div>
-        <div>
+        <div className="rounded-[2px] border border-[var(--rule-soft)] px-4 py-2.5">
           <dt className="eyebrow">grounded fields</dt>
           <dd className="readout mt-1 text-[0.9375rem]">
             {grounded} / {total}
@@ -593,12 +723,15 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
 }
 
 function Field({
+  id,
   label,
   level,
   evidence,
   gradeable = true,
   children,
 }: {
+  /** Anchor target for ReportNav / MobileReportNav's jump links. */
+  id?: string;
   label: string;
   level?: string;
   evidence?: AssessmentEvidence[];
@@ -612,7 +745,10 @@ function Field({
   const count = evidence?.length ?? 0;
 
   return (
-    <section className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 border-b border-[var(--rule-soft)] py-7 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-6">
+    <section
+      id={id}
+      className="grid scroll-mt-8 grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 border-b border-[var(--rule-soft)] py-7 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-6"
+    >
       {/* the evidence gutter: how many real passages back this reading */}
       <div className="pt-0.5">
         {gradeable && (
