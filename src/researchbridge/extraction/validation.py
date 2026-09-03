@@ -317,9 +317,28 @@ _ACTOR_SETTING_RE = re.compile(
 # appear, only its meaning. Matches "inform(s/ed/ing) <=3 words>
 # decision(s)" rather than a fixed vocabulary, same reasoning as "support
 # X in Y-ing" above.
+#
+# "policy" negative lookahead (2026-09-03, root-causing the original QPE
+# bug report): bare "policy" is genuinely ambiguous between governance
+# ("policy" a regulator sets) and reinforcement learning ("policy" the
+# function an RL agent learns) - the exact collision behind "The learned
+# quantum environment is then applied in QPE to also compute policy
+# evaluations on quantum hardware," where QPE is the paper's OWN
+# algorithm (Quantum Policy Evaluation, its own "problem" claim says so
+# verbatim) but this bare "policy" match was tagging the claim
+# "strong" and skipping it past Gate 2's weak-tier scrutiny entirely.
+# Verified narrowly against the whole corpus before adding: "policy
+# evaluation(s)" is standalone-RL terminology in every one of the 23
+# claims (any type) containing that exact phrase - never a governance
+# claim - while "policy making"/"policy planning"/"policy compliance"/
+# bare "policy" elsewhere stay ambiguous but unverified, so only the
+# specifically-confirmed "policy evaluation(s)" collision is excluded,
+# same narrow-lookahead approach as research_gap's "open (question|
+# problem)(?!\s+answering)" above.
 _DOWNSTREAM_ACTION_RE = re.compile(
     r"\binterventions?\b|\btriage\b|\bmanual review\b|\bcounsel(l)?ing\b"
-    r"|\btreatment plan(ning)?\b|\bresource allocation\b|\bpolicy( ?making)?\b"
+    r"|\btreatment plan(ning)?\b|\bresource allocation\b"
+    r"|\bpolicy( ?making)?\b(?!\s+evaluations?)"
     r"|\bremediation\b|\bprioriti[sz](e|ation|ing)\b|\bdecision support\b"
     r"|\brisk mitigation\b|\bearly (intervention|warning)\b|\bscreening\b"
     r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b"

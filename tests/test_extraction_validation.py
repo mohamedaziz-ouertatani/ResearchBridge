@@ -497,6 +497,33 @@ def test_traffic_case10_own_contribution_disguised_as_application_is_rejected() 
     assert result.is_valid is False
 
 
+def test_qpe_bare_policy_evaluation_restating_its_own_rl_algorithm_is_rejected() -> None:
+    # Root cause of the original QPE bug report: QPE is this paper's OWN
+    # algorithm name (Quantum Policy Evaluation, an RL algorithm - see its
+    # own "problem" claim), and "policy evaluations" here means the RL
+    # sense, not governance. Before the negative lookahead on "policy" in
+    # _DOWNSTREAM_ACTION_RE, bare "policy" matched unconditionally and this
+    # claim was wrongly tagged "strong", skipping Gate 2's weak-tier
+    # scrutiny entirely. Verified against the whole corpus: "policy
+    # evaluation(s)" is standalone-RL terminology in all 23 real claims
+    # containing that exact phrase, never governance.
+    text = "The learned quantum environment is then applied in QPE to also compute policy evaluations on quantum hardware."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is False
+
+
+def test_genuine_policy_making_downstream_action_is_still_accepted() -> None:
+    # The QPE fix's negative lookahead only excludes "policy evaluation(s)"
+    # - "policy making" (governance, no RL ambiguity) must keep matching as
+    # a downstream action.
+    text = "Further, it offers a theoretical framework that could be useful for a further study in policy making on the issue."
+    result = validate_claim_type("applications", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
 def test_support_verb_alone_without_downstream_gerund_is_still_rejected() -> None:
     # Fix B's new "support X in Y-ing" pattern must not become a bare
     # "support" bypass - no "in <gerund>" complement, so no signal fires
