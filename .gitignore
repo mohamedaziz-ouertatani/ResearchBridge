@@ -20,3 +20,7 @@ logs/
 
 # isolated venv for Nougat extraction (scripts/setup_nougat_env.sh sets it up)
 .nougat-venv/
+
+# one-off backfill scripts' pre-write backups - reversibility records for a
+# specific run against a specific database, not something to version
+scripts/backfills/
