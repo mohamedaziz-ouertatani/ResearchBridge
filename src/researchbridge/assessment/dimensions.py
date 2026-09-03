@@ -51,7 +51,8 @@ _STOPWORDS = frozenset(
     """
     a an the and or but if then than so because of to in on for with without
     by at from as is are was were be been being this that these those it
-    its we our you your they their he she his her can could should would
+    its we our you your they their them he she his her him us me can
+    could should would
     will shall may might must do does did not no nor while across using use
     via into onto up down over under between among each all any some such
     which what who whom whose when where why how also yet both either
@@ -64,6 +65,19 @@ _STOPWORDS = frozenset(
 
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9\-]*")
 
+# A gap between two consecutive word tokens counts as a phrase boundary
+# (same as a stopword - see _candidate_phrases) if it contains any
+# character besides whitespace. _TOKEN_RE itself never captures punctuation,
+# so without this a run of otherwise-unrelated words separated only by a
+# citation marker or a comma - never by a stopword - silently fuses into
+# one nonsensical candidate phrase: "We propose a method (see [1]) that,
+# unlike..." merges "method" and "see" into "method see", since the
+# bracketed "[1])" simply vanishes from the token stream and no stopword
+# sits between them. This restores the module's own documented RAKE
+# behavior ("split text into candidate phrases at stopword/punctuation
+# boundaries") - the code previously implemented only the stopword half.
+_PUNCTUATION_GAP_RE = re.compile(r"[^\w\s-]")
+
 
 @dataclass
 class IdeaDimension:
@@ -74,8 +88,7 @@ def extract_dimensions(text: str, max_dimensions: int = 8) -> list[IdeaDimension
     if not text or not text.strip():
         return []
 
-    tokens = _TOKEN_RE.findall(text)
-    candidates = _candidate_phrases(tokens)
+    candidates = _candidate_phrases(text)
     if not candidates:
         return []
 
@@ -100,10 +113,17 @@ def extract_dimensions(text: str, max_dimensions: int = 8) -> list[IdeaDimension
     return [IdeaDimension(label=phrase) for phrase in selected]
 
 
-def _candidate_phrases(tokens: list[str]) -> list[str]:
+def _candidate_phrases(text: str) -> list[str]:
     phrases: list[str] = []
     current: list[str] = []
-    for token in tokens:
+    pos = 0
+    for match in _TOKEN_RE.finditer(text):
+        gap = text[pos : match.start()]
+        pos = match.end()
+        if current and _PUNCTUATION_GAP_RE.search(gap):
+            phrases.extend(_split_to_max_length(current))
+            current = []
+        token = match.group()
         if token.lower() in _STOPWORDS:
             if current:
                 phrases.extend(_split_to_max_length(current))

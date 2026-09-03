@@ -50,3 +50,49 @@ def test_no_duplicate_or_substring_overlapping_dimensions() -> None:
 def test_single_short_sentence_still_yields_something() -> None:
     dimensions = extract_dimensions("A lock-free queue for concurrent systems.")
     assert len(dimensions) >= 1
+
+
+def test_citation_marker_does_not_fuse_unrelated_words_into_one_phrase() -> None:
+    # Real corpus bug: _TOKEN_RE never captures punctuation, so without a
+    # punctuation boundary "(see [1])" simply vanishes from the token
+    # stream and "method"/"see" - on either side of the citation, with no
+    # stopword between them - silently fused into the nonsense candidate
+    # "method see". The module's own docstring already claims RAKE splits
+    # at "stopword/punctuation boundaries" - this is that other half.
+    text = (
+        "We propose a method (see [1]) that, unlike prior work [2][3], achieves "
+        "state-of-the-art results by combining transformers with reinforcement learning."
+    )
+    dimensions = extract_dimensions(text, max_dimensions=20)
+    labels = [d.label.lower() for d in dimensions]
+
+    assert "method see" not in labels
+    assert "method" in labels
+
+
+def test_comma_separated_list_splits_into_separate_dimensions() -> None:
+    # Without a punctuation boundary, a comma-separated list with no
+    # intervening stopword ("attendance, study habits, previous grades")
+    # merges into one blended candidate phrase instead of three precise
+    # ones, diluting its RAKE score and blurring the embedding used for
+    # downstream retrieval matching.
+    text = "A system that predicts outcomes with attendance, study habits, previous grades as input."
+    dimensions = extract_dimensions(text, max_dimensions=20)
+    labels = [d.label.lower() for d in dimensions]
+
+    assert "attendance" in labels
+    assert "study habits" in labels
+    assert "previous grades" in labels
+    assert not any("attendance study habits" in label for label in labels)
+
+
+def test_them_is_treated_as_a_stopword() -> None:
+    # "them" leaked through as a standalone dimension in a real idea
+    # ("...flagging unsupported claims before showing them to the
+    # clinician") - the stopword list already has it/its/we/our/they/
+    # their/he/she/his/her but was missing the object pronoun "them".
+    text = "The system flags unsupported claims before showing them to the clinician for review."
+    dimensions = extract_dimensions(text, max_dimensions=20)
+    labels = [d.label.lower() for d in dimensions]
+
+    assert "them" not in labels
