@@ -34,20 +34,21 @@ content-quality gap the structural checks alone couldn't catch, found
 specifically because it was checked against more than one model's actual
 output rather than assumed adequate from the default model alone.
 
-Known, deliberately UNCHANGED tradeoff found in the same pass: on a real
-single-application case (a terse "critical review" application with
-little to build an opportunity from), the default model (qwen2.5:3b)
-degenerates to a bare category word so consistently (4/6, then 3/4, of
-repeated live calls at this module's own temperature=0.2) that even the
-existing one retry isn't enough - it fails closed (OpportunitySynthesis
-Unavailable, surfaced to the user as a 503) on most attempts for this
-input shape. phi3:mini and qwen2.5-coder:7b never reproduced this pattern
-across the same repeated testing, but both run roughly 2-5x slower
-(5-30s vs. this module's 3-12s for qwen2.5:3b) and are larger downloads.
-Left as an operational speed-vs-reliability choice for whoever configures
-OLLAMA_MODEL, not changed here - this module's job is to never persist a
-bad result regardless of which model is configured (see
-MIN_OPPORTUNITY_TEXT_LENGTH), not to pick the model.
+Default model changed 2026-09-04 from qwen2.5:3b to phi3:mini, on the
+strength of the same verification pass: on a real single-application case
+(a terse "critical review" application with little to build an
+opportunity from), qwen2.5:3b degenerated to a bare category word so
+consistently (4/6, then 3/4, of repeated live calls at this module's own
+temperature=0.2) that even the existing one retry wasn't enough - it
+failed closed (OpportunitySynthesisUnavailable, surfaced to the user as a
+503) on most attempts for this input shape. phi3:mini never reproduced
+that pattern across the same repeated testing (nor did qwen2.5-coder:7b,
+tied on reliability but picked over: phi3:mini's worst-case latency was
+lower - 16.6s vs. 19.6s for the single-application case - and it's a
+smaller download, 2.2GB vs. 4.7GB). MIN_OPPORTUNITY_TEXT_LENGTH stays as
+the actual safety net either way - this module's job is to never persist
+a bad result regardless of which model ends up configured, not to rely
+on the model choice alone for correctness.
 """
 
 from __future__ import annotations
@@ -285,7 +286,7 @@ def ollama_enabled() -> bool:
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
     host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+    model = os.environ.get("OLLAMA_MODEL", "phi3:mini")
 
     response = requests.post(
         f"{host}/api/chat",
