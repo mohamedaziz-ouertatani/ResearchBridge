@@ -108,6 +108,26 @@ def test_established_when_multiple_papers_affirmatively_cover_it(embedder) -> No
     assert len(result[0].supporting_paper_titles) == 2
 
 
+def test_paper_at_exact_relevance_distance_boundary_still_counts(embedder) -> None:
+    # default relevance_distance (0.65) is compared with <=, so a paper
+    # exactly at the boundary must still be treated as relevant
+    dims = [IdeaDimension(label="concept drift")]
+    papers = [("Paper A", 0.65, [_claim("method", "concept drift concept drift handling")])]
+
+    result = compute_dimension_coverage(dims, papers, embedder)
+
+    assert result[0].status != "not_assessed"
+
+
+def test_paper_just_beyond_relevance_distance_boundary_is_excluded(embedder) -> None:
+    dims = [IdeaDimension(label="concept drift")]
+    papers = [("Paper A", 0.651, [_claim("method", "concept drift concept drift handling")])]
+
+    result = compute_dimension_coverage(dims, papers, embedder)
+
+    assert result[0].status == "not_assessed"
+
+
 def test_evidence_ids_always_trace_back_to_input_claims(embedder) -> None:
     dims = [IdeaDimension(label="concept drift")]
     method_claim = _claim("method", "handles concept drift concept drift directly")

@@ -38,6 +38,34 @@ def test_medium_novelty_when_nearest_evidenced_paper_is_moderately_related() -> 
     assert "Somewhat Related Paper" in result.reasoning
 
 
+def test_low_novelty_at_exact_near_distance_boundary() -> None:
+    # NEAR_DISTANCE=0.35 is compared with <=, so the boundary value itself
+    # must still land "low", not slip into "medium"
+    result = assess_novelty([("Boundary Paper", 0.35, _claims("a claim"))])
+
+    assert result.level == "low"
+
+
+def test_medium_novelty_just_above_near_distance_boundary() -> None:
+    result = assess_novelty([("Boundary Paper", 0.351, _claims("a claim"))])
+
+    assert result.level == "medium"
+
+
+def test_high_novelty_at_exact_far_distance_boundary() -> None:
+    # FAR_DISTANCE=0.65 is compared with >=, so the boundary value itself
+    # must already land "high", not stay "medium"
+    result = assess_novelty([("Boundary Paper", 0.65, _claims("a claim"))])
+
+    assert result.level == "high"
+
+
+def test_medium_novelty_just_below_far_distance_boundary() -> None:
+    result = assess_novelty([("Boundary Paper", 0.649, _claims("a claim"))])
+
+    assert result.level == "medium"
+
+
 def test_high_novelty_when_nearest_evidenced_paper_is_distant() -> None:
     result = assess_novelty([("Distant Paper", 0.9, _claims("a distantly related claim"))])
 
@@ -142,6 +170,58 @@ def test_reasoning_includes_a_dimension_coverage_block() -> None:
     assert "Dimension coverage:" in result.reasoning
     assert "concept drift -> not_found" in result.reasoning
     assert "federated learning -> established" in result.reasoning
+
+
+def test_low_novelty_at_exact_aggregate_coverage_boundary() -> None:
+    # covered/n=0.7 and established/n=0.5 are both compared with >=, so the
+    # exact boundary values must still land "low"
+    coverages = [
+        DimensionCoverage(dimension=f"established-{i}", status="established", evidence_ids=[uuid.uuid4()])
+        for i in range(5)
+    ] + [
+        DimensionCoverage(dimension=f"partial-{i}", status="partially_addressed", evidence_ids=[uuid.uuid4()])
+        for i in range(2)
+    ] + [
+        DimensionCoverage(dimension=f"not-found-{i}", status="not_found") for i in range(3)
+    ]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+    assert result.level == "low"
+
+
+def test_medium_novelty_just_below_aggregate_coverage_boundary() -> None:
+    # one fewer covered dimension than the boundary test above (6/10=0.6
+    # covered, still 5/10=0.5 established) must fall out of "low" into "medium"
+    coverages = [
+        DimensionCoverage(dimension=f"established-{i}", status="established", evidence_ids=[uuid.uuid4()])
+        for i in range(5)
+    ] + [
+        DimensionCoverage(dimension="partial", status="partially_addressed", evidence_ids=[uuid.uuid4()])
+    ] + [
+        DimensionCoverage(dimension=f"not-found-{i}", status="not_found") for i in range(4)
+    ]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+    assert result.level == "medium"
+
+
+def test_high_novelty_at_exact_aggregate_coverage_boundary() -> None:
+    # covered/n=0.3 is compared with <=, so the exact boundary value itself
+    # must still land "high" - covered means established or
+    # partially_addressed only (weak_evidence does NOT count as covered)
+    coverages = [
+        DimensionCoverage(dimension=f"partial-{i}", status="partially_addressed", evidence_ids=[uuid.uuid4()])
+        for i in range(3)
+    ] + [DimensionCoverage(dimension=f"not-found-{i}", status="not_found") for i in range(7)]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+    assert result.level == "high"
+
+
+def test_medium_novelty_just_above_aggregate_coverage_boundary() -> None:
+    coverages = [
+        DimensionCoverage(dimension=f"partial-{i}", status="partially_addressed", evidence_ids=[uuid.uuid4()])
+        for i in range(4)
+    ] + [DimensionCoverage(dimension=f"not-found-{i}", status="not_found") for i in range(6)]
+    result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
+    assert result.level == "medium"
 
 
 def test_medium_novelty_when_coverage_is_mixed() -> None:

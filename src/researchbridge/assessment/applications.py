@@ -109,24 +109,38 @@ OWN_TASK_OVERLAP_THRESHOLD = 0.92
 # is a near-total paraphrase of the paper's own task.
 #
 # Fix: in addition to comparing the whole applications claim, split an
-# enumeration-shaped claim ("X such as A, B, C" / "X including A, B, C")
-# into its individual listed items and compare each item's own embedding
-# against the paper's own task claims too. A restatement buried in a list
-# is now visible at the item level, without changing what Gate 1 accepts
-# or diluting genuine enumerations where no item matches the paper's own
-# task (see test_own_task_overlap_accepts_enumerated_items_that_do_not_match_the_papers_own_task).
-_ENUMERATION_SPLIT_RE = re.compile(r"\b(?:such as|including)\b", re.IGNORECASE)
-_ITEM_SEPARATOR_RE = re.compile(r",|\band\b", re.IGNORECASE)
+# enumeration-shaped claim ("X such as A, B, C" / "X including A, B, C" /
+# "X like A, B, C") into its individual listed items and compare each
+# item's own embedding against the paper's own task claims too. A
+# restatement buried in a list is now visible at the item level, without
+# changing what Gate 1 accepts or diluting genuine enumerations where no
+# item matches the paper's own task (see
+# test_own_task_overlap_accepts_enumerated_items_that_do_not_match_the_papers_own_task).
+#
+# Fix B (2026-09-03 investigation): the same dilution bug survived for
+# enumerations introduced with "like" instead of "such as"/"including", and
+# for semicolon-separated items - "like" added as a third trigger word, and
+# ";" added alongside "," as an item separator, so this catches the
+# equivalent phrasing without changing anything about what Gate 1 accepts
+# (see test_own_task_overlap_misses_a_restated_task_buried_in_a_like_
+# phrased_enumeration, now fixed).
+_ENUMERATION_SPLIT_RE = re.compile(r"\b(?:such as|including|like)\b", re.IGNORECASE)
+_ITEM_SEPARATOR_RE = re.compile(r",|;|\band\b", re.IGNORECASE)
 _TRAILING_ETC_RE = re.compile(r"\betc\.?\s*$", re.IGNORECASE)
 
 
 def _enumerated_items(text: str) -> list[str]:
     """The individual items of an 'X such as A, B, and C' / 'X including A,
-    B, C' claim, or [] if the text isn't phrased as an enumeration."""
+    B, C' / 'X like A, B, C' claim, or [] if the text isn't phrased as an
+    enumeration."""
     split = _ENUMERATION_SPLIT_RE.split(text, maxsplit=1)
     if len(split) < 2:
         return []
-    list_text = re.split(r"[.;]", split[1], maxsplit=1)[0]
+    # cut off at the end of the sentence only - ";" is now a legitimate
+    # item separator (see _ITEM_SEPARATOR_RE / Fix B above), so it must not
+    # also be treated as a sentence boundary here or a semicolon-separated
+    # list gets truncated after its first item
+    list_text = re.split(r"\.", split[1], maxsplit=1)[0]
     items = []
     for raw_item in _ITEM_SEPARATOR_RE.split(list_text):
         item = _TRAILING_ETC_RE.sub("", raw_item).strip(" .")

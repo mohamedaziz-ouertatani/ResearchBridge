@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.applications import _enumerated_items, assess_applications
 
 NEAR = 0.1
 FAR = 0.9
@@ -215,6 +215,44 @@ def test_own_task_overlap_accepts_enumerated_items_that_do_not_match_the_papers_
     assert result.status == "found"
     assert len(result.applications) == 1
     assert result.applications[0].application == app[1]
+
+
+def test_enumerated_items_splits_lists_introduced_with_like(embedder) -> None:
+    # Fix B: "like" is now recognized as an enumeration trigger alongside
+    # "such as"/"including"
+    items = _enumerated_items("Machine learning is used in fields like face detection and fraud screening.")
+
+    assert items == ["face detection", "fraud screening"]
+
+
+def test_enumerated_items_splits_semicolon_separated_lists(embedder) -> None:
+    # Fix B: ";" is now an item separator alongside ","
+    items = _enumerated_items(
+        "This is used in applications such as face detection; speech recognition; medical diagnostics."
+    )
+
+    assert items == ["face detection", "speech recognition", "medical diagnostics"]
+
+
+def test_own_task_overlap_rejects_a_restated_task_buried_in_a_like_phrased_enumeration(embedder) -> None:
+    # regression guard for Fix B: the same false positive Fix A fixed for
+    # "such as"/"including" enumerations (see
+    # test_own_task_overlap_rejects_an_enumerated_item_that_paraphrases_
+    # the_papers_own_task above) must also be caught when the paper phrases
+    # the same enumeration with "like" instead
+    task_text = "predicts traffic congestion fifteen to thirty minutes in advance"
+    task = _claim("method", task_text)
+    app = _claim(
+        "applications",
+        "Machine learning can be used in many applications like face detection, speech "
+        f"recognition, medical diagnostics, statistical arbitrage, {task_text}.",
+    )
+    paper_id = uuid.uuid4()
+
+    result = assess_applications([(paper_id, "Traffic Paper", NEAR, [task, app])], embedder)
+
+    assert result.status == "no_evidence"
+    assert result.applications == []
 
 
 def test_own_task_overlap_only_compares_against_the_same_paper(embedder) -> None:

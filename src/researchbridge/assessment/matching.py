@@ -12,6 +12,15 @@ because that's this corpus's own naming convention (see benchmark/fulltext/
 *.txt); the text check requires an explicit "arXiv:" prefix so a
 coincidental digit.digit sequence in prose (a percentage, a page number)
 never produces a false match.
+
+The id pattern itself is constrained to a real arXiv YYMM.NNNNN shape (MM
+in 01-12), not a bare four-digit-dot-four-or-five-digit pattern: an
+unconstrained pattern let an unrelated filename digit sequence with an
+invalid month (e.g. a date like
+"...2024.12345_final.pdf", where "24" isn't a month) false-match a corpus
+paper that happened to share the same digits - found via testing, see
+tests/test_assessment_matching.py::test_filename_id_check_requires_a_
+plausible_arxiv_month.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from researchbridge.db.models import Paper
 
-_ARXIV_ID = r"\d{4}\.\d{4,5}"
+_ARXIV_ID = r"\d{2}(?:0[1-9]|1[0-2])\.\d{4,5}"
 _FILENAME_ID = re.compile(_ARXIV_ID)
 _TEXT_ID = re.compile(rf"arXiv:\s*({_ARXIV_ID})(v\d+)?", re.IGNORECASE)
 _TEXT_SEARCH_WINDOW = 2000
