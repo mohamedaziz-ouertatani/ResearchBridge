@@ -167,8 +167,29 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
             _to_run(run, ("papers_seen", "papers_fetched", "papers_skipped_no_url", "papers_failed"))
             for run in _recent(session, FullTextFetchRun)
         ],
-        running={key: is_running(key) for key in PIPELINE_KEYS},
+        running={key: is_running(key) or _has_running_db_row(session, key) for key in PIPELINE_KEYS},
     )
+
+
+def _has_running_db_row(session: Session, key: str) -> bool:
+    """A pipeline key counts as running if its own *_runs table still has a
+    row in progress, even when this API server process has no live
+    subprocess handle for it - covers a run started directly from the CLI
+    (bypassing the trigger button entirely) or one that outlived a server
+    restart, neither of which is_running()'s in-process registry can see
+    (see pipeline_triggers.py's module docstring). Keys with no *_runs
+    table (retrieval_eval, extraction_eval - one-off diagnostics, see
+    RUN_MODEL_BY_KEY's docstring) always return False here; is_running()
+    alone is the whole story for those.
+    """
+    entry = RUN_MODEL_BY_KEY.get(key)
+    if entry is None:
+        return False
+    model, source = entry
+    conditions = [model.status == "running"]
+    if source is not None:
+        conditions.append(model.source == source)
+    return session.execute(select(exists().where(and_(*conditions)))).scalar_one()
 
 
 @router.get("/notifications", response_model=list[Notification])

@@ -1131,6 +1131,30 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
     }
 
 
+def test_pipeline_status_reflects_a_running_row_this_server_did_not_spawn(client, session) -> None:
+    # A run started directly from the CLI (rb-fulltext-fetch) - or one that
+    # outlived a server restart - has no entry in the in-process _RUNNING
+    # registry is_running() checks, but its own *_runs row still says
+    # "running". The admin panel's dot must reflect that real state, not
+    # just "did this server process spawn it".
+    session.add(FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc)))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"]["fulltext"] is True
+
+
+def test_pipeline_status_ingestion_running_is_scoped_to_its_own_source(client, session) -> None:
+    session.add(IngestionRun(source="arxiv", status="running", started_at=datetime.now(timezone.utc)))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"]["ingestion_arxiv"] is True
+    assert body["running"]["ingestion_springer"] is False
+
+
 def test_notifications_includes_completed_citation_fetch_run(client, session) -> None:
     session.add(
         CitationFetchRun(

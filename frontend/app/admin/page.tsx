@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   adminApi,
   type ExtractionEvalResult,
@@ -70,6 +70,21 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
 };
 
 const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", "core"];
+
+// The four ingestion sources and the two one-off evaluation diagnostics
+// each fold behind their own disclosure - same pattern as Nav's
+// "infrastructure ▾" menu - so the bar's direct tabs are just the corpus-
+// building chain an operator actually watches run-to-run (stats,
+// extraction, embedding, full text, citation management, gap detection).
+// Twelve flat tabs previously wrapped into an undifferentiated pile; six
+// direct tabs plus two labeled dropdowns fit in one row and read as what
+// they are: one pipeline, with sources feeding in and diagnostics off to
+// the side.
+const DIRECT_TABS: PipelineTab[] = ["extraction", "embedding", "fulltext", "citations_fetch", "gap_detection"];
+const TAB_DROPDOWNS: { label: string; tabs: PipelineTab[] }[] = [
+  { label: "ingestion", tabs: ["arxiv", "springer", "semantic_scholar", "core"] },
+  { label: "evaluation", tabs: ["retrieval_eval", "extraction_eval"] },
+];
 
 // Every tab's pipeline key matches its tab name 1:1 except the four
 // ingestion sources (prefixed "ingestion_") and gap detection, whose key
@@ -234,7 +249,7 @@ export default function AdminPipeline() {
               </dl>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-1 border-b border-[var(--rule)]">
+            <div className="mt-8 flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-[var(--rule)]">
               <button
                 onClick={() => setTab("stats")}
                 className={`eyebrow -mb-px px-3 py-2 ${
@@ -245,22 +260,26 @@ export default function AdminPipeline() {
               >
                 stats
               </button>
-              {(Object.keys(PIPELINE_TAB_LABELS) as PipelineTab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`eyebrow -mb-px flex items-center gap-2 border-b-2 px-3 py-2 ${
-                    tab === t
-                      ? "border-[var(--ink)] text-[var(--ink)]"
-                      : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
-                  }`}
-                >
-                  {status.running[runningKeyForTab(t)] && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--live)]" title="running now" />
-                  )}
-                  {PIPELINE_TAB_LABELS[t]}
-                </button>
+
+              <TabDropdown
+                {...TAB_DROPDOWNS[0]}
+                tab={tab}
+                runningByTab={status.running}
+                runningKeyForTab={runningKeyForTab}
+                onSelect={setTab}
+              />
+
+              {DIRECT_TABS.map((t) => (
+                <TabButton key={t} tab={t} active={tab === t} running={status.running[runningKeyForTab(t)]} onSelect={setTab} />
               ))}
+
+              <TabDropdown
+                {...TAB_DROPDOWNS[1]}
+                tab={tab}
+                runningByTab={status.running}
+                runningKeyForTab={runningKeyForTab}
+                onSelect={setTab}
+              />
             </div>
 
             <div className="mt-6">
@@ -493,6 +512,112 @@ export default function AdminPipeline() {
         )}
       </div>
     </main>
+  );
+}
+
+/** A labeled disclosure holding a few related tabs (ingestion sources,
+    evaluation diagnostics) - same open/close-on-outside-click behavior as
+    Nav's InfrastructureMenu, adapted from links to in-page tab selection.
+    Shows "running now" on the trigger itself when a folded tab is
+    running, so progress on a collapsed pipeline is never hidden. */
+function TabDropdown({
+  label,
+  tabs,
+  tab,
+  runningByTab,
+  runningKeyForTab,
+  onSelect,
+}: {
+  label: string;
+  tabs: PipelineTab[];
+  tab: Tab;
+  runningByTab: Record<PipelineKey, boolean>;
+  runningKeyForTab: (tab: PipelineTab) => PipelineKey;
+  onSelect: (tab: PipelineTab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const active = tabs.includes(tab as PipelineTab);
+  const anyRunning = tabs.some((t) => runningByTab[runningKeyForTab(t)]);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`eyebrow -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 ${
+          active
+            ? "border-[var(--ink)] text-[var(--ink)]"
+            : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+        }`}
+      >
+        {anyRunning && <span className="h-1.5 w-1.5 rounded-full bg-[var(--live)]" title="running now" />}
+        {label}
+        <span aria-hidden className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}>
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute top-[calc(100%+0.4rem)] left-0 z-10 w-[14rem] border border-[var(--rule)] bg-[var(--panel)] py-1 shadow-lg">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => {
+                onSelect(t);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[0.8125rem] ${
+                tab === t ? "bg-[var(--field)] text-[var(--ink)]" : "text-[var(--ink-soft)] hover:bg-[var(--field)]"
+              }`}
+            >
+              {runningByTab[runningKeyForTab(t)] && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--live)]" title="running now" />
+              )}
+              {PIPELINE_TAB_LABELS[t]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabButton({
+  tab,
+  active,
+  running,
+  onSelect,
+}: {
+  tab: PipelineTab;
+  active: boolean;
+  running: boolean;
+  onSelect: (tab: PipelineTab) => void;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(tab)}
+      className={`eyebrow -mb-px flex items-center gap-2 border-b-2 px-3 py-2 ${
+        active
+          ? "border-[var(--ink)] text-[var(--ink)]"
+          : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+      }`}
+    >
+      {running && <span className="h-1.5 w-1.5 rounded-full bg-[var(--live)]" title="running now" />}
+      {PIPELINE_TAB_LABELS[tab]}
+    </button>
   );
 }
 
