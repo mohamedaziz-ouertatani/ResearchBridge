@@ -138,11 +138,44 @@ class AnalysisClaimOut(BaseModel):
     confidence: str
     status: str
     """For a gap-derived claim: mirrors the linked CandidateGap's status
-    (see gaps/claims.py). For an assessment-derived claim: always
-    "pending" - ResearchAssessment has no approve/reject review state to
-    sync against (see assessment/claims.py)."""
+    (see gaps/claims.py). For an assessment-derived claim: mirrors
+    ResearchAssessment.human_reviewed - "approved" once reviewed, "pending"
+    otherwise (see assessment/claims.py's sync_claim_status)."""
 
     model_config = {"from_attributes": True}
+
+
+class ClaimEvidenceOut(BaseModel):
+    paper_id: uuid.UUID
+    paper_title: str
+    text: str
+    section: str | None
+    relationship: str
+
+    model_config = {"from_attributes": True}
+
+
+class AnalysisClaimDetailOut(BaseModel):
+    id: uuid.UUID
+    claim_type: str
+    claim_text: str
+    confidence: str
+    status: str
+    source_table: str
+    source_id: uuid.UUID
+    created_at: datetime
+    evidence: list[ClaimEvidenceOut]
+    """The real quoted passages backing this claim - what makes it
+    inspectable rather than trusted prose (Sec 15/16)."""
+
+    model_config = {"from_attributes": True}
+
+
+class AnalysisClaimPage(BaseModel):
+    items: list[AnalysisClaimDetailOut]
+    total: int
+    limit: int
+    offset: int
 
 
 class CandidateGapOut(BaseModel):

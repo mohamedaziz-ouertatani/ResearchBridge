@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from researchbridge.api.admin_routes import router as admin_router
 from researchbridge.api.assessment_routes import router as assessment_router
 from researchbridge.api.benchmark_routes import router as benchmark_router
+from researchbridge.api.claims_routes import router as claims_router
 from researchbridge.api.gaps_routes import router as gaps_router
 from researchbridge.api.qa_routes import router as qa_router
 from researchbridge.api.routes import router
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(benchmark_router)
     app.include_router(gaps_router)
     app.include_router(assessment_router)
+    app.include_router(claims_router)
     app.include_router(admin_router)
     app.include_router(qa_router)
 

@@ -19,9 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.schemas import (
+    AnalysisClaimDetailOut,
     AnalysisClaimOut,
     AssessmentEvidenceOut,
     CandidateGapOut,
+    ClaimEvidenceOut,
     ExtractedClaimOut,
     GapEvidenceOut,
     PaperSummary,
@@ -31,6 +33,7 @@ from researchbridge.db.models import (
     Author,
     CandidateGap,
     CandidateGapEvidence,
+    ClaimEvidence,
     Evidence,
     ExtractedClaim,
     Paper,
@@ -232,6 +235,53 @@ def _claim_by_gap(session: Session, gap_ids: list[uuid.UUID]) -> dict[uuid.UUID,
         select(AnalysisClaim).where(AnalysisClaim.source_table == "candidate_gaps", AnalysisClaim.source_id.in_(gap_ids))
     ).scalars()
     return {claim.source_id: AnalysisClaimOut.model_validate(claim) for claim in rows}
+
+
+def to_claim_details(session: Session, claims: Sequence[AnalysisClaim]) -> list[AnalysisClaimDetailOut]:
+    """Claims with their backing evidence - the standalone GET /api/claims
+    view (api/claims_routes.py), batched to avoid an N+1 across a page."""
+    if not claims:
+        return []
+
+    claim_ids = [c.id for c in claims]
+    evidence_by_claim = _evidence_by_claim(session, claim_ids)
+
+    return [
+        AnalysisClaimDetailOut(
+            id=claim.id,
+            claim_type=claim.claim_type,
+            claim_text=claim.claim_text,
+            confidence=claim.confidence,
+            status=claim.status,
+            source_table=claim.source_table,
+            source_id=claim.source_id,
+            created_at=claim.created_at,
+            evidence=evidence_by_claim.get(claim.id, []),
+        )
+        for claim in claims
+    ]
+
+
+def _evidence_by_claim(session: Session, claim_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[ClaimEvidenceOut]]:
+    rows = session.execute(
+        select(ClaimEvidence, Evidence, Paper.title)
+        .join(Evidence, Evidence.id == ClaimEvidence.evidence_id)
+        .join(Paper, Paper.id == Evidence.paper_id)
+        .where(ClaimEvidence.claim_id.in_(claim_ids))
+    ).all()
+
+    result: dict[uuid.UUID, list[ClaimEvidenceOut]] = defaultdict(list)
+    for link, evidence, paper_title in rows:
+        result[link.claim_id].append(
+            ClaimEvidenceOut(
+                paper_id=evidence.paper_id,
+                paper_title=paper_title,
+                text=evidence.text,
+                section=evidence.section,
+                relationship=link.relationship,
+            )
+        )
+    return result
 
 
 def _authors_by_paper(session: Session, paper_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
