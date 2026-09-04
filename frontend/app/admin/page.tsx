@@ -468,9 +468,10 @@ export default function AdminPipeline() {
                   <p className="mb-4 max-w-[60ch] text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">
                     Fetches and parses each open-access paper&apos;s full text (arXiv, Semantic Scholar,
                     Springer via PDF; CORE via its own API, since its PDF downloads are Cloudflare-blocked).
-                    Nothing reads this yet — extraction still only sees abstracts. arXiv fetches are
-                    throttled to one every 3 seconds, so a full run against the whole corpus can take
-                    hours; use limit to try a small batch first.
+                    Extraction (on its next run for a given paper) prefers full-text sections here over
+                    the abstract when they&apos;re available. arXiv fetches are throttled to one every 3
+                    seconds, so a full run against the whole corpus can take hours; use limit to try a
+                    small batch first.
                   </p>
                   <RunSection
                     title="full-text fetch runs"
