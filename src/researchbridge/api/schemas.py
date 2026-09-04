@@ -486,13 +486,16 @@ class PipelineStatus(BaseModel):
     router's own /{stage}/run endpoints, but tracked in the same
     pipeline_triggers subprocess registry under key "gaps" - see
     `running` below."""
+    fulltext_fetch_runs: list[PipelineRunOut]
+    """Run history for rb-fulltext-fetch, same shape as the other *_runs
+    lists. Started via POST /api/admin/fulltext/run."""
     running: dict[str, bool]
     """Whether an admin-triggered subprocess is currently alive per pipeline
     key - see PIPELINE_KEYS in admin_routes.py for the full, current set
     (ingestion x4, extraction, embedding, retrieval_eval, extraction_eval,
-    citations_fetch). Independent of the *_runs history above: a run row
-    can say "running" from a crashed/killed process, this reflects only
-    what this server process itself is still tracking."""
+    citations_fetch, fulltext). Independent of the *_runs history above: a
+    run row can say "running" from a crashed/killed process, this reflects
+    only what this server process itself is still tracking."""
 
 
 class Notification(BaseModel):

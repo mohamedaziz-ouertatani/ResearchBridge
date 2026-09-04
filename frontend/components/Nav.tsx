@@ -41,6 +41,11 @@ const INFRASTRUCTURE = [
     description: "Hand-labeled papers used to measure how accurate the system is.",
   },
   {
+    href: "/claims",
+    label: "claims",
+    description: "The structured Evidence → Inference reasoning behind gaps and assessments.",
+  },
+  {
     href: "/admin",
     label: "pipeline status",
     description: "Background jobs that build and maintain the corpus.",

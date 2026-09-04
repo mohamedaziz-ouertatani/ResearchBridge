@@ -163,6 +163,10 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
             )
             for run in _recent(session, GapDetectionRun)
         ],
+        fulltext_fetch_runs=[
+            _to_run(run, ("papers_seen", "papers_fetched", "papers_skipped_no_url", "papers_failed"))
+            for run in _recent(session, FullTextFetchRun)
+        ],
         running={key: is_running(key) for key in PIPELINE_KEYS},
     )
 

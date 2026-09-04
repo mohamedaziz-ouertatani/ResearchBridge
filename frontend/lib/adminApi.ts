@@ -20,7 +20,8 @@ export type PipelineKey =
   | "retrieval_eval"
   | "extraction_eval"
   | "citations_fetch"
-  | "gaps";
+  | "gaps"
+  | "fulltext";
 
 export type AssessmentStats = {
   total: number;
@@ -60,6 +61,7 @@ export type PipelineStatus = {
   embedding_runs: PipelineRun[];
   citation_fetch_runs: PipelineRun[];
   gap_detection_runs: PipelineRun[];
+  fulltext_fetch_runs: PipelineRun[];
   running: Record<PipelineKey, boolean>;
 };
 
@@ -182,6 +184,9 @@ export const adminApi = {
 
   triggerCitationsFetch: (params: { source?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/citations-fetch/run", params),
+
+  triggerFulltext: (params: { limit?: number; force?: boolean }) =>
+    post<PipelineTriggerResult>("/api/admin/fulltext/run", params),
 
   log: (key: PipelineKey, lines = 200) =>
     fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {

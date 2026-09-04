@@ -74,6 +74,17 @@ describe("adminApi", () => {
     );
   });
 
+  it("triggerFulltext() posts to the fulltext run endpoint", async () => {
+    mockFetchOnce({ started: true, pipeline: "fulltext", log_file: "x.log" });
+
+    await adminApi.triggerFulltext({ limit: 20 });
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/admin/fulltext/run`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ limit: 20 }) }),
+    );
+  });
+
   it("log() requests the pipeline log with a lines param and unwraps the log field", async () => {
     mockFetchOnce({ log: "line1\nline2" });
 

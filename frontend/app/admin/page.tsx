@@ -51,7 +51,8 @@ type PipelineTab =
   | "retrieval_eval"
   | "extraction_eval"
   | "citations_fetch"
-  | "gap_detection";
+  | "gap_detection"
+  | "fulltext";
 type Tab = PipelineTab | "stats";
 
 const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
@@ -65,6 +66,7 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   extraction_eval: "extraction eval",
   citations_fetch: "citation management",
   gap_detection: "gap detection",
+  fulltext: "full text",
 };
 
 const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", "core"];
@@ -459,6 +461,29 @@ export default function AdminPipeline() {
                   onRun={() => gapsApi.detect()}
                   onStarted={reload}
                 />
+              )}
+
+              {tab === "fulltext" && (
+                <>
+                  <p className="mb-4 max-w-[60ch] text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">
+                    Fetches and parses each open-access paper&apos;s full text (arXiv, Semantic Scholar,
+                    Springer via PDF; CORE via its own API, since its PDF downloads are Cloudflare-blocked).
+                    Nothing reads this yet — extraction still only sees abstracts. arXiv fetches are
+                    throttled to one every 3 seconds, so a full run against the whole corpus can take
+                    hours; use limit to try a small batch first.
+                  </p>
+                  <RunSection
+                    title="full-text fetch runs"
+                    pipelineKey="fulltext"
+                    runs={status.fulltext_fetch_runs}
+                    running={status.running.fulltext}
+                    fields={[{ name: "limit", label: "limit", type: "number" }]}
+                    onRun={(values) => adminApi.triggerFulltext(values)}
+                    onStarted={reload}
+                    forceLabel="force re-fetch"
+                    forceWarning="Re-fetches papers that already have full text, overwriting it with a fresh fetch, instead of only papers that don't have any yet. Not destructive - each paper's row is updated in place - but re-processes the whole eligible set again, which takes a long time (arXiv alone is throttled to one paper every 3 seconds)."
+                  />
+                </>
               )}
 
               {tab === "stats" && <AdminStats status={status} />}

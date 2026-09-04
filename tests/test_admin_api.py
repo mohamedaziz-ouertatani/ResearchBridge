@@ -21,6 +21,7 @@ from researchbridge.db.models import (
     Evidence,
     ExtractedClaim,
     ExtractionRun,
+    FullTextFetchRun,
     GapDetectionRun,
     IngestionError,
     IngestionRun,
@@ -370,6 +371,24 @@ def test_pipeline_status_lists_recent_gap_detection_runs(client, session) -> Non
     assert run["counts"]["papers_seen"] == 10
     assert run["counts"]["gaps_found"] == 5
     assert run["counts"]["gaps_saved"] == 4
+
+
+def test_pipeline_status_lists_recent_fulltext_fetch_runs(client, session) -> None:
+    session.add(
+        FullTextFetchRun(
+            status="completed", started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+            papers_seen=10, papers_fetched=6, papers_skipped_no_url=3, papers_failed=1,
+        )
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert len(body["fulltext_fetch_runs"]) == 1
+    run = body["fulltext_fetch_runs"][0]
+    assert run["status"] == "completed"
+    assert run["counts"]["papers_fetched"] == 6
+    assert run["counts"]["papers_skipped_no_url"] == 3
 
 
 def test_pipeline_status_reports_corpus_health_not_gap_processed(client, session, embedder) -> None:
