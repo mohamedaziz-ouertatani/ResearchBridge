@@ -30,6 +30,7 @@ from researchbridge.api.schemas import (
     ExtractionEvalOut,
     ExtractionEvalTrigger,
     ExtractionTrigger,
+    FullTextFetchTrigger,
     GapReviewStats,
     Notification,
     PaperExclude,
@@ -51,6 +52,7 @@ from researchbridge.db.models import (
     EmbeddingRun,
     ExtractedClaim,
     ExtractionRun,
+    FullTextFetchRun,
     GapDetectionRun,
     IngestionError,
     IngestionRun,
@@ -76,6 +78,7 @@ PIPELINE_KEYS = (
     "extraction_eval",
     "citations_fetch",
     "gaps",
+    "fulltext",
 )
 """"gaps" is gaps_routes.py's PIPELINE_KEY, not one this router's own trigger
 endpoints start - POST /api/gaps/detect (--all --save, no params) is the
@@ -104,6 +107,7 @@ RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
     "embedding": (EmbeddingRun, None),
     "citations_fetch": (CitationFetchRun, None),
     "gaps": (GapDetectionRun, None),
+    "fulltext": (FullTextFetchRun, None),
 }
 
 
@@ -598,6 +602,16 @@ def trigger_embedding(payload: EmbeddingTrigger) -> PipelineTriggerOut:
     if payload.force:
         args += ["--force"]
     return _trigger_or_409("embedding", "researchbridge.embedding.cli_embed", args)
+
+
+@router.post("/fulltext/run", response_model=PipelineTriggerOut)
+def trigger_fulltext(payload: FullTextFetchTrigger) -> PipelineTriggerOut:
+    args: list[str] = []
+    if payload.limit is not None:
+        args += ["--limit", str(payload.limit)]
+    if payload.force:
+        args += ["--force"]
+    return _trigger_or_409("fulltext", "researchbridge.fulltext.cli", args)
 
 
 @router.post("/retrieval-eval/run", response_model=PipelineTriggerOut)

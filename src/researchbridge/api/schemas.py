@@ -509,6 +509,11 @@ class EmbeddingTrigger(BaseModel):
     force: bool = False
 
 
+class FullTextFetchTrigger(BaseModel):
+    limit: int | None = None
+    force: bool = False
+
+
 class RetrievalEvalTrigger(BaseModel):
     k: int | None = None
 

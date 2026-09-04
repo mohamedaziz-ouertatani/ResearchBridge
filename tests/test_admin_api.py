@@ -638,6 +638,7 @@ def test_pipeline_status_reports_nothing_running_by_default(client) -> None:
         "extraction_eval": False,
         "citations_fetch": False,
         "gaps": False,
+        "fulltext": False,
     }
 
 
@@ -800,6 +801,37 @@ def test_trigger_embedding_with_force_passes_force_flag(client, monkeypatch) -> 
     client.post("/api/admin/embedding/run", json={"limit": 5, "force": True})
 
     assert calls == [("embedding", "researchbridge.embedding.cli_embed", ["--limit", "5", "--force"])]
+
+
+def test_trigger_fulltext_passes_overrides_as_flags(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/fulltext/run", json={"limit": 25})
+
+    assert calls == [("fulltext", "researchbridge.fulltext.cli", ["--limit", "25"])]
+
+
+def test_trigger_fulltext_with_force_passes_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.admin_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/admin/fulltext/run", json={"limit": 5, "force": True})
+
+    assert calls == [("fulltext", "researchbridge.fulltext.cli", ["--limit", "5", "--force"])]
+
+
+def test_fulltext_is_in_pipeline_status(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+    assert "fulltext" in body["running"]
 
 
 def test_trigger_retrieval_eval_calls_trigger_with_no_extra_flags_by_default(client, monkeypatch) -> None:
@@ -1076,6 +1108,7 @@ def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
         "extraction_eval": False,
         "citations_fetch": False,
         "gaps": False,
+        "fulltext": False,
     }
 
 
