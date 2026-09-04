@@ -96,17 +96,39 @@ def _build_system_prompt(application_count: int) -> str:
     not a contrived edge case) then failed synthesis on every attempt,
     every retry, 100% of the time. Fixed by (a) using a single, consistent
     "[n]" example across all three tiers instead of implying Adjacent
-    always needs two, and (b) stating the valid range out loud."""
+    always needs two, and (b) stating the valid range out loud.
+
+    2026-09-04: now also takes the idea text (see build_prompt) after a
+    real live failure - the prompt previously never told the model what
+    the actual research idea WAS, only showed it the numbered
+    applications. For a single application that was itself a generic
+    multi-item enumeration ("Machine learning can be used in many
+    applications such as face detection, speech recognition, medical
+    diagnostics, statistical arbitrage, traffic prediction, etc." - the
+    only application found for a traffic-congestion-prediction idea), the
+    model free-associated across the UNRELATED listed items with nothing
+    anchoring it back to the actual idea, producing "Smart Healthcare
+    Diagnostics" and "Autonomous Financial Advisory System" as the
+    Adjacent/Speculative opportunities for a traffic app. Application.py's
+    own Fix A/Fix B already found this exact enumeration-dilution failure
+    mode for a different check (own-task-overlap) and fixed it by
+    inspecting individual list items; this fixes the analogous problem at
+    the synthesis boundary by giving the model the one piece of context
+    it was missing - explicit instruction below to stay grounded in the
+    idea now backs that up structurally, not just via better luck."""
     only = "only application" if application_count == 1 else f"applications, numbered 1 to {application_count},"
     return (
-        f"You are given {application_count} numbered {only} already identified for a research idea, "
-        "each grounded in a specific paper. Propose exactly three product/technology opportunities "
+        f"You are given a research idea and {application_count} numbered {only} already identified for "
+        "it, each grounded in a specific paper. Propose exactly three product/technology opportunities "
         "that build on these applications: one Direct (a straightforward product built from one "
         "application as stated), one Adjacent (a broader product combining or extending the "
         "applications, still plausible from what's listed), and one Speculative (an ambitious, "
-        "longer-horizon idea, clearly still connected to the applications). Do not invent a "
-        "capability, technology, or claim that isn't implied by the numbered applications. Format "
-        "your response as exactly three lines, in this exact order:\n"
+        "longer-horizon idea, clearly still connected to the applications). Every opportunity must stay "
+        "specific to the idea given below - if an application lists several unrelated examples (e.g. "
+        "\"used in X, Y, and Z\"), only draw on the example(s) that are actually about THIS idea, never "
+        "on the other unrelated examples in that same list. Do not invent a capability, technology, or "
+        "claim that isn't implied by the numbered applications. Format your response as exactly three "
+        "lines, in this exact order:\n"
         "Direct: <opportunity> [n]\n"
         "Adjacent: <opportunity> [n]\n"
         "Speculative: <opportunity> [n]\n"
@@ -201,13 +223,17 @@ def _extract_citation_numbers(text: str) -> list[int]:
     return numbers
 
 
-def build_prompt(applications: list[SourceApplication]) -> tuple[str, str]:
-    """Returns (system_prompt, user_prompt) for the Ollama chat call."""
+def build_prompt(idea_text: str, applications: list[SourceApplication]) -> tuple[str, str]:
+    """Returns (system_prompt, user_prompt) for the Ollama chat call.
+    idea_text (2026-09-04): see _build_system_prompt's own docstring for
+    the real enumeration-drift failure this fixes - without the idea in
+    the prompt, the model has no way to tell a relevant listed example
+    from an unrelated one in the same application's own text."""
     numbered = "\n".join(
         f'[{i}] "{_escape_bracketed_numbers(app.application)}" — {app.source_paper}'
         for i, app in enumerate(applications, start=1)
     )
-    user_prompt = f"Applications:\n{numbered}"
+    user_prompt = f'Idea: "{_escape_bracketed_numbers(idea_text)}"\n\nApplications:\n{numbered}'
     return _build_system_prompt(len(applications)), user_prompt
 
 
@@ -340,18 +366,20 @@ def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
     return response.json()["message"]["content"]
 
 
-def synthesize_opportunities(applications: list[SourceApplication]) -> SynthesisResult:
+def synthesize_opportunities(idea_text: str, applications: list[SourceApplication]) -> SynthesisResult:
     """Calls the local Ollama model to synthesize three grounded product
-    opportunities from the given applications. Retries once on an
-    unreachable model or an invalid/incomplete response, then raises
-    OpportunitySynthesisUnavailable - never returns a result whose
-    citations weren't checked against the given applications."""
+    opportunities from the given applications, anchored to idea_text (see
+    build_prompt's own docstring for why the model needs the idea, not
+    just the applications). Retries once on an unreachable model or an
+    invalid/incomplete response, then raises OpportunitySynthesisUnavailable
+    - never returns a result whose citations weren't checked against the
+    given applications."""
     if not ollama_enabled():
         raise OpportunitySynthesisUnavailable("local LLM opportunity synthesis is not enabled")
     if not applications:
         raise OpportunitySynthesisUnavailable("no applications to ground opportunity synthesis in")
 
-    system_prompt, user_prompt = build_prompt(applications)
+    system_prompt, user_prompt = build_prompt(idea_text, applications)
     timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "30"))
 
     for attempt in range(2):

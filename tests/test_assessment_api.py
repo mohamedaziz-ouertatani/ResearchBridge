@@ -315,7 +315,7 @@ def test_opportunities_synthesizes_and_persists_when_available(
 
     body = _create_with_applications(client, session, embedder)
 
-    def _fake_synthesize(applications):
+    def _fake_synthesize(idea_text, applications):
         return SynthesisResult(
             opportunities=[
                 SynthesizedOpportunity(tier="direct", opportunity="fraud-scoring API", source_application_indices=[1]),
@@ -351,7 +351,7 @@ def test_opportunities_persist_across_a_fresh_fetch(
     monkeypatch.setattr(
         routes_module,
         "synthesize_opportunities",
-        lambda applications: SynthesisResult(
+        lambda idea_text, applications: SynthesisResult(
             opportunities=[
                 SynthesizedOpportunity(tier="direct", opportunity="a", source_application_indices=[1]),
                 SynthesizedOpportunity(tier="adjacent", opportunity="b", source_application_indices=[1]),

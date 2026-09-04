@@ -36,21 +36,48 @@ GAMMA = "gamma opportunity"
 def test_build_prompt_numbers_applications_in_order() -> None:
     apps = [_app("real-time fraud screening", "Paper A"), _app("credit scoring", "Paper B")]
 
-    system_prompt, user_prompt = build_prompt(apps)
+    system_prompt, user_prompt = build_prompt("a fraud detection idea", apps)
 
     assert "Direct" in system_prompt and "Adjacent" in system_prompt and "Speculative" in system_prompt
     assert '[1] "real-time fraud screening" — Paper A' in user_prompt
     assert '[2] "credit scoring" — Paper B' in user_prompt
 
 
+def test_build_prompt_includes_the_idea_text() -> None:
+    # 2026-09-04 regression guard: a real live failure showed the model
+    # free-associating across an application's OWN unrelated enumerated
+    # examples ("used in X, Y, Z, traffic prediction") into wildly
+    # off-topic opportunities (healthcare/finance for a traffic idea) -
+    # traced to the prompt never telling the model what the idea WAS at
+    # all, only showing it the applications. The idea must actually be
+    # in the prompt now, and the system prompt must instruct staying
+    # anchored to it when an application lists multiple examples.
+    _, user_prompt = build_prompt("a traffic congestion prediction idea", [_app("an application")])
+
+    assert "a traffic congestion prediction idea" in user_prompt
+
+
+def test_build_prompt_system_prompt_warns_against_unrelated_enumerated_examples() -> None:
+    system_prompt, _ = build_prompt("an idea", [_app("an application")])
+
+    assert "unrelated" in system_prompt.lower()
+
+
 def test_build_prompt_escapes_bracketed_numbers_already_in_application_text() -> None:
     apps = [_app("cites prior work [3] directly")]
 
-    _, user_prompt = build_prompt(apps)
+    _, user_prompt = build_prompt("an idea", apps)
 
     # the literal "[3]" from the application's own text must not look like
     # a citation marker once numbered - it should be neutralized to "(3)"
-    assert "[3]" not in user_prompt.split("\n", 1)[1]
+    assert "[3]" not in user_prompt.split("Applications:\n", 1)[1]
+    assert "(3)" in user_prompt
+
+
+def test_build_prompt_escapes_bracketed_numbers_already_in_the_idea_text() -> None:
+    _, user_prompt = build_prompt("an idea citing prior work [3] directly", [_app("an application")])
+
+    assert "[3]" not in user_prompt.split("Applications:\n", 1)[0]
     assert "(3)" in user_prompt
 
 
@@ -61,15 +88,15 @@ def test_build_prompt_states_the_valid_citation_range_and_does_not_imply_two_cit
     # hallucinating a citation that didn't exist - every single-application
     # synthesis failed as a result. The prompt must state the real range
     # and must not show a two-bracket example for any one tier.
-    system_prompt, _ = build_prompt([_app("only application")])
+    system_prompt, _ = build_prompt("an idea", [_app("only application")])
 
     assert "1" in system_prompt  # the valid range is stated
     assert "[n][m]" not in system_prompt
 
 
 def test_build_prompt_system_prompt_reflects_the_actual_application_count() -> None:
-    single_prompt, _ = build_prompt([_app("a")])
-    multi_prompt, _ = build_prompt([_app("a"), _app("b"), _app("c")])
+    single_prompt, _ = build_prompt("an idea", [_app("a")])
+    multi_prompt, _ = build_prompt("an idea", [_app("a"), _app("b"), _app("c")])
 
     assert single_prompt != multi_prompt
 
@@ -372,14 +399,14 @@ def test_synthesize_raises_when_disabled(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("OLLAMA_ENABLED", "false")
 
     with pytest.raises(OpportunitySynthesisUnavailable, match="not enabled"):
-        synthesize_opportunities([_app("fraud screening")])
+        synthesize_opportunities("an idea", [_app("fraud screening")])
 
 
 def test_synthesize_raises_when_no_applications_given(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OLLAMA_ENABLED", "true")
 
     with pytest.raises(OpportunitySynthesisUnavailable, match="no applications"):
-        synthesize_opportunities([])
+        synthesize_opportunities("an idea", [])
 
 
 def test_synthesize_returns_validated_result(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -390,7 +417,7 @@ def test_synthesize_returns_validated_result(monkeypatch: pytest.MonkeyPatch) ->
         "Direct: fraud-scoring API [1]\nAdjacent: fraud risk platform [1][2]\nSpeculative: fraud detection network [2]",
     )
 
-    result = synthesize_opportunities(apps)
+    result = synthesize_opportunities("an idea", apps)
 
     assert [o.tier for o in result.opportunities] == ["direct", "adjacent", "speculative"]
 
@@ -409,7 +436,7 @@ def test_synthesize_retries_once_then_succeeds(monkeypatch: pytest.MonkeyPatch) 
     mock_post = Mock(side_effect=[bad_response, good_response])
     monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
 
-    result = synthesize_opportunities(apps)
+    result = synthesize_opportunities("an idea", apps)
 
     assert len(result.opportunities) == 3
     assert mock_post.call_count == 2
@@ -433,7 +460,7 @@ def test_synthesize_retries_once_after_a_too_short_response_then_succeeds(monkey
     mock_post = Mock(side_effect=[degenerate_response, good_response])
     monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
 
-    result = synthesize_opportunities(apps)
+    result = synthesize_opportunities("an idea", apps)
 
     assert [o.opportunity for o in result.opportunities] == [ALPHA, BETA, GAMMA]
     assert mock_post.call_count == 2
@@ -444,7 +471,7 @@ def test_synthesize_fails_closed_after_two_invalid_responses(monkeypatch: pytest
     _mock_ollama_response(monkeypatch, "not a valid response")
 
     with pytest.raises(OpportunitySynthesisUnavailable, match="valid grounded synthesis"):
-        synthesize_opportunities([_app("fraud screening")])
+        synthesize_opportunities("an idea", [_app("fraud screening")])
 
 
 def test_synthesize_fails_closed_when_ollama_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -455,6 +482,6 @@ def test_synthesize_fails_closed_when_ollama_unreachable(monkeypatch: pytest.Mon
     monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
 
     with pytest.raises(OpportunitySynthesisUnavailable, match="valid grounded synthesis"):
-        synthesize_opportunities([_app("fraud screening")])
+        synthesize_opportunities("an idea", [_app("fraud screening")])
 
     assert mock_post.call_count == 2

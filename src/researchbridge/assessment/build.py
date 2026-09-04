@@ -142,7 +142,7 @@ def build_assessment(
             for app in applications.applications
         ]
         try:
-            synthesis_result = synthesize_opportunities(source_applications)
+            synthesis_result = synthesize_opportunities(query_text, source_applications)
             opportunities_json, opportunity_evidence_ids = to_persisted_opportunities(
                 source_applications, synthesis_result
             )

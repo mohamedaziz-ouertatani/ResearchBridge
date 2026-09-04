@@ -390,6 +390,7 @@ def synthesize_assessment_opportunities(
     if not assessment.potential_applications:
         raise HTTPException(status_code=422, detail="no potential applications to ground opportunity synthesis in")
 
+    research_input = session.get(ResearchInput, assessment.research_input_id)
     applications = [
         SourceApplication(
             application=a["application"],
@@ -401,7 +402,7 @@ def synthesize_assessment_opportunities(
     ]
 
     try:
-        result = synthesize_opportunities(applications)
+        result = synthesize_opportunities(research_input.raw_text, applications)
     except OpportunitySynthesisUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
