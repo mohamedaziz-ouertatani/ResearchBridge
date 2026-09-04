@@ -11,10 +11,10 @@ anything. The routing below is deliberately NOT built that way.
 
 Two rules, both justified without looking at the benchmark's ground truth:
 
-1. A literal cue-phrase hit (heuristic confidence="medium") is trusted over
-   semantic similarity when one exists - an explicit, specific textual
-   signal is stronger evidence than a general similarity score when both
-   are available.
+1. A literal cue-phrase hit (heuristic confidence in "medium"/"high" - see
+   below) is trusted over semantic similarity when one exists - an
+   explicit, specific textual signal is stronger evidence than a general
+   similarity score when both are available.
 
 2. "problem" specifically always prefers the heuristic's answer, including
    its low-confidence first-sentence fallback. This is because abstracts
@@ -23,8 +23,14 @@ Two rules, both justified without looking at the benchmark's ground truth:
    something read off this benchmark's answers.
 
 Everywhere else, semantic fills in where heuristic found no cue-phrase
-match at all - the situation semantic exists for for (Sec 26): fields
-whose real-world phrasing varies too much for a fixed phrase list.
+match at all - the situation semantic exists for (Sec 26): fields whose
+real-world phrasing varies too much for a fixed phrase list.
+
+Rule 1's confidence check covers both "medium" (an abstract-only cue-phrase
+hit) and "high" (a full-text, named-section cue-phrase hit - Sec 46) -
+both mean the same thing this rule cares about, "an explicit cue-phrase
+match exists", so a full-text heuristic hit is preferred over semantic
+exactly like an abstract one always was.
 """
 
 from __future__ import annotations
@@ -46,9 +52,9 @@ class HybridExtractor:
         self._heuristic = HeuristicExtractor()
         self._semantic = SemanticExtractor(embedder)
 
-    def extract(self, paper: Paper) -> list[ClaimCandidate]:
-        heuristic_by_field = {c.claim_type: c for c in self._heuristic.extract(paper)}
-        semantic_by_field = {c.claim_type: c for c in self._semantic.extract(paper)}
+    def extract(self, paper: Paper, sections: dict[str, str]) -> list[ClaimCandidate]:
+        heuristic_by_field = {c.claim_type: c for c in self._heuristic.extract(paper, sections)}
+        semantic_by_field = {c.claim_type: c for c in self._semantic.extract(paper, sections)}
 
         fields = heuristic_by_field.keys() | semantic_by_field.keys()
         chosen = (
@@ -62,6 +68,6 @@ class HybridExtractor:
     ) -> ClaimCandidate | None:
         if field == "problem":
             return heuristic or semantic
-        if heuristic is not None and heuristic.confidence == "medium":
+        if heuristic is not None and heuristic.confidence in ("medium", "high"):
             return heuristic
         return semantic or heuristic

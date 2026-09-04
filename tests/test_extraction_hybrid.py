@@ -31,7 +31,7 @@ class FakeEmbedder:
 
 def test_empty_abstract_yields_no_candidates() -> None:
     extractor = HybridExtractor(FakeEmbedder())
-    assert extractor.extract(_paper(None)) == []
+    assert extractor.extract(_paper(None), {}) == []
 
 
 def test_problem_always_prefers_heuristic_even_at_low_confidence() -> None:
@@ -41,7 +41,7 @@ def test_problem_always_prefers_heuristic_even_at_low_confidence() -> None:
     abstract = "Coordination across regions is expensive."
     extractor = HybridExtractor(FakeEmbedder())
 
-    candidates = extractor.extract(_paper(abstract))
+    candidates = extractor.extract(_paper(abstract), {})
 
     problem = next(c for c in candidates if c.claim_type == "problem")
     assert problem.claim_text == "Coordination across regions is expensive."
@@ -54,7 +54,7 @@ def test_medium_confidence_heuristic_hit_wins_over_semantic() -> None:
     abstract = "We propose a lock-free queue for high throughput systems."
     extractor = HybridExtractor(FakeEmbedder())
 
-    candidates = extractor.extract(_paper(abstract))
+    candidates = extractor.extract(_paper(abstract), {})
 
     method = next(c for c in candidates if c.claim_type == "method")
     assert method.claim_text == "We propose a lock-free queue for high throughput systems."
@@ -67,7 +67,7 @@ def test_field_with_no_heuristic_match_falls_back_to_semantic() -> None:
     abstract = "Something happens in this domain. Another sentence follows it."
     extractor = HybridExtractor(FakeEmbedder())
 
-    candidates = extractor.extract(_paper(abstract))
+    candidates = extractor.extract(_paper(abstract), {})
 
     non_problem = [c for c in candidates if c.claim_type != "problem"]
     assert all(c.claim_text is not None for c in non_problem)  # came from somewhere, not a crash
@@ -81,7 +81,7 @@ def test_grounding_holds_for_every_hybrid_candidate() -> None:
     abstract = "Coordination across regions is expensive. We propose a cheaper protocol."
     extractor = HybridExtractor(FakeEmbedder())
 
-    candidates = extractor.extract(_paper(abstract))
+    candidates = extractor.extract(_paper(abstract), {})
 
     assert len(candidates) > 0
     for c in candidates:
@@ -93,7 +93,34 @@ def test_no_duplicate_fields_in_output() -> None:
     abstract = "We propose a cheaper protocol for coordination. It reduces overhead significantly."
     extractor = HybridExtractor(FakeEmbedder())
 
-    candidates = extractor.extract(_paper(abstract))
+    candidates = extractor.extract(_paper(abstract), {})
 
     types = [c.claim_type for c in candidates]
     assert len(types) == len(set(types))
+
+
+def test_high_confidence_full_text_heuristic_hit_still_wins_over_semantic() -> None:
+    # a full-text cue-phrase hit is confidence="high" (Task 3), not
+    # "medium" - _choose()'s routing rule must still prefer it over
+    # semantic, the same way it already prefers a "medium" abstract hit
+    abstract = "An abstract with no method cue phrase at all."
+    sections = {"methods": "We propose a graph-based method for X."}
+    extractor = HybridExtractor(FakeEmbedder())
+
+    candidates = extractor.extract(_paper(abstract), sections)
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.claim_text == "We propose a graph-based method for X."
+    assert method.confidence == "high"
+    assert method.section == "methods"
+
+
+def test_sections_are_threaded_through_to_both_sub_extractors() -> None:
+    abstract = "An abstract with no limitations cue phrase at all."
+    sections = {"discussion": "However, throughput degrades past 64 threads under load."}
+    extractor = HybridExtractor(FakeEmbedder())
+
+    candidates = extractor.extract(_paper(abstract), sections)
+
+    limitations = next(c for c in candidates if c.claim_type == "limitations")
+    assert limitations.section == "discussion"
