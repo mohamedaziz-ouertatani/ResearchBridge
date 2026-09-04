@@ -109,10 +109,51 @@ extracted claim type within one category — a direct count query, not
 semantic clustering or inferred patterns (see
 `docs/superpowers/specs/2026-08-28-trend-temporal-view-design.md`).
 
-**Not yet built:** `analysis_claims`/`claim_evidence` (§16), the Phase 3+
-split entity tables (§14), `opportunity_assessments` (§41), PubMed Central
-ingestion, any paid-API extractor, and all of Phase 5 (§48, external market
-data/patents/companies).
+**`analysis_claims`/`claim_evidence` (§16) — implemented.** Two producers
+write typed, evidence-linked claims: `gaps/claims.py` mirrors every saved
+`CandidateGap` as a `claim_type="inference"` row, kept in sync with the
+gap's approve/reject status on review; `assessment/claims.py` mirrors all
+seven of a `ResearchAssessment`'s gradeable fields — the five plain-text
+fields as `fact`/`inference` (verbatim text, so the web report and the
+docx/pdf export can match a claim back to its field), plus
+`potential_applications`/`potential_opportunities` as `claim_type="opportunity"`
+(a deterministic join of the list, since those two fields have no plain-text
+counterpart to mirror verbatim) — kept in sync with `human_reviewed` on
+review. Claims are surfaced three ways: nested under their parent gap/
+assessment response, in the assessment's docx/pdf export next to each
+section's existing evidence-count indicator, and standalone via
+`GET /api/claims` (filterable by `status`/`claim_type`/`source_table`, each
+claim returned with its backing evidence). `scripts/backfill_analysis_claims.py`
+creates the claim a pre-existing gap/assessment would have gotten if it had
+been saved/reviewed after this shipped (dry-run by default, `--apply` to
+write). `rb-claims-calibration-check` is scaffolding for the confidence-
+bucket check §28 asks for — it reports reviewed-gap ratings grouped by
+claim confidence bucket, but confidence itself is still a fixed rule (every
+gap-derived claim is hardcoded "medium"; every assessment-derived claim
+reuses the assessment's own overall confidence), not yet a calibrated
+value, since there isn't enough reviewed data yet for that comparison to
+mean anything. `hypothesis`/`speculation` remain schema-only — nothing
+currently produces those two claim types.
+
+**Full-text PDF ingestion (a narrow version of §46, ahead of "future or
+secondary").** `fulltext/` fetches each open-access paper's PDF (arXiv via
+a derived URL, CORE/Semantic Scholar via their own already-fetchable `url`,
+Springer attempted best-effort against its HTML landing page), extracts
+text via PyMuPDF (reusing `benchmark/fulltext.py`'s already-proven
+extractor rather than GROBID — see §46's own "GROBID only when justified"),
+and splits it into heuristic sections (`paper_fulltext`), with the same
+run-history/error-tracking shape as every other pipeline
+(`fulltext_fetch_runs`/`fulltext_fetch_errors`, `rb-fulltext-fetch`, one
+admin trigger route). Deliberately narrow: nothing in `extraction/pipeline.py`
+or any `Extractor` implementation consumes this table yet — every extractor
+is still abstract-only, so full text has no reader today. Extending
+extraction to draw claims from full-text sections (not just verify
+grounding against them) remains a separate, unstarted piece of work.
+
+**Not yet built:** the Phase 3+ split entity tables (§14),
+`opportunity_assessments` (§41), PubMed Central ingestion, any paid-API
+extractor, full-text-aware extraction (see above), and all of Phase 5
+(§48, external market data/patents/companies).
 
 ---
 
