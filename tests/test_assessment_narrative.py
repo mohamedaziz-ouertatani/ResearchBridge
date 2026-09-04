@@ -36,6 +36,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         confidence="high",
         human_reviewed=False,
         evidence=[],
+        claims=[],
     )
     defaults.update(overrides)
     return ResearchAssessmentOut(**defaults)

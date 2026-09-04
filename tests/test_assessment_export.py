@@ -54,6 +54,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
                 text="evaluated only on offline datasets", section="Limitations",
             ),
         ],
+        claims=[],
     )
     defaults.update(overrides)
     return ResearchAssessmentOut(**defaults)
