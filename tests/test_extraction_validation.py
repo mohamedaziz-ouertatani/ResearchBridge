@@ -628,6 +628,37 @@ def test_weak_gap_language_sets_weak_tier() -> None:
     assert result.tier == "weak"
 
 
+def test_bare_future_work_boilerplate_is_weak_not_strong() -> None:
+    # real production example (2026-09-04 investigation, found reviewing a
+    # real exported ResearchAssessment): this sentence names no actual
+    # unresolved problem - it's a closing-section "here's what we'll do
+    # next" statement, indistinguishable in kind from the already-weak
+    # "future research" example above (test_weak_gap_language_sets_weak_
+    # tier). It was tier "strong" (literal "future work" match) before
+    # this fix, and was the deciding signal behind a real "confidence:
+    # high" verdict driven by boilerplate - exactly the failure mode
+    # is_strongly_stated exists to catch, see gap.py's own docstring.
+    text = (
+        "Future work will focus on integrating blockchain-based audit trails and federated "
+        "learning for enhanced privacy and cross-institutional fraud intelligence sharing."
+    )
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "weak"
+
+
+def test_future_work_naming_a_real_limitation_is_still_strong() -> None:
+    # "future work" isn't disqualified outright - a sentence that both
+    # says "future work" AND independently states a genuine unresolved
+    # problem (here: "we leave") still reads as strong, same as before
+    text = "We leave the extension to multi-GPU settings for future work."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
 def test_non_research_gap_types_have_no_tier() -> None:
     text = "However, the approach does not scale to graphs with more than a million nodes."
     result = validate_claim_type("limitations", text)

@@ -116,8 +116,8 @@ _ACHIEVEMENT_VERB_RE = re.compile(
 # contain "gap between"/"future research" as boilerplate, not a stated
 # unresolved problem. The weak tier only counts when there's no
 # competing metric/achievement signal in the same text; the strong tier
-# is trusted either way, since "remains an open problem"/"future work"
-# is not something a results sentence says in passing.
+# is trusted either way, since "remains an open problem" is not something
+# a results sentence says in passing.
 #
 # The strong tier's own trust-it-either-way stance is exactly why
 # "open (question|problem)" needs its own narrower guard (2026-09-04
@@ -134,8 +134,24 @@ _ACHIEVEMENT_VERB_RE = re.compile(
 # other following word sampled ("in", "whether", "is", "posed", "of",
 # "to", ...) - all genuine gap language. Narrow negative lookahead rather
 # than a broader exclusion, to avoid guessing past what the data showed.
+#
+# "future work" moved from strong to weak (2026-09-04, found reviewing a
+# real ResearchAssessment export): "Future work will focus on integrating
+# blockchain-based audit trails and federated learning for enhanced
+# privacy and cross-institutional fraud intelligence sharing" was tier
+# "strong" (matches "future work" literally) and, via is_strongly_stated,
+# was the deciding signal behind a "confidence: high" verdict - despite
+# reading, to a human, as exactly the same closing-section "here's what
+# we'll do next" boilerplate as the already-weak "future research" (this
+# module's own worked example above). The two phrases are near-synonyms;
+# there is no real basis for trusting one unconditionally while requiring
+# the other to clear a competing-signal check. "we leave"/"we plan to"/
+# "further exploration" stay strong - no live counterexample has been
+# found for those, and moving them without one would be guessing past
+# what the data showed (same discipline as the open-question lookahead
+# above), not fixing a demonstrated problem.
 _STRONG_GAP_LANGUAGE_RE = re.compile(
-    r"\bfuture work\b|\bwe leave\b|\bwe plan to\b|\bfurther exploration\b"
+    r"\bwe leave\b|\bwe plan to\b|\bfurther exploration\b"
     r"|\bremains? (an? )?open\b|\bopen (question|problem)\b(?!\s+answering)"
     r"|\byet to be\b|\bhas not been\b|\bhave not been\b|\bno existing\b"
     r"|\black(s|ing)?( of)?\b|\bunexplored\b|\bunderexplored\b"
@@ -143,7 +159,7 @@ _STRONG_GAP_LANGUAGE_RE = re.compile(
     r"|\bremains (unclear|unresolved|unknown)\b|\bunresolved\b",
     re.IGNORECASE,
 )
-_WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture research\b|\bgap (in|between)\b", re.IGNORECASE)
+_WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture (work|research)\b|\bgap (in|between)\b", re.IGNORECASE)
 
 # A second, distinct false-positive shape for "gap (in|between)", found in a
 # real ResearchAssessment export (2026-09-03 investigation): "continuously
