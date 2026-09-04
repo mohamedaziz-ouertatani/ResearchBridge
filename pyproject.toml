@@ -35,6 +35,7 @@ rb-ingest-semantic-scholar = "researchbridge.ingestion.cli_semantic_scholar:main
 rb-ingest-core = "researchbridge.ingestion.cli_core:main"
 rb-extract = "researchbridge.extraction.cli:main"
 rb-extract-evaluate = "researchbridge.extraction.cli_evaluate:main"
+rb-fulltext-fetch = "researchbridge.fulltext.cli:main"
 rb-gaps-detect = "researchbridge.gaps.cli_detect:main"
 rb-gaps-calibrate = "researchbridge.gaps.cli_calibrate:main"
 rb-citations-fetch = "researchbridge.citations.cli_fetch:main"
