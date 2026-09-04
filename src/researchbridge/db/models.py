@@ -471,6 +471,59 @@ class ClaimEvidence(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class PaperFullText(Base):
+    """A paper's full text, fetched from its open-access PDF and split into
+    heuristic sections (Sec 46). One row per paper - re-fetching under
+    --force updates this row in place rather than inserting a duplicate.
+
+    No consumer yet: extraction/pipeline.py stays abstract-only until a
+    separate future slice extends it to use this table - see
+    fulltext/pipeline.py's module docstring.
+    """
+
+    __tablename__ = "paper_fulltext"
+    __table_args__ = (UniqueConstraint("paper_id", name="uq_paper_fulltext_paper_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    sections: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    fetch_method: Mapped[str] = mapped_column(String, nullable=False, default="pymupdf")
+    fetched_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class FullTextFetchRun(Base):
+    """One rb-fulltext-fetch run - same run-history shape as
+    ExtractionRun/EmbeddingRun/CitationFetchRun/GapDetectionRun, updated
+    incrementally as the batch processes papers."""
+
+    __tablename__ = "fulltext_fetch_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    papers_seen: Mapped[int] = mapped_column(Integer, default=0)
+    papers_fetched: Mapped[int] = mapped_column(Integer, default=0)
+    papers_skipped_no_url: Mapped[int] = mapped_column(Integer, default=0)
+    papers_failed: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    force: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+
+class FullTextFetchError(Base):
+    __tablename__ = "fulltext_fetch_errors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fulltext_fetch_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fulltext_fetch_runs.id"), nullable=False
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    error_type: Mapped[str] = mapped_column(String, nullable=False)
+    error_detail: Mapped[str] = mapped_column(Text, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ResearchInput(Base):
     """One user-submitted item to be assessed (blueprint Sec 2A).
 
