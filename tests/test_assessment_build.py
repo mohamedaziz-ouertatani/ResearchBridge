@@ -7,9 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 
+from sqlalchemy import select
+
 from researchbridge.assessment.build import build_assessment
 from researchbridge.db.models import (
     EMBEDDING_DIM,
+    AnalysisClaim,
     Embedding,
     Evidence,
     ExtractedClaim,
@@ -176,6 +179,55 @@ def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have
     # was retrieved at all", which stays None (see the pre-existing
     # test_assessment_defaults_unassessed_fields_rather_than_fabricating)
     assert assessment.potential_applications == []
+
+
+def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    claim = session.execute(
+        select(AnalysisClaim).where(
+            AnalysisClaim.source_table == "research_assessments", AnalysisClaim.source_id == assessment.id
+        )
+    ).scalars().all()
+    session.close()
+    comparison_claims = [c for c in claim if c.claim_type == "fact"]
+    assert len(comparison_claims) == 1
+    assert "evaluated only in offline settings" in comparison_claims[0].claim_text
+
+
+def test_research_gap_claim_is_skipped_when_the_gap_is_reused_from_a_candidate_gap(
+    session_factory, embedder, monkeypatch
+) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    import researchbridge.assessment.build as build_module
+    from researchbridge.assessment.gap import GapAssessmentResult
+
+    reused_gap = GapAssessmentResult(
+        source="reused_candidate_gap", text="a reused gap", candidate_gap_id=None,
+        evidence_ids=[], is_closely_grounded=True, status="found",
+    )
+    monkeypatch.setattr(build_module, "assess_research_gap", lambda *a, **k: reused_gap)
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    claims = session.execute(
+        select(AnalysisClaim).where(
+            AnalysisClaim.source_table == "research_assessments", AnalysisClaim.source_id == assessment.id
+        )
+    ).scalars().all()
+    session.close()
+    assert all(c.claim_text != "a reused gap" for c in claims)
 
 
 def test_document_input_uses_extracted_representation_as_the_query(session_factory, embedder, monkeypatch) -> None:

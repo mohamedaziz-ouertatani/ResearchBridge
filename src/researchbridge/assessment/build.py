@@ -52,6 +52,7 @@ from sqlalchemy.orm import Session
 
 from researchbridge.assessment.application_relevance import ApplicationRelevanceUnavailable, filter_relevant_applications
 from researchbridge.assessment.applications import ApplicationsResult, assess_applications
+from researchbridge.assessment.claims import save_claims_for_assessment
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.existing_solutions import build_existing_solutions
@@ -163,6 +164,12 @@ def build_assessment(
         technical_feasibility_level=feasibility.level,
     )
 
+    research_gap_source_value = (
+        gap.source
+        if gap.status == "found"
+        else ("no_relevant_evidence" if gap.status == "not_assessed" else "checked_no_gap_found")
+    )
+
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
         status="completed",
@@ -171,11 +178,7 @@ def build_assessment(
         novelty_level=novelty.level,
         novelty_reasoning=novelty.reasoning,
         research_gap_text=gap.text,
-        research_gap_source=(
-            gap.source
-            if gap.status == "found"
-            else ("no_relevant_evidence" if gap.status == "not_assessed" else "checked_no_gap_found")
-        ),
+        research_gap_source=research_gap_source_value,
         candidate_gap_id=gap.candidate_gap_id,
         potential_applications=(
             [
@@ -252,6 +255,28 @@ def build_assessment(
         session.add(
             ResearchAssessmentEvidence(research_assessment_id=assessment.id, evidence_id=evidence_id, role="risk")
         )
+
+    save_claims_for_assessment(
+        session,
+        assessment,
+        texts_by_role={
+            "comparison": existing_solutions.text,
+            "novelty": novelty.reasoning,
+            # only mirror the gap text when it's this assessment's own
+            # finding - a reused candidate gap already has its own claim,
+            # see assessment/claims.py's docstring
+            "research_gap": (gap.text if research_gap_source_value == "input_specific" else None),
+            "feasibility": feasibility.reasoning,
+            "risk": risks.text,
+        },
+        evidence_by_role={
+            "comparison": existing_solutions.evidence_ids,
+            "novelty": novelty.evidence_ids,
+            "research_gap": gap.evidence_ids,
+            "feasibility": feasibility.evidence_ids,
+            "risk": risks.evidence_ids,
+        },
+    )
 
     session.commit()
     return assessment
