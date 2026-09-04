@@ -4,6 +4,7 @@ import io
 import uuid
 
 from researchbridge.api.schemas import (
+    AnalysisClaimOut,
     AssessmentEvidenceOut,
     ResearchAssessmentOut,
     ResearchInputOut,
@@ -99,6 +100,43 @@ def test_build_docx_includes_evidence_passages() -> None:
 
     assert "evaluated only on offline datasets" in text
     assert "Paper Title" in text
+
+
+def _comparison_claim() -> AnalysisClaimOut:
+    return AnalysisClaimOut(
+        id=uuid.uuid4(),
+        claim_type="fact",
+        claim_text="Paper Title\n- method: a graph attention mechanism",
+        confidence="medium",
+        status="pending",
+    )
+
+
+def test_build_report_sections_matches_a_claim_by_exact_text() -> None:
+    assessment = _assessment(claims=[_comparison_claim()])
+
+    sections = build_report_sections(assessment)
+
+    existing_solutions = next(s for s in sections if s.label == "Existing solutions")
+    assert existing_solutions.claim is not None
+    assert existing_solutions.claim.claim_type == "fact"
+    novelty = next(s for s in sections if s.label == "Novelty assessment")
+    assert novelty.claim is None  # no claim in the list matches novelty_reasoning's text
+
+
+def test_build_docx_includes_claim_type_and_confidence() -> None:
+    # _docx_eyebrow uppercases every label it renders (Word "eyebrow" style)
+    text = _docx_text(build_docx(_assessment(claims=[_comparison_claim()])))
+
+    assert "FACT" in text
+    assert "CONFIDENCE: MEDIUM" in text
+
+
+def test_build_pdf_includes_claim_type_and_confidence() -> None:
+    text = _pdf_text(build_pdf(_assessment(claims=[_comparison_claim()])))
+
+    assert "fact" in text
+    assert "confidence: medium" in text
 
 
 def test_build_docx_marks_unassessed_fields_with_reasoning() -> None:

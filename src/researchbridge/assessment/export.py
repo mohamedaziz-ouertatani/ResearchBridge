@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from researchbridge.api.schemas import AssessmentEvidenceOut, ResearchAssessmentOut
+from researchbridge.api.schemas import AnalysisClaimOut, AssessmentEvidenceOut, ResearchAssessmentOut
 from researchbridge.assessment.export_charts import (
     INK,
     INK_FAINT,
@@ -73,6 +73,11 @@ class ReportSection:
     unassessed_reason: str | None = None
     """Shown instead of body when body is None."""
     evidence: list[AssessmentEvidenceOut] = field(default_factory=list)
+    claim: AnalysisClaimOut | None = None
+    """The Sec 16 structured-reasoning claim mirroring this section's body
+    text, if one exists (see _claim_for_text) - undefined for a NULL body
+    or an assessment predating the claims layer, same as the web report's
+    claimForText (AssessmentReport.tsx)."""
     group: str = "assessment"
     """Which of GROUP_INFO's three clusters this section prints under - the
     same context/assessment/notes grouping the web report uses (see
@@ -102,6 +107,15 @@ GROUP_INFO: dict[str, tuple[str, str, str]] = {
         "What this reading doesn't settle, and how the recommendation was reached.",
     ),
 }
+
+
+def _claim_for_text(claims: list[AnalysisClaimOut], text: str | None) -> AnalysisClaimOut | None:
+    """Same exact-match lookup as the web report's claimForText
+    (AssessmentReport.tsx) - claim_text is written verbatim from the field
+    (see assessment/claims.py), so exact match is reliable."""
+    if not text:
+        return None
+    return next((c for c in claims if c.claim_text == text), None)
 
 
 def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSection]:
@@ -136,6 +150,7 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             body=assessment.comparison_summary,
             unassessed_reason="No retrieved paper had extracted claims to compare against.",
             evidence=by_role.get("comparison", []),
+            claim=_claim_for_text(assessment.claims, assessment.comparison_summary),
         ),
         ReportSection(
             label="Novelty assessment",
@@ -143,12 +158,14 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             body=assessment.novelty_reasoning,
             unassessed_reason="Not enough evidence to judge novelty.",
             evidence=by_role.get("novelty", []),
+            claim=_claim_for_text(assessment.claims, assessment.novelty_reasoning),
         ),
         ReportSection(
             label="Research gap",
             body=research_gap_body,
             unassessed_reason=research_gap_unassessed_reason,
             evidence=by_role.get("research_gap", []),
+            claim=_claim_for_text(assessment.claims, assessment.research_gap_text),
         ),
         ReportSection(
             label="Potential applications",
@@ -168,12 +185,14 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             body=assessment.technical_feasibility_reasoning,
             unassessed_reason="Nothing close enough to ground a feasibility judgement.",
             evidence=by_role.get("feasibility", []),
+            claim=_claim_for_text(assessment.claims, assessment.technical_feasibility_reasoning),
         ),
         ReportSection(
             label="Risks / limitations",
             body=assessment.risks_and_limitations,
             unassessed_reason="No retrieved paper stated a limitation.",
             evidence=by_role.get("risk", []),
+            claim=_claim_for_text(assessment.claims, assessment.risks_and_limitations),
         ),
         ReportSection(
             label="External validation needed",
@@ -201,6 +220,12 @@ def _section_evidence_counts(sections: list[ReportSection]) -> list[tuple[str, i
 
 
 _LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
+
+
+def _claim_suffix(claim: AnalysisClaimOut | None) -> str | None:
+    if claim is None:
+        return None
+    return f"{claim.claim_type} · confidence: {claim.confidence}"
 
 
 def _level_dots(level: str | None) -> str | None:
@@ -503,6 +528,9 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
         dots = _level_dots(section.level)
         if section.level:
             label += f"  ·  {section.level.replace('_', ' ')}"
+        claim_suffix = _claim_suffix(section.claim)
+        if claim_suffix:
+            label += f"  ·  {claim_suffix}"
         _docx_eyebrow(document, label, heading=True, dots=dots)
 
         if section.level:
@@ -835,6 +863,9 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
         heading = _escape(section.label)
         if section.level:
             heading += f"  ·  {section.level.replace('_', ' ')}"
+        claim_suffix = _claim_suffix(section.claim)
+        if claim_suffix:
+            heading += f"  ·  {_escape(claim_suffix)}"
         dots = _level_dots(section.level)
         if dots:
             heading += f'  <font name="SourceSerif4" size="9" color="{INK_SOFT}">{dots}</font>'
