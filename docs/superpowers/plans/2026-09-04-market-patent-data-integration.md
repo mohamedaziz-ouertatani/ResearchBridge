@@ -1146,24 +1146,27 @@ git commit -m "feat(assessment): populate external_validation with real patent/m
 **Files:**
 - Modify: `src/researchbridge/assessment/build.py:63` (import), `:172` (call site)
 - Modify: `.env.example`
-- Test: `tests/test_build_assessment.py` (add one integration test to the existing file — inspect it
-  first to match its existing fixture/session setup before adding)
+- Test: `tests/test_assessment_build.py` (add one integration test to the existing file — real
+  fixtures confirmed below, no live network calls needed since `session_factory`/`_research_input`
+  are pure-DB, and both connectors are mocked)
 
 **Interfaces:**
 - Consumes: `extract_keywords` (Task 1), `EPOPatentConnector` (Task 3), `WorldBankConnector`
   (Task 2), `assess_external_validation` (Task 4).
 
-- [ ] **Step 1: Read the existing test file's setup so the new test matches it**
+Note on the plan's earlier task list (Task 5's file was originally drafted from a guessed path/
+fixture set before this task ran — corrected here against the real file): the actual test file is
+`tests/test_assessment_build.py`, not `tests/test_build_assessment.py`. It has no `session`/
+`research_input` fixtures — instead a session-scoped `embedder` fixture (a `FakeEmbedder`
+dataclass), a `session_factory` fixture (call it to get a session, `session.close()` it when done —
+per this codebase's DB-test convention, an unclosed session can deadlock later TRUNCATE-based test
+teardown), and a local `_research_input(session, raw_text) -> ResearchInput` helper already defined
+in the file (id/input_type/raw_text only — `title` stays `None`, which is fine: Task 4's
+`assess_external_validation` already handles `title=None`).
 
-Run: `sed -n '1,60p' tests/test_build_assessment.py` and note how a `ResearchInput` row, session, and
-`embedder` fixture are constructed for an existing `build_assessment()` test — reuse that exact
-setup pattern (fixture names, session-scoping) rather than inventing a new one.
+- [ ] **Step 1: Write the failing integration test**
 
-- [ ] **Step 2: Write the failing integration test**
-
-Add to `tests/test_build_assessment.py` (adapt the exact fixture/session variable names to match
-what Step 1 found — the shape below is illustrative of the assertions needed, not the literal
-fixture wiring):
+Add to `tests/test_assessment_build.py`:
 
 ```python
 from unittest.mock import patch
@@ -1172,9 +1175,11 @@ from researchbridge.connectors.epo_patents import PatentHit
 from researchbridge.connectors.world_bank import IndicatorValue
 
 
-def test_external_validation_uses_real_connector_results(session, embedder, research_input) -> None:
-    # research_input/session/embedder: reuse whatever existing fixture names
-    # Step 1 identified in this file's other build_assessment() tests.
+def test_external_validation_uses_real_connector_results(session_factory, embedder) -> None:
+    session = session_factory()
+    ri = _research_input(session, "soil moisture sensor network for automated irrigation control")
+    session.commit()
+
     fake_patent_hit = PatentHit(
         title="Automated irrigation control system",
         publication_number="TN12345B1",
@@ -1191,22 +1196,23 @@ def test_external_validation_uses_real_connector_results(session, embedder, rese
         mock_patent_factory.return_value.search.return_value = [fake_patent_hit]
         mock_market_cls.return_value.fetch_indicators.return_value = [fake_indicator]
 
-        assessment = build_assessment(session, research_input.id, embedder)
+        assessment = build_assessment(session, ri.id, embedder)
 
+    session.close()
     assert "TN12345B1" in assessment.external_validation_needed
     assert "GDP" in assessment.external_validation_needed
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pytest tests/test_build_assessment.py::test_external_validation_uses_real_connector_results -v`
+Run: `pytest tests/test_assessment_build.py::test_external_validation_uses_real_connector_results -v`
 Expected: FAIL — `assess_external_validation()` call in `build.py` still uses the old
 `has_applications`-only signature, and `_build_patent_connector`/`WorldBankConnector` aren't
 imported into `build.py` yet, so the `patch()` targets don't exist
 (`AttributeError: <module 'researchbridge.assessment.build'> does not have the attribute
 '_build_patent_connector'`)
 
-- [ ] **Step 4: Update `build.py`**
+- [ ] **Step 3: Update `build.py`**
 
 Modify the import block (around line 63):
 ```python
@@ -1249,7 +1255,7 @@ becomes:
     external_validation_needed = external_validation.text
 ```
 
-- [ ] **Step 5: Add env vars to `.env.example`**
+- [ ] **Step 4: Add env vars to `.env.example`**
 
 Append after the `CORE_API_KEY` block:
 ```
@@ -1265,20 +1271,20 @@ EPO_OPS_CONSUMER_SECRET=
 (World Bank needs no env var — it's unauthenticated, so `WorldBankConnector()` is always
 constructed directly in `build.py`, no factory/None-check needed.)
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pytest tests/test_build_assessment.py::test_external_validation_uses_real_connector_results -v`
+Run: `pytest tests/test_assessment_build.py::test_external_validation_uses_real_connector_results -v`
 Expected: PASS
 
-- [ ] **Step 7: Run the full set of touched test files**
+- [ ] **Step 6: Run the full set of touched test files**
 
-Run: `pytest tests/test_assessment_keywords.py tests/test_world_bank_connector.py tests/test_epo_patents_connector.py tests/test_assessment_external_validation.py tests/test_build_assessment.py -v`
+Run: `pytest tests/test_assessment_keywords.py tests/test_world_bank_connector.py tests/test_epo_patents_connector.py tests/test_assessment_external_validation.py tests/test_assessment_build.py -v`
 Expected: PASS (all tests across all five files)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/researchbridge/assessment/build.py .env.example tests/test_build_assessment.py
+git add src/researchbridge/assessment/build.py .env.example tests/test_assessment_build.py
 git commit -m "feat(assessment): wire EPO/World Bank connectors into build_assessment()"
 ```
 
