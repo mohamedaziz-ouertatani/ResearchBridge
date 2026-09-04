@@ -9,7 +9,7 @@ from researchbridge.api.schemas import (
     ResearchAssessmentOut,
     ResearchInputOut,
 )
-from researchbridge.assessment.export import build_docx, build_pdf, build_report_sections
+from researchbridge.assessment.export import build_docx, build_markdown, build_pdf, build_report_sections
 
 RESEARCH_INPUT_ID = uuid.uuid4()
 ASSESSMENT_ID = uuid.uuid4()
@@ -199,3 +199,73 @@ def test_export_distinguishes_applications_not_assessed_from_no_evidence() -> No
     app_section_b = next(s for s in sections_no_evidence if s.label == "Potential applications")
 
     assert app_section_a.unassessed_reason != app_section_b.unassessed_reason
+
+
+def _md_text(data: bytes) -> str:
+    return data.decode("utf-8")
+
+
+def test_build_markdown_contains_recommendation_and_input_text() -> None:
+    text = _md_text(build_markdown(_assessment()))
+
+    assert "Proceed with caution" in text
+    assert "graph transformers for fraud detection" in text
+
+
+def test_build_markdown_includes_evidence_passages_as_blockquotes() -> None:
+    text = _md_text(build_markdown(_assessment()))
+
+    assert '> "evaluated only on offline datasets"' in text
+    assert "Paper Title" in text
+
+
+def test_build_markdown_marks_unassessed_fields_with_reasoning() -> None:
+    text = _md_text(build_markdown(_unassessed_assessment()))
+
+    assert "No retrieved paper had extracted claims to compare against" in text
+    assert "No gap was found" in text
+    assert "No relevant paper was retrieved for this input" in text
+
+
+def test_build_markdown_includes_claim_type_and_confidence() -> None:
+    text = _md_text(build_markdown(_assessment(claims=[_comparison_claim()])))
+
+    assert "fact" in text
+    assert "confidence: medium" in text
+
+
+def test_build_markdown_is_valid_utf8_bytes() -> None:
+    data = build_markdown(_assessment())
+
+    assert isinstance(data, bytes)
+    data.decode("utf-8")  # raises if not valid UTF-8
+
+
+def test_md_escape_neutralizes_inline_markup_characters() -> None:
+    from researchbridge.assessment.export import _md_escape
+
+    assert _md_escape("*bold* _italic_ [link](url) `code` back\\slash") == (
+        "\\*bold\\* \\_italic\\_ \\[link\\](url) \\`code\\` back\\\\slash"
+    )
+
+
+def test_md_escape_only_guards_line_starting_markers_not_mid_sentence_punctuation() -> None:
+    from researchbridge.assessment.export import _md_escape
+
+    # a hyphen or period mid-sentence must NOT be escaped - only doing so
+    # at line start (where it could trigger a list/heading) keeps normal
+    # prose readable instead of buried in backslashes
+    assert _md_escape("state-of-the-art results. Solid work.") == "state-of-the-art results. Solid work."
+    assert _md_escape("- a leading bullet-like line") == "\\- a leading bullet-like line"
+    assert _md_escape("# not a heading") == "\\# not a heading"
+    assert _md_escape("1. not a list") == "\\1. not a list"
+
+
+def test_build_markdown_escapes_body_text_containing_markdown_syntax() -> None:
+    text = _md_text(
+        build_markdown(_assessment(risks_and_limitations="- Paper Title: *fabricated* claims [dangerous](url)"))
+    )
+
+    # the escaped form should appear verbatim; the raw unescaped form should not
+    assert "\\- Paper Title: \\*fabricated\\* claims \\[dangerous\\](url)" in text
+    assert "\n- Paper Title: *fabricated* claims [dangerous](url)\n" not in text

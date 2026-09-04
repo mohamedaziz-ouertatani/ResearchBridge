@@ -906,3 +906,141 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
 def _escape(text: str) -> str:
     """reportlab's Paragraph interprets its text as a small XML/markup dialect."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+_MD_INLINE_SPECIAL = re.compile(r"([\\`*_\[\]])")
+_MD_LINE_START_MARKER = re.compile(r"(?m)^([-*+#>]|\d+\.)(?=\s|$)")
+
+
+def _md_escape(text: str) -> str:
+    """Escapes characters CommonMark would otherwise treat as markup, so a
+    field's actual text (extracted from real paper prose, never authored
+    as markdown) renders as plain text instead of accidentally toggling
+    emphasis, a link, or - if it happens to start a line with "-", "#",
+    "1.", etc. - a list/heading/blockquote it never meant to be. Only
+    escapes what would actually trigger: backslash/backtick/asterisk/
+    underscore/brackets can flip into markup anywhere inline, but a
+    hyphen or period is only special as a line-starting list/heading
+    marker - escaping every one mid-sentence (a real sentence full of
+    hyphenated words and periods) would bury the text in backslashes for
+    no reason, defeating the point of a format meant to stay readable
+    unrendered."""
+    escaped = _MD_INLINE_SPECIAL.sub(r"\\\1", text)
+    return _MD_LINE_START_MARKER.sub(r"\\\1", escaped)
+
+
+def _md_comparison_summary(text: str) -> list[str]:
+    """Same block/claim-line structure as _docx_comparison_summary and the
+    PDF path's comparison_summary() closure - comparison_summary is
+    pre-formatted into blocks (heading, then '- "paper": claim' lines, see
+    assessment/existing_solutions.py), not something a generic paragraph
+    renderer can flow correctly."""
+    lines: list[str] = []
+    for block in text.split("\n\n"):
+        if not block:
+            continue
+        heading, *claim_lines = block.split("\n")
+        lines.append(f"**{_md_escape(heading)}**")
+        lines.append("")
+        for line in claim_lines:
+            match = _COMPARISON_CLAIM_RE.match(line)
+            if not match:
+                continue
+            paper_title, claim_text = match.group(1), match.group(2)
+            lines.append(f"> {_md_escape(claim_text)}")
+            lines.append(f"> — *{_md_escape(paper_title)}*")
+            lines.append("")
+    return lines
+
+
+def build_markdown(assessment: ResearchAssessmentOut) -> bytes:
+    """Plain-text-first export: no charts or gauges (nothing here has a
+    text rendering worth the effort - a reader wants the numbers, not a
+    redrawn bar), but everything build_report_sections() decides belongs
+    in the report is present, in the same order, same as the docx/pdf
+    paths. Meant for pasting into an issue tracker, a wiki page, or
+    anywhere else prose beats a binary file - the one export format a
+    reader can diff, grep, or read without opening Word or a PDF viewer.
+    """
+    related = _related_papers(assessment)
+    link_by_paper_id = {paper.paper_id: paper.link for paper in related}
+    sections = build_report_sections(assessment)
+
+    lines: list[str] = ["# Research Assessment", ""]
+    lines.append(f"## {_md_escape(assessment.recommendation or 'Not assessed')}")
+    lines.append("")
+    lines.append(
+        f"confidence: {assessment.confidence or '—'} · "
+        f"human reviewed: {'yes' if assessment.human_reviewed else 'no'}"
+    )
+    lines.append("")
+
+    for label, value in _stats_tiles(assessment, related):
+        lines.append(f"- **{label}**: {_md_escape(value)}")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    last_group: str | None = None
+
+    def group_heading(group: str) -> None:
+        index, title, description = GROUP_INFO[group]
+        lines.append(f"## {index}  {title.upper()}")
+        lines.append("")
+        lines.append(f"*{_md_escape(description)}*")
+        lines.append("")
+
+    group_heading("context")
+    lines.append("### Input")
+    lines.append("")
+    lines.append(_md_escape(assessment.research_input.raw_text))
+    lines.append("")
+    lines.append(f"Type: {assessment.research_input.input_type}")
+    lines.append("")
+    last_group = "context"
+
+    for section in sections:
+        if section.group != last_group:
+            group_heading(section.group)
+            last_group = section.group
+
+        heading = f"### {_md_escape(section.label)}"
+        if section.level:
+            heading += f" · {section.level.replace('_', ' ')}"
+        claim_suffix = _claim_suffix(section.claim)
+        if claim_suffix:
+            heading += f" · {_md_escape(claim_suffix)}"
+        lines.append(heading)
+        lines.append("")
+
+        if section.body and section.label == "Existing solutions":
+            lines.extend(_md_comparison_summary(section.body))
+        elif section.body:
+            lines.append(_md_escape(section.body))
+            lines.append("")
+        elif section.unassessed_reason:
+            lines.append(f"*{_md_escape(section.unassessed_reason)}*")
+            lines.append("")
+
+        for item in section.evidence:
+            lines.append(f'> "{_md_escape(item.text)}"')
+            link = link_by_paper_id.get(str(item.paper_id))
+            source = f"[{_md_escape(item.paper_title)}]({link})" if link else _md_escape(item.paper_title)
+            suffix = f" ({_md_escape(item.section)})" if item.section else ""
+            lines.append(f"> — {source}{suffix}")
+            lines.append("")
+
+    if related:
+        lines.append("### References")
+        lines.append("")
+        for i, paper in enumerate(related, start=1):
+            entry = f"[{_md_escape(paper.title)}]({paper.link})" if paper.link else _md_escape(paper.title)
+            lines.append(f"{i}. {entry}")
+        lines.append("")
+
+    lines.append("---")
+    generated_at = datetime.now(timezone.utc)
+    lines.append(f"Assessment {str(assessment.id)[:8]} · Exported {generated_at:%Y-%m-%d %H:%M} UTC")
+    lines.append("")
+
+    return "\n".join(lines).encode("utf-8")

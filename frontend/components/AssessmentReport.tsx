@@ -484,6 +484,13 @@ function Verdict({
             export .pdf
           </a>
 
+          <a
+            href={`${API_BASE}/api/assessments/${assessment.id}/export.md`}
+            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
+          >
+            export .md
+          </a>
+
           <button
             onClick={rerun}
             disabled={rerunning}

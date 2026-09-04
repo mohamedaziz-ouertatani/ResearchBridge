@@ -768,6 +768,28 @@ def test_export_pdf_404s_for_unknown_assessment(client) -> None:
     assert response.status_code == 404
 
 
+def test_export_markdown_returns_a_markdown_file(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    response = client.get(f"/api/assessments/{created['id']}/export.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert f"assessment-{created['id']}.md" in response.headers["content-disposition"]
+    text = response.content.decode("utf-8")
+    assert "evaluated only on offline datasets" in text
+
+
+def test_export_markdown_404s_for_unknown_assessment(client) -> None:
+    response = client.get(f"/api/assessments/{uuid.uuid4()}/export.md")
+
+    assert response.status_code == 404
+
+
 def test_list_assessments_returns_newest_first(client) -> None:
     first = client.post("/api/assessments", json={"raw_text": "idea one"}).json()
     second = client.post("/api/assessments", json={"raw_text": "idea two"}).json()

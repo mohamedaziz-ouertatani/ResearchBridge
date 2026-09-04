@@ -69,7 +69,7 @@ from researchbridge.api.schemas import (
 from researchbridge.api.serializers import to_assessment_claims, to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.claims import sync_claim_status
-from researchbridge.assessment.export import build_docx, build_pdf
+from researchbridge.assessment.export import build_docx, build_markdown, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
 from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.assessment.opportunity_synthesis import (
@@ -469,6 +469,16 @@ def export_assessment_pdf(assessment_id: uuid.UUID, session: Session = Depends(g
         content=build_pdf(out),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=assessment-{assessment_id}.pdf"},
+    )
+
+
+@router.get("/{assessment_id}/export.md")
+def export_assessment_markdown(assessment_id: uuid.UUID, session: Session = Depends(get_session)) -> Response:
+    out = _load_for_export(session, assessment_id)
+    return Response(
+        content=build_markdown(out),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=assessment-{assessment_id}.md"},
     )
 
 
