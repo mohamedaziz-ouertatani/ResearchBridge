@@ -131,6 +131,17 @@ class GapEvidenceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AnalysisClaimOut(BaseModel):
+    id: uuid.UUID
+    claim_type: str
+    confidence: str
+    status: str
+    """Mirrors the linked CandidateGap's status (see gaps/claims.py) -
+    never reviewed independently of it."""
+
+    model_config = {"from_attributes": True}
+
+
 class CandidateGapOut(BaseModel):
     id: uuid.UUID
     seed_paper_id: uuid.UUID
@@ -154,6 +165,10 @@ class CandidateGapOut(BaseModel):
     evidence: list[GapEvidenceOut]
     """Never presented as validated: gap_type is always "inference" (Sec 34),
     and status stays "pending" until a human reviews it here (Sec 35/44)."""
+    claim: AnalysisClaimOut | None
+    """The Sec 16 structured-reasoning mirror of this gap, if one was
+    created (see gaps/claims.py). None for gaps saved before that module
+    existed - not an error."""
 
     model_config = {"from_attributes": True}
 

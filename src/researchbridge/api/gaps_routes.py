@@ -30,6 +30,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_gaps
 from researchbridge.db.models import CandidateGap
+from researchbridge.gaps.claims import sync_claim_status
 
 router = APIRouter(prefix="/api/gaps")
 
@@ -92,6 +93,7 @@ def review_gap(
     gap.reviewed_at = None if payload.status == "pending" else datetime.now(timezone.utc)
     for field in RATING_FIELDS:
         setattr(gap, field, getattr(payload, field))
+    sync_claim_status(session, gap)
     session.commit()
 
     return to_gaps(session, [gap])[0]

@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_session
-from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
+from researchbridge.db.models import AnalysisClaim, CandidateGap, CandidateGapEvidence, ClaimEvidence, Evidence, ExtractedClaim, Paper
 
 
 @pytest.fixture()
@@ -32,8 +32,9 @@ def client(session_factory):
 def session(session_factory):
     s = session_factory()
     yield s
-    # candidate_gaps/candidate_gap_evidence aren't in conftest's TRUNCATE list
-    s.execute(text("TRUNCATE TABLE candidate_gap_evidence, candidate_gaps CASCADE"))
+    # candidate_gaps/candidate_gap_evidence/analysis_claims/claim_evidence
+    # aren't in conftest's TRUNCATE list
+    s.execute(text("TRUNCATE TABLE claim_evidence, analysis_claims, candidate_gap_evidence, candidate_gaps CASCADE"))
     s.commit()
     s.close()
 
@@ -270,6 +271,58 @@ def test_gap_evidence_includes_claim_type_and_role(client, session) -> None:
     assert evidence["self_resolution_signal"] is False
     assert evidence["field_scope_signal"] is True
     assert evidence["own_contribution_overlap"] == 0.2
+
+
+def test_gap_response_includes_linked_analysis_claim(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+    evidence_id = session.execute(
+        text("SELECT evidence_id FROM candidate_gap_evidence WHERE candidate_gap_id = :gap_id"),
+        {"gap_id": gap.id},
+    ).scalar_one()
+
+    claim = AnalysisClaim(
+        claim_type="inference", claim_text=gap.observation, confidence="medium", status=gap.status,
+        source_table="candidate_gaps", source_id=gap.id,
+    )
+    session.add(claim)
+    session.flush()
+    session.add(ClaimEvidence(claim_id=claim.id, evidence_id=evidence_id, relationship="supports"))
+    session.commit()
+
+    item = client.get("/api/gaps").json()["items"][0]
+
+    assert item["claim"]["claim_type"] == "inference"
+    assert item["claim"]["confidence"] == "medium"
+    assert item["claim"]["status"] == "pending"
+
+
+def test_gap_response_claim_is_null_when_none_linked(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    _add_gap(session, seed, other)
+
+    item = client.get("/api/gaps").json()["items"][0]
+
+    assert item["claim"] is None
+
+
+def test_review_gap_syncs_linked_claim_status(client, session) -> None:
+    seed = _add_paper(session, "seed")
+    other = _add_paper(session, "other")
+    gap = _add_gap(session, seed, other)
+
+    claim = AnalysisClaim(
+        claim_type="inference", claim_text=gap.observation, confidence="medium", status="pending",
+        source_table="candidate_gaps", source_id=gap.id,
+    )
+    session.add(claim)
+    session.commit()
+
+    body = client.put(f"/api/gaps/{gap.id}", json={"status": "approved"}).json()
+
+    assert body["claim"]["status"] == "approved"
 
 
 def test_db_rejects_invalid_status_bypassing_the_api(session) -> None:

@@ -407,6 +407,70 @@ class CandidateGapEvidence(Base):
     own_contribution_overlap: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class AnalysisClaim(Base):
+    """A structured, typed piece of system-generated reasoning (Sec 16).
+
+    Distinct from ExtractedClaim (one statement about one paper, grounded by
+    one Evidence row in that same paper): an AnalysisClaim is reasoning
+    ABOUT the corpus - it can synthesize across evidence from several
+    papers, same shape as CandidateGap but not limited to gap detection.
+
+    This first slice only ever writes claim_type="inference", one per
+    CandidateGap (source_table="candidate_gaps", source_id=candidate_gap.id)
+    - see gaps/claims.py. Other claim_type/source_table combinations are
+    schema-only until a producer writes them, same pattern as
+    PaperCitation staying empty until a citation-capable source exists.
+
+    status mirrors whatever the linked source row's own review status is
+    (see gaps/claims.py::sync_claim_status) rather than being reviewed
+    independently - this table is a structured mirror of that reasoning,
+    not a second place to approve/reject it.
+    """
+
+    __tablename__ = "analysis_claims"
+    __table_args__ = (
+        CheckConstraint(
+            "claim_type IN ('fact', 'inference', 'hypothesis', 'opportunity', 'speculation')",
+            name="ck_analysis_claims_claim_type",
+        ),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="ck_analysis_claims_status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_type: Mapped[str] = mapped_column(String, nullable=False)
+    claim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    source_table: Mapped[str] = mapped_column(String, nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ClaimEvidence(Base):
+    """Links one AnalysisClaim to one Evidence row backing it (Sec 16).
+
+    Mirrors CandidateGapEvidence/ResearchAssessmentEvidence: what makes a
+    claim's text inspectable rather than trusted as its own source of truth.
+    """
+
+    __tablename__ = "claim_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "claim_id", "evidence_id", "relationship", name="uq_claim_evidence_claim_evidence_relationship"
+        ),
+        CheckConstraint(
+            "relationship IN ('supports', 'contradicts', 'contextualizes')",
+            name="ck_claim_evidence_relationship",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("analysis_claims.id"), nullable=False)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    relationship: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ResearchInput(Base):
     """One user-submitted item to be assessed (blueprint Sec 2A).
 

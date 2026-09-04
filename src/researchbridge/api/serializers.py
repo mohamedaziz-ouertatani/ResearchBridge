@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchbridge.api.schemas import (
+    AnalysisClaimOut,
     AssessmentEvidenceOut,
     CandidateGapOut,
     ExtractedClaimOut,
@@ -26,6 +27,7 @@ from researchbridge.api.schemas import (
     PaperSummary,
 )
 from researchbridge.db.models import (
+    AnalysisClaim,
     Author,
     CandidateGap,
     CandidateGapEvidence,
@@ -122,6 +124,7 @@ def to_gaps(session: Session, gaps: Sequence[CandidateGap]) -> list[CandidateGap
 
     titles_by_paper_id = _titles_by_paper(session, seed_ids)
     evidence_by_gap = _evidence_by_gap(session, gap_ids)
+    claim_by_gap = _claim_by_gap(session, gap_ids)
 
     return [
         CandidateGapOut(
@@ -143,6 +146,7 @@ def to_gaps(session: Session, gaps: Sequence[CandidateGap]) -> list[CandidateGap
             evidence_support_rating=gap.evidence_support_rating,
             usefulness_rating=gap.usefulness_rating,
             evidence=evidence_by_gap.get(gap.id, []),
+            claim=claim_by_gap.get(gap.id),
         )
         for gap in gaps
     ]
@@ -209,6 +213,13 @@ def _evidence_by_gap(session: Session, gap_ids: list[uuid.UUID]) -> dict[uuid.UU
             )
         )
     return result
+
+
+def _claim_by_gap(session: Session, gap_ids: list[uuid.UUID]) -> dict[uuid.UUID, AnalysisClaimOut]:
+    rows = session.execute(
+        select(AnalysisClaim).where(AnalysisClaim.source_table == "candidate_gaps", AnalysisClaim.source_id.in_(gap_ids))
+    ).scalars()
+    return {claim.source_id: AnalysisClaimOut.model_validate(claim) for claim in rows}
 
 
 def _authors_by_paper(session: Session, paper_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
