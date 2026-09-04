@@ -118,7 +118,13 @@ def summarize_quotes(question: str, hits: list[QuoteHitOut]) -> SummaryResult:
         raise SummarizationUnavailable("local LLM summarization is not enabled")
 
     system_prompt, user_prompt = build_prompt(question, hits)
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "30"))
+    # 20, not 30 (2026-09-04): kept in sync with assessment/opportunity_
+    # synthesis.py's and assessment/application_relevance.py's identical
+    # default - all three share this one env var, so a split default would
+    # only matter when OLLAMA_TIMEOUT_SECONDS is unset, which would then
+    # silently give this call a different timeout than the other two for
+    # no real reason.
+    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
 
     for attempt in range(2):
         try:

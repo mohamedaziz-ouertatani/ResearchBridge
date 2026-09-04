@@ -143,7 +143,13 @@ def filter_relevant_applications(idea_text: str, applications: list[ApplicationR
         raise ApplicationRelevanceUnavailable("no applications to filter")
 
     system_prompt, user_prompt = _build_prompt(idea_text, applications)
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "30"))
+    # 20, not 30 (2026-09-04) - same reasoning as opportunity_synthesis.py's
+    # identical change: this stage now blocks a real assessment-creation
+    # request inline (see build.py), so a slower fail is directly user-
+    # visible latency. Kept in sync with that module's default rather than
+    # tuned separately - relevance judgment is a shorter task than
+    # synthesis, so 20s is if anything more generous here, not tighter.
+    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
 
     for attempt in range(2):
         try:

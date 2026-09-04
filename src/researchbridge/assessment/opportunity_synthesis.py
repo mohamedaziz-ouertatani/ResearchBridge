@@ -380,7 +380,15 @@ def synthesize_opportunities(idea_text: str, applications: list[SourceApplicatio
         raise OpportunitySynthesisUnavailable("no applications to ground opportunity synthesis in")
 
     system_prompt, user_prompt = build_prompt(idea_text, applications)
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "30"))
+    # 20, not 30 (2026-09-04): both inline stages now block a real
+    # assessment-creation request (see build.py), so a slower fail here is
+    # directly user-visible latency, not just an internal retry. 20 stays
+    # comfortably above the documented real worst-case successful latency
+    # for the default model (phi3:mini, 19.6s - see this module's own
+    # "Default model changed" note above) so it doesn't turn slow-but-
+    # working calls into spurious failures, while still failing meaningfully
+    # faster than 30 when Ollama really is unreachable/overloaded.
+    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
 
     for attempt in range(2):
         try:
