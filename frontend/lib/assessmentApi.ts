@@ -18,6 +18,18 @@ export type AssessmentEvidence = {
   section: string | null;
 };
 
+/** The Sec 16 structured-reasoning mirror of a plain-text report field -
+ * see assessment/claims.py. "fact" for comparison_summary, "inference" for
+ * everything else this backs. Status stays "pending" indefinitely for an
+ * assessment-derived claim (no review state to sync against). */
+export type AnalysisClaim = {
+  id: string;
+  claim_type: "fact" | "inference" | "hypothesis" | "opportunity" | "speculation";
+  claim_text: string;
+  confidence: string;
+  status: "pending" | "approved" | "rejected";
+};
+
 export type ResearchInput = {
   id: string;
   input_type: "idea" | "document";
@@ -68,6 +80,10 @@ export type ResearchAssessment = {
   human_reviewed: boolean;
   /** Every populated field above traces back to real quoted passages here. */
   evidence: AssessmentEvidence[];
+  /** Structured Evidence -> Inference mirror of comparison_summary/
+   * novelty_reasoning/research_gap_text/technical_feasibility_reasoning/
+   * risks_and_limitations. Empty for an assessment predating this layer. */
+  claims: AnalysisClaim[];
 };
 
 export type AssessmentHistoryItem = {

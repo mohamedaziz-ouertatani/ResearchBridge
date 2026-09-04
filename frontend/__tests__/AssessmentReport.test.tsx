@@ -35,6 +35,7 @@ function baseAssessment(overrides: Partial<ResearchAssessment> = {}): ResearchAs
     confidence: "medium",
     human_reviewed: false,
     evidence: [],
+    claims: [],
     ...overrides,
   };
 }

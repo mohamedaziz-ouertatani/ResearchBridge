@@ -66,7 +66,7 @@ from researchbridge.api.schemas import (
     ResearchAssessmentSummaryPage,
     SimilarityGraphOut,
 )
-from researchbridge.api.serializers import to_assessment_evidence
+from researchbridge.api.serializers import to_assessment_claims, to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.export import build_docx, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
@@ -504,4 +504,5 @@ def _to_out(
         confidence=assessment.confidence,
         human_reviewed=assessment.human_reviewed,
         evidence=to_assessment_evidence(session, assessment.id),
+        claims=to_assessment_claims(session, assessment.id),
     )

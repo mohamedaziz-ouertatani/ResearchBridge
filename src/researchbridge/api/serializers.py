@@ -182,6 +182,18 @@ def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[A
     ]
 
 
+def to_assessment_claims(session: Session, assessment_id: uuid.UUID) -> list[AnalysisClaimOut]:
+    """The Sec 16 structured-reasoning claims mirroring this assessment's
+    plain-text fields (see assessment/claims.py). Empty for an assessment
+    predating that module, or one with nothing populated to mirror."""
+    rows = session.execute(
+        select(AnalysisClaim).where(
+            AnalysisClaim.source_table == "research_assessments", AnalysisClaim.source_id == assessment_id
+        )
+    ).scalars()
+    return [AnalysisClaimOut.model_validate(claim) for claim in rows]
+
+
 def _titles_by_paper(session: Session, paper_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
     rows = session.execute(select(Paper.id, Paper.title).where(Paper.id.in_(paper_ids))).all()
     return dict(rows)

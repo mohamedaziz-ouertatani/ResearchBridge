@@ -32,6 +32,7 @@ export const RATING_DIMENSIONS: { key: keyof GapRatings; label: string }[] = [
 export type AnalysisClaim = {
   id: string;
   claim_type: string;
+  claim_text: string;
   confidence: string;
   status: "pending" | "approved" | "rejected";
 };

@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   assessmentApi,
+  type AnalysisClaim,
   type AssessmentEvidence,
   type AssessmentHistoryItem,
   type EvidenceRole,
@@ -49,6 +50,15 @@ export function groupByRole(evidence: AssessmentEvidence[]) {
     else byRole.set(item.role, [item]);
   }
   return byRole;
+}
+
+/** Finds the analysis_claim mirroring a given report field's text (see
+ * assessment/claims.py - claim_text is written verbatim from the field, so
+ * exact match is reliable, not a fuzzy heuristic). Undefined for a NULL
+ * field or an assessment predating the claims layer. */
+function claimForText(claims: AnalysisClaim[], text: string | null): AnalysisClaim | undefined {
+  if (!text) return undefined;
+  return claims.find((c) => c.claim_text === text);
 }
 
 /** The report's three groups, used to build both the jump-nav and the
@@ -173,7 +183,12 @@ export function AssessmentReport({
         </Group>
 
         <Group {...REPORT_GROUPS[1]}>
-          <Field id="existing-solutions" label="existing solutions" evidence={byRole.get("comparison")}>
+          <Field
+            id="existing-solutions"
+            label="existing solutions"
+            evidence={byRole.get("comparison")}
+            claim={claimForText(assessment.claims, assessment.comparison_summary)}
+          >
             {assessment.comparison_summary ? (
               <ComparisonSummary text={assessment.comparison_summary} />
             ) : (
@@ -186,6 +201,7 @@ export function AssessmentReport({
             label="corpus similarity / novelty signal"
             evidence={byRole.get("novelty")}
             level={assessment.novelty_level}
+            claim={claimForText(assessment.claims, assessment.novelty_reasoning)}
           >
             {assessment.novelty_reasoning ? (
               <Prose text={assessment.novelty_reasoning} />
@@ -198,7 +214,12 @@ export function AssessmentReport({
             </p>
           </Field>
 
-          <Field id="research-gap" label="research gap" evidence={byRole.get("research_gap")}>
+          <Field
+            id="research-gap"
+            label="research gap"
+            evidence={byRole.get("research_gap")}
+            claim={claimForText(assessment.claims, assessment.research_gap_text)}
+          >
             {assessment.research_gap_text ? (
               <>
                 <Prose text={assessment.research_gap_text} />
@@ -260,6 +281,7 @@ export function AssessmentReport({
             label="technical feasibility"
             evidence={byRole.get("feasibility")}
             level={assessment.technical_feasibility_level}
+            claim={claimForText(assessment.claims, assessment.technical_feasibility_reasoning)}
           >
             {assessment.technical_feasibility_reasoning ? (
               <Prose text={assessment.technical_feasibility_reasoning} />
@@ -273,7 +295,12 @@ export function AssessmentReport({
             </p>
           </Field>
 
-          <Field id="risks" label="risks / limitations" evidence={byRole.get("risk")}>
+          <Field
+            id="risks"
+            label="risks / limitations"
+            evidence={byRole.get("risk")}
+            claim={claimForText(assessment.claims, assessment.risks_and_limitations)}
+          >
             {assessment.risks_and_limitations ? (
               <Preformatted text={assessment.risks_and_limitations} />
             ) : (
@@ -727,6 +754,7 @@ function Field({
   label,
   level,
   evidence,
+  claim,
   gradeable = true,
   children,
 }: {
@@ -735,6 +763,10 @@ function Field({
   label: string;
   level?: string;
   evidence?: AssessmentEvidence[];
+  /** The Sec 16 structured-reasoning claim mirroring this field's text, if
+   * one exists (see claimForText). Undefined for a NULL field or an
+   * assessment predating the claims layer - not an error. */
+  claim?: AnalysisClaim;
   /** False for fields the literature cannot back either way - the reader's own
       input, the list of papers retrieved, the external-validation disclaimer.
       Their gutter stays blank so "—" keeps one precise meaning: this reading
@@ -764,7 +796,17 @@ function Field({
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="eyebrow">{label}</span>
-          {level && <span className="readout text-[0.75rem] text-[var(--ink-soft)]">{level.replace("_", " ")}</span>}
+          <span className="flex items-baseline gap-3">
+            {claim && (
+              <span
+                className="readout text-[0.75rem] text-[var(--ink-faint)]"
+                title={`Structured as a "${claim.claim_type}" claim (Sec 16) - confidence: ${claim.confidence}`}
+              >
+                {claim.claim_type} · confidence: {claim.confidence}
+              </span>
+            )}
+            {level && <span className="readout text-[0.75rem] text-[var(--ink-soft)]">{level.replace("_", " ")}</span>}
+          </span>
         </div>
 
         <div className="mt-3">{children}</div>

@@ -242,6 +242,25 @@ def test_post_assessment_potential_opportunities_stays_null(client, session, emb
     assert body["potential_opportunities"] is None
 
 
+def test_post_assessment_includes_analysis_claims(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    claim_types = {c["claim_type"] for c in body["claims"]}
+    assert "fact" in claim_types  # comparison summary
+    comparison_claim = next(c for c in body["claims"] if c["claim_type"] == "fact")
+    assert "evaluated only on offline datasets" in comparison_claim["claim_text"]
+
+
+def test_post_assessment_claims_is_empty_list_without_any_grounded_field(client, session) -> None:
+    body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers in the corpus"}).json()
+
+    assert body["claims"] == []
+
+
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
 

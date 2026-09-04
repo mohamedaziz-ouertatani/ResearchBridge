@@ -134,10 +134,13 @@ class GapEvidenceOut(BaseModel):
 class AnalysisClaimOut(BaseModel):
     id: uuid.UUID
     claim_type: str
+    claim_text: str
     confidence: str
     status: str
-    """Mirrors the linked CandidateGap's status (see gaps/claims.py) -
-    never reviewed independently of it."""
+    """For a gap-derived claim: mirrors the linked CandidateGap's status
+    (see gaps/claims.py). For an assessment-derived claim: always
+    "pending" - ResearchAssessment has no approve/reject review state to
+    sync against (see assessment/claims.py)."""
 
     model_config = {"from_attributes": True}
 
@@ -271,6 +274,11 @@ class ResearchAssessmentOut(BaseModel):
     """Every populated field above traces back to real quoted passages here
     (Sec 15/17). An assessment is a lightweight summary, never its own
     source of truth - if a field can't point at evidence, it is NULL."""
+    claims: list[AnalysisClaimOut]
+    """The Sec 16 structured-reasoning mirror of this assessment's
+    comparison/novelty/research_gap/feasibility/risk text fields (see
+    assessment/claims.py) - empty for an assessment predating that module,
+    or one where none of those five fields were populated."""
 
 
 class ResearchAssessmentCreate(BaseModel):
