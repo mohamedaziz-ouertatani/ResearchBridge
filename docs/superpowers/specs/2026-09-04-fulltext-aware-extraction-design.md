@@ -92,15 +92,29 @@ Inside HeuristicExtractor.extract(paper, sections):
       a full-text equivalent worth inventing.
 
 Inside SemanticExtractor.extract(paper, sections):
-  for each field in FIELD_SECTIONS:
-      full_text_sentences = <same construction as above>
-      if full_text_sentences: embed only those sentences + the field's anchor query, pick the best
-          match above MIN_SIMILARITY, section=<source section>, same confidence-tier logic as today
-          (MEDIUM_CONFIDENCE_SIMILARITY threshold) but operating on full-text sentences
-      else: fall back to embedding abstract sentences exactly as today, section="abstract"
-  Cost stays bounded: each field only ever embeds its own 1-3 target sections' sentences (typically
-  a few hundred words), never the whole paper - the reason "targeted per field" was chosen over
-  "every field searches everything" (see design conversation).
+  Preserves the original "each sentence proposes to its own single best-matching field" bipartite
+  algorithm (this file's own docstring explains why - one generic-sounding sentence must not win
+  several fields at once) by grouping fields BY THE EXACT POOL they'll draw from before running that
+  algorithm, rather than resolving each field's full-text match in isolation:
+    for each field in FIELD_SECTIONS:
+        full_text_pairs = sentences_for_field(field, sections)
+        if full_text_pairs: this field's pool_key = "fulltext:<the resolved section name>"
+        else: this field's pool_key = "abstract" (shared by every field with no full-text match)
+    group fields by identical pool_key
+    for each group: run the ORIGINAL algorithm - one embed_texts() call over that group's shared
+        sentence pool + only that group's field anchor queries, each sentence proposes to its best
+        field within the group, each field picks its best proposing sentence, same MIN_SIMILARITY/
+        MEDIUM_CONFIDENCE_SIMILARITY thresholds as today (confidence is NOT bumped to "high" for a
+        semantic full-text hit - a similarity score isn't the same certainty as a verbatim cue-phrase
+        hit, so only HeuristicExtractor gets that treatment); candidates from a "fulltext:*" group
+        carry that section name, candidates from the "abstract" group carry section="abstract"
+  A paper with no full text at all (sections={}) puts every field in the single "abstract" group,
+  reproducing today's exact single-embed-call behavior - this is not a special case, it falls out of
+  the grouping naturally. Two fields that happen to target the SAME section (e.g. method and dataset
+  both -> methods/experiments) land in the same group and correctly compete for that section's
+  sentences, preserving the collision-avoidance the original algorithm exists for. Cost stays
+  bounded: each group only ever embeds its own resolved section's sentences (typically a few hundred
+  words), never the whole paper.
 
 Inside HybridExtractor.extract(paper, sections):
   unchanged _choose() logic, just threading `sections` through to both inner extractors' calls -
@@ -165,11 +179,14 @@ in; `extract()` tries `sentences_for_field(field, sections)` first, falls back t
 cue-phrase hit in `sentences_for_field`'s output, `"medium"` for the existing abstract-only path
 (unchanged from today), `"low"` for the `"problem"` first-sentence fallback (unchanged, abstract-only).
 
-**`extraction/semantic.py`**: same fallback structure; embeds `sentences_for_field(field, sections)`'s
-sentences (plus the field's anchor) when non-empty, else today's abstract-sentences path. The
-`MIN_SIMILARITY`/`MEDIUM_CONFIDENCE_SIMILARITY` thresholds are reused unchanged - re-tuning them for
-full-text sentence distributions is future work once real full-text extraction data exists to
-measure against, not a blocking part of this build.
+**`extraction/semantic.py`**: restructured around the pool-grouping algorithm above rather than a
+per-field loop - `extract()` computes each field's `pool_key` (`sentences_for_field`'s resolved
+section, or `"abstract"`), groups fields by it, and calls a `_match_pool(fields, sentences,
+section_name)` helper (the original bipartite matching logic, extracted into its own method so it
+can run once per group instead of once globally) for each group. The `MIN_SIMILARITY`/
+`MEDIUM_CONFIDENCE_SIMILARITY` thresholds are reused unchanged - re-tuning them for full-text
+sentence distributions is future work once real full-text extraction data exists to measure
+against, not a blocking part of this build.
 
 **`extraction/hybrid.py`**: `extract(self, paper, sections)` threads `sections` through to both inner
 `.extract(paper, sections)` calls. `_choose()` needs one real fix: its non-"problem" branch currently
