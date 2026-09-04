@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.13",
+    "defusedxml>=0.7.1",
     "fastapi>=0.141.1",
     "feedparser>=6.0.14",
     "pgvector>=0.5.0",

@@ -3,13 +3,15 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 from sqlalchemy import select
 
 from researchbridge.assessment.build import build_assessment
+from researchbridge.connectors.epo_patents import PatentHit
+from researchbridge.connectors.world_bank import IndicatorValue
 from researchbridge.db.models import (
     EMBEDDING_DIM,
     AnalysisClaim,
@@ -111,6 +113,34 @@ def test_comparison_summary_is_grounded_in_real_claim_text(session_factory, embe
     session.close()
     assert assessment.comparison_summary is not None
     assert "evaluated only in offline settings" in assessment.comparison_summary
+
+
+def test_external_validation_uses_real_connector_results(session_factory, embedder) -> None:
+    session = session_factory()
+    ri = _research_input(session, "soil moisture sensor network for automated irrigation control")
+    session.commit()
+
+    fake_patent_hit = PatentHit(
+        title="Automated irrigation control system",
+        publication_number="TN12345B1",
+        applicant="Example Agritech SARL",
+        publication_date=None,
+        url=None,
+    )
+    fake_indicator = IndicatorValue(indicator_name="GDP", value=1.0, year=2023, unit="current US$")
+
+    with (
+        patch("researchbridge.assessment.build._build_patent_connector") as mock_patent_factory,
+        patch("researchbridge.assessment.build.WorldBankConnector") as mock_market_cls,
+    ):
+        mock_patent_factory.return_value.search.return_value = [fake_patent_hit]
+        mock_market_cls.return_value.fetch_indicators.return_value = [fake_indicator]
+
+        assessment = build_assessment(session, ri.id, embedder)
+
+    session.close()
+    assert "TN12345B1" in assessment.external_validation_needed
+    assert "GDP" in assessment.external_validation_needed
 
 
 def test_comparison_evidence_is_linked_for_every_claim_used(session_factory, embedder) -> None:

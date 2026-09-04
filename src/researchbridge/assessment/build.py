@@ -44,6 +44,7 @@ When True:
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 
@@ -74,9 +75,19 @@ from researchbridge.assessment.opportunity_synthesis import (
 from researchbridge.assessment.recommendation import assess_recommendation
 from researchbridge.assessment.representation import build_research_representation
 from researchbridge.assessment.risks import assess_risks
+from researchbridge.connectors.epo_patents import EPOPatentConnector
+from researchbridge.connectors.world_bank import WorldBankConnector
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.search import search_by_text
+
+
+def _build_patent_connector() -> EPOPatentConnector | None:
+    consumer_key = os.environ.get("EPO_OPS_CONSUMER_KEY")
+    consumer_secret = os.environ.get("EPO_OPS_CONSUMER_SECRET")
+    if not consumer_key or not consumer_secret:
+        return None
+    return EPOPatentConnector(consumer_key=consumer_key, consumer_secret=consumer_secret)
 
 
 def build_assessment(
@@ -169,7 +180,14 @@ def build_assessment(
             pass  # fail closed - keep assess_opportunities()'s deterministic NULL default
 
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
-    external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
+    external_validation = assess_external_validation(
+        title=research_input.title,
+        raw_text=research_input.raw_text,
+        has_applications=bool(applications.applications),
+        patent_connector=_build_patent_connector(),
+        market_connector=WorldBankConnector(),
+    )
+    external_validation_needed = external_validation.text
     recommendation = assess_recommendation(
         novelty_level=novelty.level,
         # only count the gap as "found" for recommendation purposes if it's
