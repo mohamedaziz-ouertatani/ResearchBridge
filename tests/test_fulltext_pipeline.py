@@ -11,6 +11,16 @@ from researchbridge.fulltext.parse import PdfParseError
 from researchbridge.fulltext.pipeline import FullTextFetchPipeline
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch) -> None:
+    # throttle() is a real time.sleep(3.0) for arxiv-sourced papers - the
+    # default source in this file's _paper() helper - mocked everywhere so
+    # the suite doesn't pay 3s per test for real
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "throttle", lambda: None)
+
+
 def _paper(session, source: str = "arxiv", source_id: str = "2401.00001", open_access: bool = True) -> Paper:
     paper = Paper(
         id=uuid.uuid4(), source=source, source_id=source_id, title="t", abstract="",
@@ -179,6 +189,51 @@ def test_force_refetches_an_already_fetched_paper(session_factory, monkeypatch) 
         assert row.sections == {"body": "second"}  # updated in place, not duplicated
     finally:
         session.close()
+
+
+def test_throttles_after_an_arxiv_fetch_whether_it_succeeds_or_fails(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    good = _paper(session, source_id="2401.00001")
+    bad = _paper(session, source_id="2401.00002")
+    session.close()
+
+    mock_throttle = Mock()
+    monkeypatch.setattr(pipeline_module, "throttle", mock_throttle)
+    monkeypatch.setattr(pipeline_module, "parse_pdf", lambda pdf_bytes: {"body": "hello"})
+
+    def fake_get(url, timeout):
+        if "2401.00002" in url:
+            raise requests.ConnectionError("connection refused")
+        return Mock(content=b"pdf-bytes", raise_for_status=Mock())
+
+    monkeypatch.setattr(pipeline_module.requests, "get", fake_get)
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    pipeline.run()
+
+    assert mock_throttle.call_count == 2  # once per arxiv paper, success and failure alike
+
+
+def test_does_not_throttle_for_non_arxiv_sources(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    _paper(session, source="semantic_scholar", source_id="s2-1")
+    session.close()
+
+    mock_throttle = Mock()
+    monkeypatch.setattr(pipeline_module, "throttle", mock_throttle)
+    monkeypatch.setattr(pipeline_module, "parse_pdf", lambda pdf_bytes: {"body": "hello"})
+    monkeypatch.setattr(
+        pipeline_module.requests, "get", Mock(return_value=Mock(content=b"pdf-bytes", raise_for_status=Mock()))
+    )
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    pipeline.run()
+
+    mock_throttle.assert_not_called()
 
 
 def test_core_paper_fetches_via_the_api_not_a_pdf_url(session_factory, monkeypatch) -> None:

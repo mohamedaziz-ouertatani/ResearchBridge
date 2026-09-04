@@ -19,6 +19,7 @@ import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from researchbridge.benchmark.fulltext import throttle
 from researchbridge.db.models import FullTextFetchError, FullTextFetchRun, Paper, PaperFullText
 from researchbridge.fulltext.core_fetch import fetch_core_fulltext
 from researchbridge.fulltext.parse import PdfParseError, parse_pdf, split_sections
@@ -97,6 +98,10 @@ class FullTextFetchPipeline:
             self._record_error(session, run.id, paper.id, "fetch_error", str(exc)[:2000])
             run.papers_failed += 1
             return
+        finally:
+            if paper.source == "arxiv":
+                throttle()  # same MIN_REQUEST_INTERVAL_SECONDS the connector uses - a
+                # real request against arxiv.org just happened whether it succeeded or not
 
         try:
             sections = parse_pdf(response.content)
