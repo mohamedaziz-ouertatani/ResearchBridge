@@ -24,14 +24,49 @@ persisted or silently relabeled - the report must never present a
 misclassified claim as if it were correctly classified.
 
 Deliberately narrow in scope, matching the reported failure modes:
-VALIDATABLE_CLAIM_TYPES covers only the six fields the bug report named
-(research_gap, applications, limitations, results, method, problem).
-research_question/dataset/main_contribution (and the stub extractor's
-"contribution") have no reported misclassification and no natural
+VALIDATABLE_CLAIM_TYPES originally covered only the six fields the bug
+report named (research_gap, applications, limitations, results, method,
+problem). research_question/main_contribution (and the stub extractor's
+"contribution") still have no reported misclassification and no natural
 lexicon to check against - inventing a weak one just to say "we validate
 everything" would trade real false negatives now for imagined ones
 later. Those types are accepted unconditionally: unvalidated, not
 "validated ok".
+
+"dataset" joined the validated set on 2026-09-04, after a real, concrete
+false positive: a generic survey-article sentence ("By harnessing machine
+learning algorithms, natural language processing, and computer vision, AI
+enables the analysis of complex medical data") was extracted as a
+"dataset" claim and, via assessment/feasibility.py, alone drove a
+"technical_feasibility_level: high" verdict for an unrelated, vague idea -
+zero actual dataset/methodology content, just field-level prose. Unlike
+the still-unvalidated types above, this DOES have a natural, checkable
+lexicon: a genuine dataset claim almost always either names the
+dataset/benchmark/corpus explicitly, or states a concrete quantity (a
+sample count, image count, participant count, etc.) - see
+_DATASET_LANGUAGE_RE. Checked against a random sample of 60 real
+"dataset"-labeled claims from the corpus: the pattern accepts every
+claim naming a concrete count ("140,053 observations", "2,375 pages...
+120 unique-target queries", "596,980 images") or a named
+dataset/benchmark ("CASIA-OLHWDB1.1 dataset", "Split-CIFAR-10... Split-
+TinyImageNet", "TokSearch... Database"), and correctly rejects the purely
+generic, non-quantitative, unnamed prose that extraction has been
+mislabeling as "dataset" (method descriptions, results statements,
+motivation sentences, funding acknowledgments) - including the exact
+healthcare false positive above. A handful of vague-but-real dataset
+mentions with neither a name nor a number ("data collected on specific
+handwriting characteristics") are accepted losses, the same tradeoff
+OWN_TASK_OVERLAP_THRESHOLD's calibration made elsewhere in this project:
+real precision gain, small acknowledged recall cost.
+
+This only protects NEW extractions run after this change - it does not
+retroactively re-validate the ~existing "dataset" claims already
+persisted (unlike research_gap/applications/etc., which were validated
+from day one). See scripts/backfill_claim_revalidation.py for the
+existing precedent on backfilling a validation change across the corpus;
+whether/when to run an equivalent backfill for "dataset" specifically is
+a separate, deliberately unmade decision here - reprocessing this many
+rows in the production DB is its own call, not bundled into this fix.
 
 Deliberately conservative in direction, per Sec 8's research-gap rule
 ("results/achievements must never be accepted as research gaps simply
@@ -48,7 +83,7 @@ import re
 from dataclasses import dataclass
 
 VALIDATABLE_CLAIM_TYPES = frozenset(
-    {"problem", "method", "results", "limitations", "research_gap", "applications"}
+    {"problem", "method", "results", "limitations", "research_gap", "applications", "dataset"}
 )
 
 # Metric/achievement language - shared by "results" (required) and used as
@@ -395,6 +430,30 @@ _METHOD_LANGUAGE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# See module docstring's 2026-09-04 note for the calibration this was
+# checked against. Two independent signals, either is sufficient: (1) an
+# explicit name for the data itself (dataset/benchmark/corpus/database,
+# singular or plural - "database" catches phrasing like "TokSearch...
+# Database" that never says the word "dataset"), or (2) a concrete
+# quantity attached to a countable data unit (sample/image/record/
+# patient/etc. count) - the two ways a real dataset claim actually
+# grounds itself, as opposed to generic field-level or method-level prose
+# that happens to mention "data" in passing (which this deliberately does
+# NOT match - bare "data"/"information" is too generic on its own, see
+# the rejected healthcare-survey example in the module docstring).
+_DATASET_LANGUAGE_RE = re.compile(
+    r"\bdata\s*set(s)?\b|\bbenchmark(s)?\b|\bcorpus\b|\bcorpora\b|\bdatabase(s)?\b"
+    # up to 3 intervening words between the count and its noun ("1235 TEST
+    # images", "2000 ANONYMIZED people") - found live during backfill
+    # dry-run sanity checking: a bare digit-then-noun pattern with no
+    # allowance for an adjective/qualifier in between missed both of
+    # these real examples, inflating the false-reject rate.
+    r"|\b\d[\d,]*\+?\s*(?:[a-z]+\s+){0,3}(images?|samples?|records?|patients?|subjects?|instances?"
+    r"|observations?|documents?|examples?|videos?|shots?|pages?|queries|participants?|cases?"
+    r"|scans?|people|users)\b",
+    re.IGNORECASE,
+)
+
 _LIMITATION_LANGUAGE_RE = re.compile(
     r"\bhowever,?\b|\ba limitation\b|\bdoes not\b|\bfails? to\b|\bremains? challenging\b"
     r"|\bis limited to\b|\bweakness(es)?\b|\blimitation(s)? of\b|\bshortcoming(s)?\b|\bdrawback(s)?\b"
@@ -533,6 +592,15 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
     if claim_type == "method":
         if not _METHOD_LANGUAGE_RE.search(text):
             return ValidationResult(False, "no method/approach language found")
+        return ValidationResult(True)
+
+    if claim_type == "dataset":
+        if not _DATASET_LANGUAGE_RE.search(text):
+            return ValidationResult(
+                False,
+                "no named dataset/benchmark/corpus and no concrete data quantity found; "
+                "reads as generic field/method prose, not a dataset statement",
+            )
         return ValidationResult(True)
 
     if claim_type == "problem":

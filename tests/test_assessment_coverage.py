@@ -44,6 +44,7 @@ def _claim(claim_type: str, text: str) -> tuple[str, str, uuid.UUID]:
 
 
 NEAR = 0.1
+MID = 0.5  # within RELEVANCE_DISTANCE (0.65) but beyond coverage.py's own NEAR_DISTANCE (0.35)
 FAR = 0.9
 
 
@@ -138,6 +139,54 @@ def test_evidence_ids_always_trace_back_to_input_claims(embedder) -> None:
 
     all_input_evidence_ids = {method_claim[2], other_claim[2]}
     assert set(result[0].evidence_ids) <= all_input_evidence_ids
+
+
+# --- NEAR_DISTANCE gate on established/partially_addressed: 2+ distinct
+# papers is only trusted as established/partially_addressed if at least
+# one is genuinely CLOSE (<=0.35), not merely topically adjacent (<=0.65) -
+# see coverage.py's own NEAR_DISTANCE docstring for the real false
+# positive this fixes.
+
+
+def test_multiple_topically_adjacent_but_not_close_papers_downgrades_to_weak_evidence(embedder) -> None:
+    dims = [IdeaDimension(label="concept drift")]
+    papers = [
+        ("Paper A", MID, [_claim("method", "handles concept drift concept drift directly")]),
+        ("Paper B", MID, [_claim("results", "concept drift concept drift adaptation improved accuracy")]),
+    ]
+
+    result = compute_dimension_coverage(dims, papers, embedder)
+
+    # would be "established" under the old paper-distance-blind rule (2
+    # distinct papers, one affirmative) - downgraded because neither paper
+    # is actually close to the idea
+    assert result[0].status == "weak_evidence"
+    assert len(result[0].supporting_paper_titles) == 2
+
+
+def test_established_only_needs_one_of_several_papers_to_be_close(embedder) -> None:
+    dims = [IdeaDimension(label="concept drift")]
+    papers = [
+        ("Near Paper", NEAR, [_claim("method", "handles concept drift concept drift directly")]),
+        ("Mid Paper", MID, [_claim("results", "concept drift concept drift adaptation improved accuracy")]),
+    ]
+
+    result = compute_dimension_coverage(dims, papers, embedder)
+
+    assert result[0].status == "established"
+    assert len(result[0].supporting_paper_titles) == 2
+
+
+def test_partially_addressed_also_requires_a_close_paper(embedder) -> None:
+    dims = [IdeaDimension(label="concept drift")]
+    papers = [
+        ("Paper A", MID, [_claim("limitations", "concept drift concept drift is unhandled")]),
+        ("Paper B", MID, [_claim("research_gap", "concept drift concept drift remains open")]),
+    ]
+
+    result = compute_dimension_coverage(dims, papers, embedder)
+
+    assert result[0].status == "weak_evidence"
 
 
 def test_multiple_dimensions_are_each_scored_independently(embedder) -> None:

@@ -590,16 +590,17 @@ def test_genuine_problem_statement_is_accepted() -> None:
 
 
 def test_unvalidated_claim_type_is_always_accepted() -> None:
-    # dataset/research_question/main_contribution/the stub extractor's
+    # research_question/main_contribution/the stub extractor's
     # "contribution" have no lexicon here (Sec 28's minimum-scope list) -
     # they're passed through unvalidated, not silently "validated ok".
-    text = "Our model achieves 94.2% AUC and an F1 score of 0.89 on the benchmark."
-    result = validate_claim_type("dataset", text)
+    text = "This text contains no relevant language for any validated claim type at all."
+    result = validate_claim_type("research_question", text)
 
     assert result.is_valid is True
 
 
 def test_validatable_claim_types_covers_the_minimum_scope_fields() -> None:
+    # "dataset" joined 2026-09-04 - see validation.py's module docstring
     assert VALIDATABLE_CLAIM_TYPES == {
         "problem",
         "method",
@@ -607,6 +608,7 @@ def test_validatable_claim_types_covers_the_minimum_scope_fields() -> None:
         "limitations",
         "research_gap",
         "applications",
+        "dataset",
     }
 
 
@@ -652,3 +654,102 @@ def test_application_is_weakly_grounded_matches_the_persisted_tier() -> None:
 
     assert application_is_weakly_grounded(weak_text) is True
     assert application_is_weakly_grounded(strong_text) is False
+
+
+# --- dataset claim validation (added 2026-09-04) - see validation.py's own
+# module docstring for the real false positive this fixes and the
+# calibration sample it was checked against.
+
+
+def test_generic_field_level_prose_mislabeled_as_dataset_is_rejected() -> None:
+    # the actual reported bug: this sentence, extracted as claim_type
+    # "dataset", alone drove a "technical_feasibility_level: high" verdict
+    # for an unrelated, vague idea via assessment/feasibility.py
+    text = (
+        "By harnessing machine learning algorithms, natural language processing, and "
+        "computer vision, AI enables the analysis of complex medical data."
+    )
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is False
+    assert result.reason
+
+
+def test_named_dataset_is_accepted() -> None:
+    text = (
+        "We conducted recognition experiments on three subsets of the CASIA-OLHWDB1.1 "
+        "dataset: digits, English upper letters, and Chinese radicals."
+    )
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+
+
+def test_named_database_without_the_word_dataset_is_accepted() -> None:
+    text = "Database creation was enabled by the search engine tool for DIII-D data, TokSearch."
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+
+
+def test_concrete_sample_count_is_accepted() -> None:
+    text = "After data preparation, the final analytical dataset contains 140,053 observations."
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+
+
+def test_concrete_image_count_without_the_word_dataset_is_accepted() -> None:
+    text = "Results: the model was trained on 596,980 images, including 426,674 SB images."
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+
+
+def test_named_benchmark_is_accepted() -> None:
+    text = (
+        "Empirical evaluations on standard benchmarks, including Split-CIFAR-10, "
+        "Split-CIFAR-100, and Split-TinyImageNet, demonstrate that FedQCL outperforms "
+        "state-of-the-art baselines."
+    )
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+
+
+def test_method_description_mislabeled_as_dataset_is_rejected() -> None:
+    text = (
+        "In this paper, we propose an energy-aware low-rank student network construction "
+        "framework based on truncated singular value decomposition and knowledge distillation."
+    )
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is False
+
+
+def test_motivation_sentence_mislabeled_as_dataset_is_rejected() -> None:
+    text = (
+        "Due to the communication bottleneck in distributed and federated learning "
+        "applications, algorithms using communication compression have attracted "
+        "significant attention and are widely used in practice."
+    )
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is False
+
+
+def test_bare_data_mention_without_quantity_or_name_is_rejected() -> None:
+    # "data"/"information" alone is too generic - must name the dataset or
+    # give a concrete quantity, see the module docstring
+    text = "This model introduces a flexible structure that can deal with missing data."
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is False
+
+
+def test_dataset_claim_has_no_tier() -> None:
+    text = "After data preparation, the final analytical dataset contains 140,053 observations."
+    result = validate_claim_type("dataset", text)
+
+    assert result.is_valid is True
+    assert result.tier is None

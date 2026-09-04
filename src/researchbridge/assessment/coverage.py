@@ -52,6 +52,44 @@ EvidencedPaper = tuple[str, float, list[ClaimRecord]]  # (paper_title, distance,
 # this constant too.
 RELEVANCE_DISTANCE = 0.65
 
+# A second, tighter gate - mirrors novelty.NEAR_DISTANCE exactly (same
+# duplicated-literal reasoning as RELEVANCE_DISTANCE above). Added
+# 2026-09-04 after a real false-established reading: "quantum-annealed
+# reinforcement learning" (one dimension of a deliberately absurd idea -
+# "training housecats to play chess via quantum-annealed RL") scored
+# "established" purely because ordinary reinforcement-learning papers
+# share the dominant "reinforcement learning" vocabulary with the
+# compound phrase - none of them are actually about quantum computing.
+# Checked directly against the real corpus (not guessed): every paper
+# supporting that false "established" verdict sat at OVERALL distance
+# 0.44-0.49 from the whole idea text (retrieved via search_by_text) -
+# topically adjacent, never actually close. The real, well-formed fraud/
+# federated-learning worked example's own established/partially_addressed
+# dimensions, by contrast, are ALL supported by papers at 0.208-0.347 -
+# comfortably on the other side of NEAR_DISTANCE=0.35. A clean separation,
+# not a coin flip - and this reuses feasibility.py's already-proven fix
+# for the identical failure mode (that module was tightened from
+# RELEVANCE_DISTANCE to NEAR_DISTANCE for exactly this "topically-adjacent
+# absurd idea" reason - see its own docstring), rather than re-trying
+# either of the two levers already tested and rejected for THIS module
+# (DIMENSION_MATCH_SIMILARITY below, and capping RAKE's stopword-free
+# phrase length in dimensions.py) - both of those act on the SAME signal
+# (claim-to-dimension text similarity) that produces this false positive
+# in the first place, so tightening either one trades away genuine recall
+# elsewhere (see DIMENSION_MATCH_SIMILARITY's own docstring). This is a
+# different, independent signal (how close the SOURCE PAPER itself is to
+# the whole idea) - it does not touch dimension extraction or claim-
+# matching at all, so it doesn't carry that same recall-loss risk.
+#
+# Deliberately scoped to the established/partially_addressed tiers only,
+# not folded into RELEVANCE_DISTANCE itself: novelty.py's own
+# "moderately related" (medium novelty) band is 0.35-0.65, so a paper out
+# there still deserves to contribute weak_evidence-level signal - only the
+# stronger established/partially_addressed verdicts (which can swing
+# novelty all the way to "low") need genuine closeness, not just topical
+# adjacency.
+NEAR_DISTANCE = 0.35
+
 # Checked against the real corpus/embedder (all-MiniLM-L6-v2), not just
 # guessed - the fraud/federated-learning worked example's own claim-vs-
 # dimension similarity distribution: overall min=-0.077, p25=0.104,
@@ -111,10 +149,10 @@ def compute_dimension_coverage(
     if not relevant:
         return [DimensionCoverage(dimension=d.label, status="not_assessed") for d in dimensions]
 
-    all_claims: list[tuple[str, ClaimRecord]] = [
-        (title, claim) for title, _distance, claims in relevant for claim in claims
+    all_claims: list[tuple[str, float, ClaimRecord]] = [
+        (title, distance, claim) for title, distance, claims in relevant for claim in claims
     ]
-    claim_texts = [claim[1] for _title, claim in all_claims]
+    claim_texts = [claim[1] for _title, _distance, claim in all_claims]
     dimension_labels = [d.label for d in dimensions]
     vectors = embedder.embed_texts(dimension_labels + claim_texts)
     dimension_vectors = vectors[: len(dimension_labels)]
@@ -122,29 +160,43 @@ def compute_dimension_coverage(
 
     results: list[DimensionCoverage] = []
     for dimension, dvec in zip(dimensions, dimension_vectors, strict=True):
-        matches: list[tuple[str, ClaimRecord]] = []
-        for (title, claim), cvec in zip(all_claims, claim_vectors, strict=True):
+        matches: list[tuple[str, float, ClaimRecord]] = []
+        for (title, distance, claim), cvec in zip(all_claims, claim_vectors, strict=True):
             similarity = sum(a * b for a, b in zip(dvec, cvec, strict=True))
             if similarity >= DIMENSION_MATCH_SIMILARITY:
-                matches.append((title, claim))
+                matches.append((title, distance, claim))
 
         results.append(_status_for(dimension.label, matches))
     return results
 
 
-def _status_for(label: str, matches: list[tuple[str, ClaimRecord]]) -> DimensionCoverage:
+def _status_for(label: str, matches: list[tuple[str, float, ClaimRecord]]) -> DimensionCoverage:
     if not matches:
         return DimensionCoverage(dimension=label, status="not_found")
 
     papers_by_title: dict[str, list[ClaimRecord]] = {}
-    for title, claim in matches:
+    distance_by_title: dict[str, float] = {}
+    for title, distance, claim in matches:
         papers_by_title.setdefault(title, []).append(claim)
+        distance_by_title[title] = distance
 
     distinct_paper_count = len(papers_by_title)
-    evidence_ids = [claim[2] for _title, claim in matches]
+    evidence_ids = [claim[2] for _title, _distance, claim in matches]
     titles = list(papers_by_title)
 
     if distinct_paper_count == 1:
+        return DimensionCoverage(
+            dimension=label, status="weak_evidence", evidence_ids=evidence_ids, supporting_paper_titles=titles
+        )
+
+    # NEAR_DISTANCE gate: 2+ distinct papers is only "established"/
+    # "partially_addressed" - strong enough to swing novelty to "low" - if
+    # at least one of them is actually CLOSE to the idea, not merely
+    # topically adjacent. See NEAR_DISTANCE's own docstring for the real
+    # false-positive this fixes (quantum-annealed cat chess). Downgrades to
+    # weak_evidence rather than not_found - this is still real, retrieved,
+    # on-topic signal, just not corroboration strong enough to trust.
+    if not any(distance_by_title[title] <= NEAR_DISTANCE for title in papers_by_title):
         return DimensionCoverage(
             dimension=label, status="weak_evidence", evidence_ids=evidence_ids, supporting_paper_titles=titles
         )
