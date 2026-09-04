@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 from researchbridge.config import load_config
 from researchbridge.db.session import make_engine, make_session_factory
@@ -25,7 +26,7 @@ def main() -> None:
     engine = make_engine()
     session_factory = make_session_factory(engine)
 
-    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    pipeline = FullTextFetchPipeline(session_factory=session_factory, core_api_key=os.environ.get("CORE_API_KEY"))
     run_id = pipeline.run(limit=args.limit, force=args.force)
     print(f"Full-text fetch run {run_id} finished.")
 

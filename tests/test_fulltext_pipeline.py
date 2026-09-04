@@ -181,6 +181,95 @@ def test_force_refetches_an_already_fetched_paper(session_factory, monkeypatch) 
         session.close()
 
 
+def test_core_paper_fetches_via_the_api_not_a_pdf_url(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    paper = _paper(session, source="core", source_id="123")
+    session.close()
+
+    monkeypatch.setattr(pipeline_module, "fetch_core_fulltext", lambda source_id, api_key: "Introduction\nhello")
+    mock_get = Mock()
+    monkeypatch.setattr(pipeline_module.requests, "get", mock_get)
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory, core_api_key="test-key")
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(FullTextFetchRun, run_id)
+        assert run.papers_fetched == 1
+        row = session.query(PaperFullText).filter_by(paper_id=paper.id).one()
+        assert row.sections == {"introduction": "hello"}
+        assert row.source_url == "https://api.core.ac.uk/v3/outputs/123"
+        mock_get.assert_not_called()  # never falls through to the generic PDF path
+    finally:
+        session.close()
+
+
+def test_core_paper_is_skipped_without_an_api_key(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    _paper(session, source="core", source_id="123")
+    session.close()
+
+    mock_fetch = Mock()
+    monkeypatch.setattr(pipeline_module, "fetch_core_fulltext", mock_fetch)
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory, core_api_key=None)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    run = session.get(FullTextFetchRun, run_id)
+    session.close()
+    assert run.papers_skipped_no_url == 1
+    mock_fetch.assert_not_called()
+
+
+def test_core_paper_is_skipped_when_fulltext_is_unavailable(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    _paper(session, source="core", source_id="123")
+    session.close()
+
+    monkeypatch.setattr(pipeline_module, "fetch_core_fulltext", lambda source_id, api_key: None)
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory, core_api_key="test-key")
+    run_id = pipeline.run()
+
+    session = session_factory()
+    run = session.get(FullTextFetchRun, run_id)
+    session.close()
+    assert run.papers_skipped_no_url == 1
+    assert run.papers_fetched == 0
+
+
+def test_core_paper_fetch_failure_is_logged_and_run_continues(session_factory, monkeypatch) -> None:
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    paper = _paper(session, source="core", source_id="123")
+    session.close()
+
+    monkeypatch.setattr(
+        pipeline_module, "fetch_core_fulltext", Mock(side_effect=requests.ConnectionError("connection refused"))
+    )
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory, core_api_key="test-key")
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(FullTextFetchRun, run_id)
+        assert run.papers_failed == 1
+        errors = session.query(FullTextFetchError).filter_by(paper_id=paper.id).all()
+        assert errors[0].error_type == "fetch_error"
+    finally:
+        session.close()
+
+
 def test_limit_caps_papers_processed(session_factory, monkeypatch) -> None:
     import researchbridge.fulltext.pipeline as pipeline_module
 

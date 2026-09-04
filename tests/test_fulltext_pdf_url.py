@@ -23,9 +23,11 @@ def test_arxiv_derives_pdf_url_from_source_id() -> None:
     assert resolve_pdf_url(paper) == "https://arxiv.org/pdf/2401.00001"
 
 
-def test_core_uses_paper_url_as_is() -> None:
+def test_core_has_no_resolvable_pdf_url_even_if_open_access() -> None:
+    # CORE's downloads are Cloudflare-protected - it's routed through
+    # fulltext/core_fetch.py's API-based lookup instead, never through here
     paper = _paper("core", "123", "https://core.ac.uk/download/123.pdf", open_access=True)
-    assert resolve_pdf_url(paper) == "https://core.ac.uk/download/123.pdf"
+    assert resolve_pdf_url(paper) is None
 
 
 def test_semantic_scholar_uses_paper_url_as_is() -> None:

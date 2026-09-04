@@ -24,13 +24,16 @@ def test_main_runs_the_pipeline_with_parsed_args(monkeypatch, capsys) -> None:
 
     mock_pipeline = Mock()
     mock_pipeline.run.return_value = "run-123"
-    monkeypatch.setattr(cli_module, "FullTextFetchPipeline", Mock(return_value=mock_pipeline))
+    mock_pipeline_cls = Mock(return_value=mock_pipeline)
+    monkeypatch.setattr(cli_module, "FullTextFetchPipeline", mock_pipeline_cls)
     monkeypatch.setattr(cli_module, "make_engine", Mock())
     monkeypatch.setattr(cli_module, "make_session_factory", Mock())
     monkeypatch.setattr(cli_module, "load_config", Mock())
+    monkeypatch.setenv("CORE_API_KEY", "test-key")
     monkeypatch.setattr("sys.argv", ["rb-fulltext-fetch", "--limit", "3"])
 
     main()
 
     mock_pipeline.run.assert_called_once_with(limit=3, force=False)
+    assert mock_pipeline_cls.call_args.kwargs["core_api_key"] == "test-key"
     assert "run-123" in capsys.readouterr().out
