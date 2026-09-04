@@ -52,7 +52,11 @@ from sqlalchemy.orm import Session
 
 from researchbridge.assessment.application_relevance import ApplicationRelevanceUnavailable, filter_relevant_applications
 from researchbridge.assessment.applications import ApplicationsResult, assess_applications
-from researchbridge.assessment.claims import save_claims_for_assessment
+from researchbridge.assessment.claims import (
+    render_applications_text,
+    render_opportunities_text,
+    save_claims_for_assessment,
+)
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.existing_solutions import build_existing_solutions
@@ -256,6 +260,10 @@ def build_assessment(
             ResearchAssessmentEvidence(research_assessment_id=assessment.id, evidence_id=evidence_id, role="risk")
         )
 
+    combined_opportunity_evidence_ids = list(opportunities.evidence_ids) + [
+        uuid.UUID(evidence_id_str) for evidence_id_str in opportunity_evidence_ids
+    ]
+
     save_claims_for_assessment(
         session,
         assessment,
@@ -266,6 +274,16 @@ def build_assessment(
             # finding - a reused candidate gap already has its own claim,
             # see assessment/claims.py's docstring
             "research_gap": (gap.text if research_gap_source_value == "input_specific" else None),
+            "application": (
+                render_applications_text(assessment.potential_applications)
+                if assessment.potential_applications
+                else None
+            ),
+            "opportunity": (
+                render_opportunities_text(assessment.potential_opportunities)
+                if assessment.potential_opportunities
+                else None
+            ),
             "feasibility": feasibility.reasoning,
             "risk": risks.text,
         },
@@ -273,6 +291,8 @@ def build_assessment(
             "comparison": existing_solutions.evidence_ids,
             "novelty": novelty.evidence_ids,
             "research_gap": gap.evidence_ids,
+            "application": applications.evidence_ids,
+            "opportunity": combined_opportunity_evidence_ids,
             "feasibility": feasibility.evidence_ids,
             "risk": risks.evidence_ids,
         },

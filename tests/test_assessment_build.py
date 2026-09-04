@@ -201,6 +201,26 @@ def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> 
     assert "evaluated only in offline settings" in comparison_claims[0].claim_text
 
 
+def test_applications_creates_an_opportunity_analysis_claim(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    claims = session.execute(
+        select(AnalysisClaim).where(
+            AnalysisClaim.source_table == "research_assessments", AnalysisClaim.source_id == assessment.id
+        )
+    ).scalars().all()
+    session.close()
+    application_claims = [c for c in claims if "real-time payment fraud screening" in c.claim_text]
+    assert len(application_claims) == 1
+    assert application_claims[0].claim_type == "opportunity"
+
+
 def test_research_gap_claim_is_skipped_when_the_gap_is_reused_from_a_candidate_gap(
     session_factory, embedder, monkeypatch
 ) -> None:

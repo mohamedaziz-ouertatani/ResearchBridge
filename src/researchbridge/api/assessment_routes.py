@@ -68,6 +68,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_assessment_claims, to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
+from researchbridge.assessment.claims import sync_claim_status
 from researchbridge.assessment.export import build_docx, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
 from researchbridge.assessment.matching import match_uploaded_paper
@@ -344,6 +345,7 @@ def review_assessment(
         raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
 
     assessment.human_reviewed = payload.human_reviewed
+    sync_claim_status(session, assessment)
     session.commit()
 
     research_input = session.get(ResearchInput, assessment.research_input_id)

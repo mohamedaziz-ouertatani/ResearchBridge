@@ -551,6 +551,30 @@ def test_review_can_toggle_back_to_unreviewed(client) -> None:
     assert response.json()["human_reviewed"] is False
 
 
+def test_review_approves_linked_claims(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    assert created["claims"], "fixture assumption: this assessment should have at least one claim"
+
+    response = client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
+
+    assert all(c["status"] == "approved" for c in response.json()["claims"])
+
+
+def test_review_reverts_claims_to_pending_when_unreviewed(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+    created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+    client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
+
+    response = client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": False})
+
+    assert all(c["status"] == "pending" for c in response.json()["claims"])
+
+
 def test_review_404s_for_unknown_assessment(client) -> None:
     response = client.put(f"/api/assessments/{uuid.uuid4()}/review", json={"human_reviewed": True})
 

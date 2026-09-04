@@ -1,12 +1,16 @@
-"""Mirrors a ResearchAssessment's plain-text report fields into analysis_claims
-(Sec 16) - the second, larger slice building on gaps/claims.py's precedent.
+"""Mirrors a ResearchAssessment's report fields into analysis_claims (Sec 16).
 
-Scope is narrowed to the assessment's plain-text fields: comparison_summary,
-novelty_reasoning, research_gap_text (only when input-specific, see below),
-technical_feasibility_reasoning, risks_and_limitations. potential_applications
-and potential_opportunities are JSONB lists of structured items rather than
-one prose statement each - mapping those onto claims (one per list item) is
-a further, not-yet-scoped step.
+Covers all seven gradeable fields: comparison_summary, novelty_reasoning,
+research_gap_text (only when input-specific, see below), the JSONB
+potential_applications/potential_opportunities lists, technical_feasibility_
+reasoning, and risks_and_limitations. The five plain-text fields each become
+one claim with claim_text set to the field's own text verbatim (so the web
+report and export can match a claim back to its field by exact text - see
+AssessmentReport.tsx's claimForText / export.py's _claim_for_text). The two
+JSONB list fields become one claim each too, with claim_text a deterministic
+join of the list (see _render_applications/_render_opportunities) - nothing
+elsewhere currently tries to match those two by exact text, so the join
+format only has to be internally consistent, not mirrored in the frontend.
 
 research_gap_text is mirrored ONLY when research_gap_source ==
 "input_specific". When the assessment reused an existing candidate_gaps row
@@ -20,10 +24,13 @@ backing the whole assessment - see assessment/recommendation.py), not a
 fresh per-field number - same "don't invent a finer-grained confidence than
 we can justify" reasoning as gaps/claims.py's hardcoded "medium".
 
-status is always "pending": ResearchAssessment has no approve/reject review
-state analogous to CandidateGap.status (only a `human_reviewed` boolean and
-a pending/running/completed/failed `status`), so there is nothing to sync
-these claims to - they stay pending indefinitely.
+status mirrors ResearchAssessment.human_reviewed (see sync_claim_status,
+called from api/assessment_routes.py::review_assessment): "approved" once a
+human has looked at the assessment, "pending" otherwise. Not a real
+per-claim review (a human reviews the whole assessment, not each field
+individually), but it's the closest honest analog to CandidateGap.status's
+approve/reject sync - a claim from a never-reviewed assessment should not
+read the same as one a human has actually seen.
 """
 
 from __future__ import annotations
@@ -37,17 +44,29 @@ from researchbridge.db.models import AnalysisClaim, ClaimEvidence, ResearchAsses
 SOURCE_TABLE = "research_assessments"
 
 # role -> claim_type. "comparison" summarizes what retrieved papers directly
-# show (fact); everything else here is reasoning derived from that evidence
-# (inference). None of these plain-text roles fit "hypothesis"/"opportunity"/
-# "speculation" - those belong to the JSONB application/opportunity fields
-# this slice doesn't cover yet.
+# show (fact). "application"/"opportunity" are plausible practical uses of a
+# capability - Sec 16's "opportunity" bucket, not a certainty. Everything
+# else is reasoning derived from evidence (inference).
 CLAIM_TYPE_BY_ROLE = {
     "comparison": "fact",
     "novelty": "inference",
     "research_gap": "inference",
+    "application": "opportunity",
+    "opportunity": "opportunity",
     "feasibility": "inference",
     "risk": "inference",
 }
+
+
+def render_applications_text(applications: list[dict]) -> str:
+    """Same join format as assessment/export.py's applications_body, kept
+    here as the single source of truth for what an "application" claim's
+    text looks like."""
+    return "\n".join(f"- {app['application']} (source: {app['source_paper']})" for app in applications)
+
+
+def render_opportunities_text(opportunities: list[dict]) -> str:
+    return "\n".join(f"{o['tier']}: {o['opportunity']}" for o in opportunities)
 
 
 def save_claims_for_assessment(
@@ -85,3 +104,18 @@ def save_claims_for_assessment(
         saved.append(claim)
 
     return saved
+
+
+def sync_claim_status(session: Session, assessment: ResearchAssessment) -> None:
+    """Propagates assessment.human_reviewed onto every claim linked to it.
+
+    Called from api/assessment_routes.py::review_assessment after
+    human_reviewed changes, so the claims layer never silently disagrees
+    with whether a human has actually looked at this assessment. An
+    assessment with no linked claims (nothing was groundable, or it
+    predates this module) is a no-op, not an error.
+    """
+    claims = session.query(AnalysisClaim).filter_by(source_table=SOURCE_TABLE, source_id=assessment.id).all()
+    new_status = "approved" if assessment.human_reviewed else "pending"
+    for claim in claims:
+        claim.status = new_status

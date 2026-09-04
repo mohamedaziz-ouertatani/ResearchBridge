@@ -4,7 +4,12 @@ import uuid
 
 from sqlalchemy import select
 
-from researchbridge.assessment.claims import save_claims_for_assessment
+from researchbridge.assessment.claims import (
+    render_applications_text,
+    render_opportunities_text,
+    save_claims_for_assessment,
+    sync_claim_status,
+)
 from researchbridge.db.models import AnalysisClaim, ClaimEvidence, Evidence, Paper, ResearchAssessment, ResearchInput
 
 
@@ -166,3 +171,106 @@ def test_no_roles_populated_creates_nothing(session_factory) -> None:
 
     session.close()
     assert saved == []
+
+
+def test_application_and_opportunity_roles_are_typed_opportunity(session_factory) -> None:
+    session = session_factory()
+    ri = _research_input(session)
+    paper = _paper(session)
+    ev = _evidence(session, paper)
+    session.commit()
+    assessment = _assessment(session, ri)
+
+    saved = save_claims_for_assessment(
+        session,
+        assessment,
+        texts_by_role={"application": "an application", "opportunity": "an opportunity"},
+        evidence_by_role={"application": [ev.id], "opportunity": [ev.id]},
+    )
+    session.commit()
+
+    by_text_type = {c.claim_text: c.claim_type for c in saved}
+    session.close()
+    assert by_text_type == {"an application": "opportunity", "an opportunity": "opportunity"}
+
+
+def test_render_applications_text_joins_application_and_source() -> None:
+    applications = [
+        {"application": "fraud screening", "source_paper": "Paper A", "paper_id": "x", "evidence_id": "y"},
+        {"application": "risk scoring", "source_paper": "Paper B", "paper_id": "x", "evidence_id": "y"},
+    ]
+    assert render_applications_text(applications) == (
+        "- fraud screening (source: Paper A)\n- risk scoring (source: Paper B)"
+    )
+
+
+def test_render_opportunities_text_joins_tier_and_opportunity() -> None:
+    opportunities = [
+        {"tier": "direct", "opportunity": "a direct product", "source_applications": []},
+        {"tier": "adjacent", "opportunity": "a broader platform", "source_applications": []},
+    ]
+    assert render_opportunities_text(opportunities) == "direct: a direct product\nadjacent: a broader platform"
+
+
+def test_sync_claim_status_approves_claims_when_human_reviewed_is_true(session_factory) -> None:
+    session = session_factory()
+    ri = _research_input(session)
+    paper = _paper(session)
+    ev = _evidence(session, paper)
+    session.commit()
+    assessment = _assessment(session, ri)
+    save_claims_for_assessment(
+        session, assessment, texts_by_role={"risk": "a risk"}, evidence_by_role={"risk": [ev.id]}
+    )
+    session.commit()
+
+    assessment.human_reviewed = True
+    sync_claim_status(session, assessment)
+    session.commit()
+
+    claims = (
+        session.query(AnalysisClaim)
+        .filter_by(source_table="research_assessments", source_id=assessment.id)
+        .all()
+    )
+    session.close()
+    assert all(c.status == "approved" for c in claims)
+
+
+def test_sync_claim_status_reverts_to_pending_when_human_reviewed_is_set_back_to_false(session_factory) -> None:
+    session = session_factory()
+    ri = _research_input(session)
+    paper = _paper(session)
+    ev = _evidence(session, paper)
+    session.commit()
+    assessment = _assessment(session, ri)
+    save_claims_for_assessment(
+        session, assessment, texts_by_role={"risk": "a risk"}, evidence_by_role={"risk": [ev.id]}
+    )
+    assessment.human_reviewed = True
+    sync_claim_status(session, assessment)
+    session.commit()
+
+    assessment.human_reviewed = False
+    sync_claim_status(session, assessment)
+    session.commit()
+
+    claims = (
+        session.query(AnalysisClaim)
+        .filter_by(source_table="research_assessments", source_id=assessment.id)
+        .all()
+    )
+    session.close()
+    assert all(c.status == "pending" for c in claims)
+
+
+def test_sync_claim_status_is_a_no_op_when_no_claims_are_linked(session_factory) -> None:
+    session = session_factory()
+    ri = _research_input(session)
+    session.commit()
+    assessment = _assessment(session, ri)
+
+    assessment.human_reviewed = True
+    sync_claim_status(session, assessment)  # must not raise
+    session.commit()
+    session.close()
