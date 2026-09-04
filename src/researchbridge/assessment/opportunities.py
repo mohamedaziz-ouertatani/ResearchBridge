@@ -21,19 +21,30 @@ Direct/Adjacent/Speculative opportunity without either
 
 assess_opportunities() exists as a stable interface point (same shape as
 the other assess_* functions in this package) so that build_assessment()
-never has to special-case this field.
+never has to special-case this field. Its own output is still always NULL
+- this function itself was never given a generative path.
 
 (b) was taken, narrowly and on-demand: see assessment/opportunity_
 synthesis.py and docs/superpowers/specs/
-2026-09-03-opportunities-synthesis-design.md. That module is deliberately
-NOT called from here - every other assess_* function is synchronous,
-deterministic, and has no external-service dependency inside
-build_assessment(), and opportunity synthesis (a local LLM call) would
-break that invariant for every assessment if wired in here, even for
-users who never look at this section. Instead it's triggered on demand
-via POST /api/assessments/{id}/opportunities, after the assessment
-already exists - this function keeps returning NULL during
-build_assessment() itself, exactly as before.
+2026-09-03-opportunities-synthesis-design.md. Originally deliberately NOT
+called from build_assessment() at all, for exactly the invariant-
+preservation reason above - kept reachable only via POST /api/assessments
+/{id}/opportunities, after the assessment already existed.
+
+2026-09-04: build_assessment() now DOES call it, but only when the
+caller explicitly opts in via its enable_llm_stages parameter (see that
+function's own docstring) - the API route layer passes True when
+ollama_enabled() is true, so every assessment created through the real
+API gets synthesis automatically; every other caller (tests, scripts,
+benchmarks) keeps today's synchronous/deterministic/no-model-calls
+default unless it explicitly asks otherwise. This module's own NULL
+output is what build_assessment() falls back to when enable_llm_stages
+is False, or when synthesis is enabled but fails (Ollama disabled/
+unreachable, or an invalid response after one retry) - opportunity
+synthesis fails CLOSED (see its own OpportunitySynthesisUnavailable
+docstring), so a failed attempt always lands back on this function's
+NULL, never a partial/fabricated result. The on-demand endpoint is
+unchanged and still useful for regenerating after the fact.
 """
 
 from __future__ import annotations

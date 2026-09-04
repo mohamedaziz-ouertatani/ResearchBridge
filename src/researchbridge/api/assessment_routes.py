@@ -1,12 +1,18 @@
 """ResearchInput -> ResearchAssessment endpoints (blueprint Sec 2A).
 
-Two input paths, both synchronous (the whole pipeline is local/fast -
-retrieval + reading already-extracted claims, no new model calls):
+Two input paths, both synchronous:
 - POST /api/assessments: idea text.
 - POST /api/assessments/upload: an uploaded document (.pdf or plain text).
   Sec 2A's "Uploaded-Paper Path" - text/section extraction happens inside
   build_assessment() via assessment/representation.py, not here. This
   route's only job is turning the upload into raw_text.
+
+Both call build_assessment(..., enable_llm_stages=ollama_enabled()) -
+when Ollama is enabled, applications relevance filtering and opportunity
+synthesis (both local-LLM stages, see build.py's own docstring) run
+automatically as part of assessment creation; when disabled, both stages
+are skipped and the pipeline stays fully synchronous/deterministic/no-
+external-dependency, same as before 2026-09-04.
 
 Upload endpoint security review (item 6 of the assessment hardening
 list). Fixed, both with real reproductions before and after (see
@@ -68,7 +74,9 @@ from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.assessment.opportunity_synthesis import (
     OpportunitySynthesisUnavailable,
     SourceApplication,
+    ollama_enabled,
     synthesize_opportunities,
+    to_persisted_opportunities,
 )
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
@@ -207,7 +215,7 @@ def create_assessment(
     session.add(research_input)
     session.flush()
 
-    assessment = build_assessment(session, research_input.id, embedder)
+    assessment = build_assessment(session, research_input.id, embedder, enable_llm_stages=ollama_enabled())
 
     return _to_out(session, assessment, research_input)
 
@@ -262,7 +270,7 @@ async def create_assessment_from_upload(
     session.add(research_input)
     session.flush()
 
-    assessment = build_assessment(session, research_input.id, embedder)
+    assessment = build_assessment(session, research_input.id, embedder, enable_llm_stages=ollama_enabled())
 
     return _to_out(session, assessment, research_input)
 
@@ -358,7 +366,7 @@ def rerun_assessment(
     if original is None:
         raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
 
-    assessment = build_assessment(session, original.research_input_id, embedder)
+    assessment = build_assessment(session, original.research_input_id, embedder, enable_llm_stages=ollama_enabled())
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)
@@ -397,21 +405,7 @@ def synthesize_assessment_opportunities(
     except OpportunitySynthesisUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    assessment.potential_opportunities = [
-        {
-            "tier": opp.tier,
-            "opportunity": opp.opportunity,
-            "source_applications": [
-                {
-                    "application": applications[i - 1].application,
-                    "paper_id": applications[i - 1].paper_id,
-                    "paper_title": applications[i - 1].source_paper,
-                }
-                for i in opp.source_application_indices
-            ],
-        }
-        for opp in result.opportunities
-    ]
+    assessment.potential_opportunities, cited_evidence_ids = to_persisted_opportunities(applications, result)
 
     # Link the same real evidence the cited applications already trace to -
     # never fabricated for this field. This route can be called again on
@@ -426,12 +420,6 @@ def synthesize_assessment_opportunities(
             ResearchAssessmentEvidence.role == "opportunity",
         )
     )
-    cited_evidence_ids = {
-        applications[i - 1].evidence_id
-        for opp in result.opportunities
-        for i in opp.source_application_indices
-        if applications[i - 1].evidence_id is not None
-    }
     for evidence_id in cited_evidence_ids:
         session.add(
             ResearchAssessmentEvidence(

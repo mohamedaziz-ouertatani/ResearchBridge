@@ -1,17 +1,45 @@
 """ResearchInput -> ResearchAssessment orchestration (blueprint Sec 2A).
 
 ResearchInput -> Retrieve Related Papers -> Compare/Extract -> Novelty ->
-Research Gap -> Applications -> Feasibility -> Opportunities (always NULL
-by design, see assessment/opportunities.py) -> Risks -> External
-Validation -> Recommendation/Confidence.
+Research Gap -> Applications -> Feasibility -> Opportunities -> Risks ->
+External Validation -> Recommendation/Confidence.
 
 Idea-only input, per the roadmap's build-order guidance (Sec 45):
 retrieval reuses search_by_text() unchanged (no input-side extraction yet -
-that's the uploaded-paper path, not yet built), and every downstream
+that's the uploaded-paper path, not yet built), and every deterministic
 assess_* function reuses each retrieved paper's already-extracted claims
-rather than running any new extraction or calling an LLM. Any field a
-sub-assessment can't ground in real evidence stays NULL/"not_assessed" -
-NULL is preferable to fabricated certainty (Sec 22).
+rather than running any new extraction. Any field a sub-assessment can't
+ground in real evidence stays NULL/"not_assessed" - NULL is preferable to
+fabricated certainty (Sec 22).
+
+enable_llm_stages (2026-09-04): two optional local-LLM stages, both OFF
+by default (only the API route layer passes True, from ollama_enabled() -
+see api/assessment_routes.py) so this function stays synchronous/
+deterministic/no-external-dependency for every existing and future direct
+caller (tests, scripts, benchmarks) unless they explicitly opt in - the
+previous invariant ("no new model calls") is preserved as an explicit
+default, not silently broken by an environment variable leaking into a
+process that never asked for it (see opportunity_synthesis.py's docstring
+for why an unconditional env-var gate here was rejected: OLLAMA_ENABLED is
+commonly true in local dev .env files, which would otherwise turn every
+test/script calling this function into a slow, network-dependent one).
+When True:
+- application_relevance.py's local-LLM judge filters assess_applications()'s
+  deterministic candidates down to those genuinely relevant to THIS idea,
+  not just topically adjacent (see that module's docstring for the real
+  false positives - a flower/irrigation "application" surfaced for a
+  sourdough-baking idea - that motivated this; embedding similarity alone
+  could not separate genuine matches from these). Fails OPEN: unavailable/
+  invalid output keeps assess_applications()'s unfiltered result, per that
+  module's own fail-open reasoning.
+- opportunity_synthesis.py's local-LLM call synthesizes Direct/Adjacent/
+  Speculative product opportunities from the (now-filtered) applications,
+  same as the on-demand POST /{id}/opportunities endpoint always did -
+  this just runs it automatically instead of requiring a separate manual
+  trigger. Fails CLOSED (falls back to assess_opportunities()'s
+  deterministic always-NULL default) on unavailability/invalid output,
+  matching that module's own reasoning: opportunities IS the entire field
+  being generated, so there's no safe partial result to keep.
 """
 
 from __future__ import annotations
@@ -22,7 +50,8 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from researchbridge.assessment.applications import assess_applications
+from researchbridge.assessment.application_relevance import ApplicationRelevanceUnavailable, filter_relevant_applications
+from researchbridge.assessment.applications import ApplicationsResult, assess_applications
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.existing_solutions import build_existing_solutions
@@ -31,6 +60,12 @@ from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.assessment.opportunities import assess_opportunities
+from researchbridge.assessment.opportunity_synthesis import (
+    OpportunitySynthesisUnavailable,
+    SourceApplication,
+    synthesize_opportunities,
+    to_persisted_opportunities,
+)
 from researchbridge.assessment.recommendation import assess_recommendation
 from researchbridge.assessment.representation import build_research_representation
 from researchbridge.assessment.risks import assess_risks
@@ -44,6 +79,7 @@ def build_assessment(
     research_input_id: uuid.UUID,
     embedder: Embedder,
     top_k: int = 10,
+    enable_llm_stages: bool = False,
 ) -> ResearchAssessment:
     research_input = session.get(ResearchInput, research_input_id)
     if research_input is None:
@@ -79,8 +115,40 @@ def build_assessment(
     applications = assess_applications(
         [(paper.id, paper.title, distance, claims) for paper, distance, claims in papers_with_claims], embedder
     )
+    if enable_llm_stages and applications.status == "found":
+        try:
+            filtered = filter_relevant_applications(query_text, applications.applications)
+            applications = ApplicationsResult(
+                applications=filtered,
+                evidence_ids=[app.evidence_id for app in filtered],
+                status="found" if filtered else "no_evidence",
+            )
+        except ApplicationRelevanceUnavailable:
+            pass  # fail open - keep the deterministic, unfiltered result
+
     feasibility = assess_technical_feasibility(session, papers_by_distance)
     opportunities = assess_opportunities(session, papers_by_distance)
+
+    opportunities_json: list[dict] | None = None
+    opportunity_evidence_ids: set[str] = set()
+    if enable_llm_stages and applications.status == "found":
+        source_applications = [
+            SourceApplication(
+                application=app.application,
+                source_paper=app.source_paper,
+                paper_id=str(app.paper_id),
+                evidence_id=str(app.evidence_id),
+            )
+            for app in applications.applications
+        ]
+        try:
+            synthesis_result = synthesize_opportunities(source_applications)
+            opportunities_json, opportunity_evidence_ids = to_persisted_opportunities(
+                source_applications, synthesis_result
+            )
+        except OpportunitySynthesisUnavailable:
+            pass  # fail closed - keep assess_opportunities()'s deterministic NULL default
+
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
     external_validation_needed = assess_external_validation(has_applications=bool(applications.applications))
     recommendation = assess_recommendation(
@@ -130,7 +198,7 @@ def build_assessment(
         ),
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,
-        potential_opportunities=opportunities.opportunities,
+        potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),
         risks_and_limitations=risks.text,
         external_validation_needed=external_validation_needed,
         recommendation=recommendation.recommendation,
@@ -172,6 +240,12 @@ def build_assessment(
         session.add(
             ResearchAssessmentEvidence(
                 research_assessment_id=assessment.id, evidence_id=evidence_id, role="opportunity"
+            )
+        )
+    for evidence_id_str in opportunity_evidence_ids:
+        session.add(
+            ResearchAssessmentEvidence(
+                research_assessment_id=assessment.id, evidence_id=uuid.UUID(evidence_id_str), role="opportunity"
             )
         )
     for evidence_id in risks.evidence_ids:

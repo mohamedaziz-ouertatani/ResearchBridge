@@ -36,6 +36,28 @@ def embedder() -> FakeEmbedder:
     return FakeEmbedder()
 
 
+@pytest.fixture(autouse=True)
+def _disable_ollama_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # build_assessment() is now called with enable_llm_stages=ollama_enabled()
+    # from every POST /api/assessments* route (2026-09-04) - without this,
+    # a real local dev .env's OLLAMA_ENABLED=true would make ordinary
+    # assessment-creation tests in this file silently fire real, slow,
+    # non-deterministic Ollama calls that most of them never intended to
+    # exercise. Sets an explicit "false" rather than delenv: this fixture's
+    # relative order versus the `client` fixture (which calls create_app()
+    # -> load_config() -> load_dotenv(override=False)) isn't guaranteed by
+    # pytest, so a delenv here can still be silently re-filled from .env by
+    # a load_dotenv call that happens to run afterward - confirmed live,
+    # this exact ordering bug flipped test_post_assessment_potential_
+    # opportunities_stays_null from None to a real synthesized result even
+    # with a delenv-based version of this fixture in place. An explicit
+    # "false" value is immune to that: load_dotenv(override=False) never
+    # overwrites a key already present in os.environ, however it got
+    # there. A test that wants an LLM stage enabled opts back in explicitly
+    # via its own monkeypatch.setenv("OLLAMA_ENABLED", "true").
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
+
+
 @pytest.fixture()
 def client(session_factory, embedder):
     app = create_app()

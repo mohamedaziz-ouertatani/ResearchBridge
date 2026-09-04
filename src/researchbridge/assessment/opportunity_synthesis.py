@@ -270,6 +270,40 @@ class SynthesisResult:
     opportunities: list[SynthesizedOpportunity]
 
 
+def to_persisted_opportunities(
+    applications: list[SourceApplication], result: SynthesisResult
+) -> tuple[list[dict], set[str]]:
+    """Shapes a SynthesisResult into the JSON list persisted as
+    ResearchAssessment.potential_opportunities, plus the set of cited
+    evidence_id strings to link (role="opportunity"). Shared by both the
+    on-demand endpoint (api/assessment_routes.py's
+    synthesize_assessment_opportunities) and build_assessment()'s inline
+    path (assessment/build.py), so the persisted shape can't drift between
+    the two call sites."""
+    opportunities_json = [
+        {
+            "tier": opp.tier,
+            "opportunity": opp.opportunity,
+            "source_applications": [
+                {
+                    "application": applications[i - 1].application,
+                    "paper_id": applications[i - 1].paper_id,
+                    "paper_title": applications[i - 1].source_paper,
+                }
+                for i in opp.source_application_indices
+            ],
+        }
+        for opp in result.opportunities
+    ]
+    cited_evidence_ids = {
+        applications[i - 1].evidence_id
+        for opp in result.opportunities
+        for i in opp.source_application_indices
+        if applications[i - 1].evidence_id is not None
+    }
+    return opportunities_json, cited_evidence_ids
+
+
 class OpportunitySynthesisUnavailable(Exception):
     """Raised when OLLAMA_ENABLED is false, Ollama is unreachable/times out,
     or the response doesn't parse into three validly-cited tiers after one

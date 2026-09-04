@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
+from unittest.mock import Mock
 
 import pytest
 
@@ -625,3 +626,162 @@ def test_recommendation_reasoning_is_persisted_and_derivable_at_read_time(sessio
     assert assessment.technical_feasibility_level is not None
     assert assessment.recommendation is not None
     assert assessment.confidence is not None
+
+
+# --- enable_llm_stages: inline application relevance filtering + opportunity
+# synthesis (2026-09-04), both OFF unless explicitly requested - every test
+# above this point implicitly covers enable_llm_stages=False (the default)
+# by never passing it at all. These mock both Ollama call sites directly
+# rather than running a real model, same as test_application_relevance.py/
+# test_opportunity_synthesis.py.
+
+
+def _mock_ollama(monkeypatch: pytest.MonkeyPatch, relevance_content: str, opportunity_content: str) -> None:
+    relevance_response = Mock()
+    relevance_response.json.return_value = {"message": {"content": relevance_content}}
+    relevance_response.raise_for_status = Mock()
+    monkeypatch.setattr(
+        "researchbridge.assessment.application_relevance.requests.post", Mock(return_value=relevance_response)
+    )
+
+    opportunity_response = Mock()
+    opportunity_response.json.return_value = {"message": {"content": opportunity_content}}
+    opportunity_response.raise_for_status = Mock()
+    monkeypatch.setattr(
+        "researchbridge.assessment.opportunity_synthesis.requests.post", Mock(return_value=opportunity_response)
+    )
+
+
+def test_llm_stages_disabled_by_default_even_with_ollama_env_enabled(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # OLLAMA_ENABLED=true alone must NOT be enough to trigger either LLM
+    # stage - only an explicit enable_llm_stages=True does, see build.py's
+    # own docstring for why (a leaked dev .env value must never silently
+    # turn a plain build_assessment() call into a network-dependent one)
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    mock_post = Mock(side_effect=AssertionError("Ollama must not be called when enable_llm_stages is unset"))
+    monkeypatch.setattr("researchbridge.assessment.application_relevance.requests.post", mock_post)
+    monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_opportunities is None
+
+
+def test_llm_stages_filters_applications_and_synthesizes_opportunities_when_enabled(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content=(
+            "Direct: real-time fraud screening API for banks [1]\n"
+            "Adjacent: a broader fraud-risk monitoring platform [1]\n"
+            "Speculative: an industry-wide fraud intelligence network [1]"
+        ),
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    session.close()
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_opportunities is not None
+    assert [o["tier"] for o in assessment.potential_opportunities] == ["direct", "adjacent", "speculative"]
+
+
+def test_llm_stages_application_filter_drops_irrelevant_candidates_when_enabled(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    relevance_response = Mock()
+    relevance_response.json.return_value = {"message": {"content": "1: irrelevant"}}
+    relevance_response.raise_for_status = Mock()
+    monkeypatch.setattr(
+        "researchbridge.assessment.application_relevance.requests.post", Mock(return_value=relevance_response)
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    session.close()
+    # filtered down to nothing -> no_evidence status -> empty list, and
+    # opportunity synthesis is never attempted with zero applications
+    assert assessment.potential_applications == []
+    assert assessment.potential_opportunities is None
+
+
+def test_llm_stages_fail_open_on_application_filter_when_ollama_unreachable(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import requests
+
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    monkeypatch.setattr(
+        "researchbridge.assessment.application_relevance.requests.post",
+        Mock(side_effect=requests.ConnectionError("connection refused")),
+    )
+    monkeypatch.setattr(
+        "researchbridge.assessment.opportunity_synthesis.requests.post",
+        Mock(side_effect=requests.ConnectionError("connection refused")),
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    session.close()
+    # relevance filtering failed -> keeps the deterministic, unfiltered
+    # application; opportunity synthesis also failed -> falls back to NULL
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_opportunities is None
+
+
+def test_llm_stages_opportunity_evidence_is_linked_with_role_opportunity(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content=(
+            "Direct: real-time fraud screening API for banks [1]\n"
+            "Adjacent: a broader fraud-risk monitoring platform [1]\n"
+            "Speculative: an industry-wide fraud intelligence network [1]"
+        ),
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    opportunity_links = (
+        session.query(ResearchAssessmentEvidence)
+        .filter_by(research_assessment_id=assessment.id, role="opportunity")
+        .all()
+    )
+    session.close()
+    assert {link.evidence_id for link in opportunity_links} == {evidence_id}

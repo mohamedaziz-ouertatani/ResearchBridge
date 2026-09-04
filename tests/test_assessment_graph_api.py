@@ -35,6 +35,16 @@ def embedder() -> FakeEmbedder:
     return FakeEmbedder()
 
 
+@pytest.fixture(autouse=True)
+def _disable_ollama_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # This file POSTs to /api/assessments, which now calls build_assessment
+    # with enable_llm_stages=ollama_enabled() (2026-09-04) - see
+    # test_assessment_api.py's identical fixture for why an explicit
+    # "false" (not delenv) is required to be immune to create_app()'s own
+    # load_dotenv(override=False) call, regardless of fixture ordering.
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
+
+
 @pytest.fixture()
 def client(session_factory, embedder):
     app = create_app()
