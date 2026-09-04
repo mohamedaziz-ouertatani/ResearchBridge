@@ -24,15 +24,39 @@ neighborhood showed a smooth, sensible falloff (3 clusters -> 2 -> 2 -> 1
 that surfaces genuine, tightly-coherent patterns (worst pairwise
 similarity within a returned cluster was 0.365, comfortably clearing the
 threshold) without yet thinning out to nothing.
+
+GapCluster.tier - a second, independent signal on top of the above.
+DEFAULT_SIMILARITY_THRESHOLD only establishes that a cluster's claims are
+topically related; it does not establish that they describe the SAME
+specific unresolved problem rather than a broader shared theme. Checked
+live against a real assessment (2026-09-04, federated-learning fraud
+detection): three papers' limitations - one on FL privacy/communication/
+architecture problems, one on FL security/poisoning/privacy, one on FL
+poisoning/right-to-be-forgotten - embed at 0.64-0.72 cosine similarity to
+each other under the production embedder (all-MiniLM-L6-v2), comfortably
+clearing even a strict 0.5 bar, purely because all three are "FL has
+limitations" sentences to the model. A stricter embedding-similarity
+threshold cannot separate "same specific problem" from "same broad theme"
+- both live in the same similarity band. Lexical (content-word) Jaccard
+overlap does separate them: that same cluster's worst pairwise keyword
+overlap is 0.038. Checked against the real corpus's whole population of
+3-6-paper clusters (n=8625, worst pairwise keyword-Jaccard per cluster):
+heavily loose-theme (median 0.0, p90 0.05), with a small genuinely-tight
+tail (0.15+, ~0.2% of clusters - e.g. three papers all specifically
+naming "non-IID"/"heterogeneous client data"). STRONG_KEYWORD_OVERLAP_
+THRESHOLD=0.15 was picked at that tail boundary, the same way
+DEFAULT_SIMILARITY_THRESHOLD was picked from a real falloff sweep.
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 from researchbridge.embedding.base import Embedder
 
@@ -43,6 +67,10 @@ RELEVANT_CLAIM_TYPES = ("limitations", "research_gap")
 
 DEFAULT_MIN_CLUSTER_SIZE = 3  # matches Sec 32's own example (three papers sharing a pattern)
 DEFAULT_SIMILARITY_THRESHOLD = 0.35  # see calibration note above
+STRONG_KEYWORD_OVERLAP_THRESHOLD = 0.15  # see GapCluster.tier calibration note above
+
+_WORD = re.compile(r"[a-z]+")
+_MIN_KEYWORD_LENGTH = 3
 
 
 @dataclass
@@ -59,6 +87,13 @@ class GapCluster:
     """The member whose average similarity to the rest of the cluster is
     highest (the medoid) - a real claim from a real paper, not a summary
     invented from the group."""
+
+    tier: str
+    """"strong_gap" (every pairwise member shares real vocabulary - likely
+    the same specific problem) or "potential_gap" (topically related per
+    embedding similarity, but not enough shared vocabulary to call it the
+    same specific problem rather than a broader recurring theme). See the
+    module docstring's calibration note."""
 
     @property
     def contributing_paper_count(self) -> int:
@@ -81,6 +116,7 @@ def find_recurring_patterns(
         return []
 
     vectors = embedder.embed_texts([c.text for c in claims])
+    keyword_sets = [_keyword_set(c.text) for c in claims]
 
     # complete linkage, not average: average-link merges based on a
     # cluster-wide mean distance, which lets weakly-related claims chain
@@ -109,7 +145,14 @@ def find_recurring_patterns(
         if len({m.paper_id for m in members}) < min_cluster_size:
             continue
         representative_index = _medoid_index(indices, vectors)
-        clusters.append(GapCluster(members=members, representative_text=claims[representative_index].text))
+        tier = (
+            "strong_gap"
+            if _min_keyword_overlap(indices, keyword_sets) >= STRONG_KEYWORD_OVERLAP_THRESHOLD
+            else "potential_gap"
+        )
+        clusters.append(
+            GapCluster(members=members, representative_text=claims[representative_index].text, tier=tier)
+        )
 
     clusters.sort(key=lambda c: c.contributing_paper_count, reverse=True)
     return clusters
@@ -127,3 +170,22 @@ def _medoid_index(indices: list[int], vectors: list[list[float]]) -> int:
 
 def _cosine(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=True))
+
+
+def _keyword_set(text: str) -> set[str]:
+    return {w for w in _WORD.findall(text.lower()) if w not in ENGLISH_STOP_WORDS and len(w) >= _MIN_KEYWORD_LENGTH}
+
+
+def _min_keyword_overlap(indices: list[int], keyword_sets: list[set[str]]) -> float:
+    """Jaccard overlap of content words, worst pair in the cluster - mirrors
+    the complete-linkage philosophy above: a cluster only counts as tightly
+    lexically coherent if EVERY pair within it is, not just some of them."""
+    pairs = [(i, j) for pos, i in enumerate(indices) for j in indices[pos + 1 :]]
+    if not pairs:
+        return 1.0  # can't happen given min_cluster_size >= 2, but a single-member "cluster" is trivially coherent
+    overlaps = []
+    for i, j in pairs:
+        a, b = keyword_sets[i], keyword_sets[j]
+        union = a | b
+        overlaps.append(len(a & b) / len(union) if union else 0.0)
+    return min(overlaps)

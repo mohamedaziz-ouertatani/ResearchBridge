@@ -63,10 +63,32 @@ already fixed for the distance axis. True for source="input_specific" only
 when the underlying claim's validation_tier is "strong" (never "weak" -
 see extraction/validation.py's own docstring on why the weak tier is
 "ambiguous" by design); always True for "reused_candidate_gap" (a human
-already reviewed and approved it) and for the inferred cross-paper cluster
-path (multiple independent papers corroborating the same pattern is
-already a stronger signal than any single sentence's wording, by
-construction - see min_cluster_size).
+already reviewed and approved it); for the inferred cross-paper cluster
+path, True only when the cluster's own tier is "strong_gap" - see `tier`
+below and gaps/cluster.py's GapCluster.tier docstring.
+
+tier: a fourth signal, classifying WHICH KIND of gap this is rather than
+how strong it is - "strong_gap" | "potential_gap" | "known_limitation" |
+None. Found live-testing a real fraud-detection assessment (2026-09-04):
+the inferred cross-paper path always reported "Recurring pattern across N
+related papers" and always set is_strongly_stated=True for ANY cluster
+that cleared DEFAULT_SIMILARITY_THRESHOLD, whether the N papers actually
+described the same specific unresolved problem or merely a broader shared
+theme - e.g. one paper on FL privacy/communication/architecture, one on FL
+security/poisoning, one on FL poisoning/right-to-be-forgotten: genuinely
+related, but not the same specific problem, yet worded and scored
+identically to a cluster where all three papers name the exact same issue.
+- "strong_gap": reused_candidate_gap (human-reviewed) always; the inferred
+  cluster when GapCluster.tier == "strong_gap" (see its own docstring for
+  the lexical-overlap calibration).
+- "potential_gap": the inferred cluster when GapCluster.tier ==
+  "potential_gap" - still surfaced (Sec 22 - insufficient is not the same
+  as absent, and a broader recurring theme is real signal), just not
+  conflated with "same problem" wording or is_strongly_stated=True.
+- "known_limitation": an explicit, single-paper research_gap claim - by
+  construction there is exactly one paper behind it, so it is a genuine,
+  author-stated limitation, but has no cross-paper convergence to speak of.
+- None: no gap found/assessed.
 """
 
 from __future__ import annotations
@@ -101,6 +123,7 @@ class GapAssessmentResult:
     is_closely_grounded: bool = False
     is_strongly_stated: bool = False
     status: str = "not_assessed"  # "not_assessed" | "not_found" | "found"
+    tier: str | None = None  # "strong_gap" | "potential_gap" | "known_limitation" | None
 
 
 _NOT_ASSESSED_RESULT = GapAssessmentResult(
@@ -171,6 +194,7 @@ def _reuse_approved_candidate_gap(
         # a human already reviewed and approved this - not re-judged on
         # wording the way a fresh extracted claim is
         is_strongly_stated=True,
+        tier="strong_gap",
     )
 
 
@@ -213,6 +237,9 @@ def _explicit_research_gap_claim(
                 # Never fabricate a strength judgment the extractor didn't
                 # already make.
                 is_strongly_stated=(validation_tier == "strong"),
+                # exactly one paper behind this claim - genuine, but no
+                # cross-paper convergence by construction
+                tier="known_limitation",
             )
     return None
 
@@ -240,18 +267,28 @@ def _inferred_cross_paper_gap(
         return None
 
     top = clusters[0]  # already sorted by contributing_paper_count, descending
-    text = (
-        f"Recurring pattern across {top.contributing_paper_count} related papers "
-        f'(inference, not stated by any single author): "{top.representative_text}"'
-    )
+    if top.tier == "strong_gap":
+        # every pairwise member shares real vocabulary - likely the same
+        # specific problem, not just a broader shared theme
+        text = (
+            f"Recurring pattern across {top.contributing_paper_count} related papers, describing "
+            f'the same specific issue (inference, not stated by any single author): "{top.representative_text}"'
+        )
+    else:
+        text = (
+            f"{top.contributing_paper_count} related papers share a broader recurring theme, though not "
+            f'necessarily the same specific unresolved problem (inference, not stated by any single '
+            f'author): "{top.representative_text}"'
+        )
     evidence_ids = [member.evidence_id for member in top.members]
     return GapAssessmentResult(
         source="input_specific",
         text=text,
         candidate_gap_id=None,
         evidence_ids=evidence_ids,
-        # multiple independent papers corroborating the same pattern is
-        # already a stronger signal than any single sentence's wording -
-        # min_cluster_size already enforces the corroboration
-        is_strongly_stated=True,
+        # only the tight, same-specific-problem tier counts as a strong
+        # signal - a broader shared theme is real but weaker evidence, see
+        # gaps/cluster.py's GapCluster.tier docstring
+        is_strongly_stated=(top.tier == "strong_gap"),
+        tier=top.tier,
     )

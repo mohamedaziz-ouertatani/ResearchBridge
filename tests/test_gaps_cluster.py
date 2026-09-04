@@ -144,6 +144,44 @@ def _cosine_of(embedder: FixedVectorEmbedder, text_a: str, text_b: str) -> float
     return sum(x * y for x, y in zip(va, vb, strict=True))
 
 
+def test_cluster_with_shared_vocabulary_across_every_pair_is_tier_strong_gap() -> None:
+    # every pair shares real content words ("heterogeneous", "non-iid",
+    # "data", "distribution", "clients") - min pairwise Jaccard 0.45, well
+    # above STRONG_KEYWORD_OVERLAP_THRESHOLD (0.15)
+    texts = [
+        "clients face heterogeneous non-iid data distribution",
+        "the heterogeneous non-iid data distribution across clients remains unsolved",
+        "heterogeneous non-iid client data distribution is a persistent challenge",
+    ]
+    embedder = FixedVectorEmbedder(dict(zip(texts, [_unit_vector(0), _unit_vector(5), _unit_vector(10)], strict=True)))
+    claims = [_claim(None, t) for t in texts]
+
+    clusters = find_recurring_patterns(claims, embedder, min_cluster_size=3, similarity_threshold=0.3)
+
+    assert len(clusters) == 1
+    assert clusters[0].tier == "strong_gap"
+
+
+def test_cluster_without_shared_vocabulary_is_tier_potential_gap() -> None:
+    # regression case: real federated-learning assessment (2026-09-04) where
+    # 3 papers' limitations are topically related (all "FL has problems")
+    # but name different specific problems - privacy/communication/
+    # architecture, security/poisoning/privacy, poisoning/right-to-be-
+    # forgotten - min pairwise Jaccard 0.0, below the threshold
+    texts = [
+        "insufficient protection of user privacy and high communication costs",
+        "security issues such as single point of failure and model poisoning",
+        "existing frameworks remain vulnerable to poisoning attacks on data privacy",
+    ]
+    embedder = FixedVectorEmbedder(dict(zip(texts, [_unit_vector(0), _unit_vector(5), _unit_vector(10)], strict=True)))
+    claims = [_claim(None, t) for t in texts]
+
+    clusters = find_recurring_patterns(claims, embedder, min_cluster_size=3, similarity_threshold=0.3)
+
+    assert len(clusters) == 1
+    assert clusters[0].tier == "potential_gap"
+
+
 def test_clusters_sorted_largest_first() -> None:
     small_pattern = [_claim(None, f"gpu memory limits scale {i}") for i in range(3)]
     large_pattern = [_claim(None, f"offline evaluation only setting run {i}") for i in range(5)]

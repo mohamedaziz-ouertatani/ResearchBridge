@@ -474,6 +474,102 @@ def test_status_is_not_found_when_relevant_papers_exist_but_nothing_matches(sess
     assert result.text is None
 
 
+# --- tier: "strong_gap" | "potential_gap" | "known_limitation" | None -
+# classifies WHICH KIND of gap this is, see gap.py's own docstring.
+
+
+def test_reused_candidate_gap_is_tier_strong_gap(session_factory, embedder) -> None:
+    session = session_factory()
+    seed = _paper(session, "seed")
+    other = _paper(session, "other")
+    evidence_id = _claim(session, other, "limitations", "offline only")
+    _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
+    session.commit()
+
+    result = assess_research_gap(session, [(seed.id, NEAR), (other.id, NEAR)], embedder)
+
+    session.close()
+    assert result.tier == "strong_gap"
+
+
+def test_explicit_single_paper_gap_is_tier_known_limitation(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Explicit Gap Paper")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.tier == "known_limitation"
+
+
+def test_inferred_gap_with_shared_wording_is_tier_strong_gap(session_factory, embedder) -> None:
+    # near-identical wording across all 3 papers - high keyword overlap
+    session = session_factory()
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+    _claim(session, a, "limitations", "tested only offline in this setup")
+    _claim(session, b, "limitations", "we test the model only offline in our setup")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(a.id, NEAR), (b.id, NEAR), (c.id, NEAR)], embedder, min_cluster_size=3, similarity_threshold=0.3
+    )
+
+    session.close()
+    assert result.tier == "strong_gap"
+    assert result.is_strongly_stated is True
+    assert "same specific issue" in result.text
+
+
+def test_inferred_gap_without_shared_wording_is_tier_potential_gap(session_factory, embedder) -> None:
+    # regression case: real federated-learning assessment (2026-09-04) -
+    # 3 papers' limitations are topically related but name different
+    # specific problems (privacy/comms/architecture, security/poisoning,
+    # poisoning/right-to-be-forgotten) - genuinely related, not the same
+    # specific problem. Must NOT be rejected - still surfaces as a finding,
+    # just not overclaimed as "the same" recurring pattern.
+    session = session_factory()
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+    _claim(session, a, "limitations", "insufficient protection of the user privacy and high communication costs in the system")
+    _claim(session, b, "limitations", "security issues such as the single point of failure and the model poisoning in the system")
+    _claim(
+        session, c, "limitations",
+        "existing frameworks remain vulnerable to the poisoning attacks on the data privacy in the system",
+    )
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(a.id, NEAR), (b.id, NEAR), (c.id, NEAR)], embedder, min_cluster_size=3, similarity_threshold=0.25
+    )
+
+    session.close()
+    assert result.status == "found"
+    assert result.source == "input_specific"
+    assert result.tier == "potential_gap"
+    # still surfaced, and still verbatim-quotes the real representative claim
+    assert result.is_strongly_stated is False
+    assert "broader recurring theme" in result.text
+    assert "describing the same specific issue" not in result.text
+
+
+def test_not_found_result_has_no_tier(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1")
+    _claim(session, paper, "method", "an unrelated method")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.tier is None
+
+
 def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1")
