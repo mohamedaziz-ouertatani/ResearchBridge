@@ -29,6 +29,13 @@ export const RATING_DIMENSIONS: { key: keyof GapRatings; label: string }[] = [
   { key: "usefulness_rating", label: "usefulness" },
 ];
 
+export type AnalysisClaim = {
+  id: string;
+  claim_type: string;
+  confidence: string;
+  status: "pending" | "approved" | "rejected";
+};
+
 export type CandidateGap = GapRatings & {
   id: string;
   seed_paper_id: string;
@@ -43,6 +50,7 @@ export type CandidateGap = GapRatings & {
   detection_method: string;
   review_note: string | null;
   evidence: GapEvidence[];
+  claim: AnalysisClaim | null;
 };
 
 export const GAP_STATUS_LABELS: Record<NonNullable<CandidateGap["gap_status"]>, string> = {

@@ -223,6 +223,12 @@ function GapCard({
 
       <div className="mt-1 text-[0.75rem] text-[var(--ink-faint)]">
         inference — not stated by any single author
+        {gap.claim && (
+          <>
+            {" "}
+            · confidence: <span className="readout">{gap.claim.confidence}</span>
+          </>
+        )}
       </div>
 
       {gap.resolution_note && (
