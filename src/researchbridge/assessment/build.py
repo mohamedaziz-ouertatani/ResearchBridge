@@ -106,7 +106,7 @@ def build_assessment(
     )
 
     existing_solutions = build_existing_solutions(
-        [(paper.title, claims) for paper, _distance, claims in papers_with_claims if claims]
+        [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims if claims]
     )
 
     novelty = assess_novelty(
