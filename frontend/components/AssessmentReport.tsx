@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   assessmentApi,
   type AnalysisClaim,
@@ -470,26 +470,7 @@ function Verdict({
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <a
-            href={`${API_BASE}/api/assessments/${assessment.id}/export.docx`}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
-          >
-            export .docx
-          </a>
-
-          <a
-            href={`${API_BASE}/api/assessments/${assessment.id}/export.pdf`}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
-          >
-            export .pdf
-          </a>
-
-          <a
-            href={`${API_BASE}/api/assessments/${assessment.id}/export.md`}
-            className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
-          >
-            export .md
-          </a>
+          <ExportMenu assessmentId={assessment.id} />
 
           <button
             onClick={rerun}
@@ -534,6 +515,62 @@ function Verdict({
         right. Fields with no supporting passage are left unassessed rather than filled in.
       </p>
     </header>
+  );
+}
+
+const EXPORT_FORMATS = [
+  { ext: "docx", label: ".docx" },
+  { ext: "pdf", label: ".pdf" },
+  { ext: "md", label: ".md" },
+] as const;
+
+/** The three export formats behind one disclosure - same open/close-on-
+    outside-click pattern as Nav's "infrastructure ▾" menu and the admin
+    panel's tab dropdowns, adapted for plain download links instead of
+    in-page navigation. */
+function ExportMenu({ assessmentId }: { assessmentId: string }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="eyebrow flex items-center gap-1.5 rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
+      >
+        export
+        <span aria-hidden className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}>
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute top-[calc(100%+0.4rem)] right-0 z-10 w-[10rem] border border-[var(--rule)] bg-[var(--panel)] py-1 shadow-lg">
+          {EXPORT_FORMATS.map((format) => (
+            <a
+              key={format.ext}
+              href={`${API_BASE}/api/assessments/${assessmentId}/export.${format.ext}`}
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-[0.8125rem] text-[var(--ink-soft)] hover:bg-[var(--field)] hover:text-[var(--ink)]"
+            >
+              {format.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
