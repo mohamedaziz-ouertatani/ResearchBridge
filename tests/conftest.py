@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import text
@@ -8,6 +9,23 @@ from sqlalchemy.exc import OperationalError
 
 from researchbridge.db.models import Base
 from researchbridge.db.session import make_engine, make_session_factory
+
+
+@pytest.fixture(autouse=True)
+def _stub_world_bank_connector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """build_assessment() constructs a real, unauthenticated WorldBankConnector
+    for every call (see assessment/build.py's _build_patent_connector/
+    WorldBankConnector wiring, 2026-09-04) - without this, any test anywhere
+    in the suite that reaches build_assessment() with non-empty keywords
+    would silently make a live network call to World Bank's API. Stubbed to
+    return no indicators by default; a test that wants to exercise real
+    connector-result formatting patches researchbridge.assessment.build.
+    WorldBankConnector locally instead (see
+    test_assessment_build.py::test_external_validation_uses_real_connector_results),
+    which overrides this default within that test's own context."""
+    stub = MagicMock()
+    stub.fetch_indicators.return_value = []
+    monkeypatch.setattr("researchbridge.assessment.build.WorldBankConnector", lambda: stub)
 
 # Deliberately a DIFFERENT database from .env's DATABASE_URL: the fixtures
 # below TRUNCATE every table, so pointing this at the dev database destroys
