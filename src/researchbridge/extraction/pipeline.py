@@ -24,6 +24,7 @@ storing or silently relabeling it:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -85,7 +86,9 @@ class ExtractionPipeline:
 
     def run(self, limit: int | None = None, force: bool = False) -> str:
         session = self.session_factory()
-        run = ExtractionRun(extractor_name=self.extractor.extraction_method, status="running", force=force)
+        run = ExtractionRun(
+            extractor_name=self.extractor.extraction_method, status="running", force=force, pid=os.getpid()
+        )
         session.add(run)
         session.commit()
         run_id = str(run.id)

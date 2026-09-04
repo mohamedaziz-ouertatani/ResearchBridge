@@ -12,6 +12,7 @@ from researchbridge.extraction.hybrid import HybridExtractor
 from researchbridge.extraction.pipeline import ExtractionPipeline, reset_extraction_data
 from researchbridge.extraction.semantic import SemanticExtractor
 from researchbridge.extraction.stub import StubExtractor
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 EXTRACTOR_NAMES = ("stub", "heuristic", "semantic", "hybrid")
 
@@ -33,7 +34,7 @@ def _make_extractor(name: str) -> Extractor:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_pipeline_logging("extraction", logging.INFO)
     load_config()
 
     parser = argparse.ArgumentParser(description="Run an extraction pass over ingested papers.")

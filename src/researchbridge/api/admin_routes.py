@@ -14,6 +14,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
@@ -167,20 +168,31 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
             _to_run(run, ("papers_seen", "papers_fetched", "papers_skipped_no_url", "papers_failed"))
             for run in _recent(session, FullTextFetchRun)
         ],
-        running={key: is_running(key) or _has_running_db_row(session, key) for key in PIPELINE_KEYS},
+        running={key: is_running(key) or has_running_db_row(session, key) for key in PIPELINE_KEYS},
     )
 
 
-def _has_running_db_row(session: Session, key: str) -> bool:
-    """A pipeline key counts as running if its own *_runs table still has a
-    row in progress, even when this API server process has no live
-    subprocess handle for it - covers a run started directly from the CLI
-    (bypassing the trigger button entirely) or one that outlived a server
-    restart, neither of which is_running()'s in-process registry can see
-    (see pipeline_triggers.py's module docstring). Keys with no *_runs
-    table (retrieval_eval, extraction_eval - one-off diagnostics, see
-    RUN_MODEL_BY_KEY's docstring) always return False here; is_running()
-    alone is the whole story for those.
+def has_running_db_row(session: Session, key: str) -> bool:
+    """A pipeline key counts as running if its own *_runs table has a row
+    in progress AND that row's own process is actually still alive, even
+    when this API server has no live subprocess handle for it - covers a
+    run started directly from the CLI (bypassing the trigger button
+    entirely) or one that outlived a server restart, neither of which
+    is_running()'s in-process registry can see (see pipeline_triggers.py's
+    module docstring).
+
+    status="running" alone is NOT enough: a process that crashed or was
+    killed without reaching the code that marks its row "failed"/"stopped"
+    leaves a row stuck saying "running" forever, with nothing behind it -
+    checking pid liveness (psutil.pid_exists) is what tells that apart
+    from a run that's genuinely still going. A row with no pid (written
+    before this column existed) can't be verified either way, so it
+    doesn't count as running - see migration 0019's docstring for why
+    that's the safer default than assuming True.
+
+    Keys with no *_runs table (retrieval_eval, extraction_eval - one-off
+    diagnostics, see RUN_MODEL_BY_KEY's docstring) always return False
+    here; is_running() alone is the whole story for those.
     """
     entry = RUN_MODEL_BY_KEY.get(key)
     if entry is None:
@@ -189,7 +201,8 @@ def _has_running_db_row(session: Session, key: str) -> bool:
     conditions = [model.status == "running"]
     if source is not None:
         conditions.append(model.source == source)
-    return session.execute(select(exists().where(and_(*conditions)))).scalar_one()
+    pids = session.execute(select(model.pid).where(and_(*conditions))).scalars().all()
+    return any(pid is not None and psutil.pid_exists(pid) for pid in pids)
 
 
 @router.get("/notifications", response_model=list[Notification])
@@ -495,6 +508,11 @@ def _to_run(run, count_fields: tuple[str, ...]) -> PipelineRunOut:
         error_summary=run.error_summary,
         source=getattr(run, "source", None),
         counts={field: getattr(run, field) for field in count_fields},
+        # Only meaningful while a row is still "running" - once it's
+        # finished/failed/stopped, the process behind it is gone (or
+        # reused for something else entirely), so showing a stale pid
+        # would be noise, not a useful correlation.
+        pid=run.pid if run.status == "running" else None,
     )
 
 
@@ -551,7 +569,17 @@ def exclude_paper(
     return to_summary(session, paper)
 
 
-def _trigger_or_409(key: str, module: str, args: list[str]) -> PipelineTriggerOut:
+def _trigger_or_409(session: Session, key: str, module: str, args: list[str]) -> PipelineTriggerOut:
+    """Refuses to start a second run for `key` when one is already alive -
+    checking both is_running()'s in-process registry (a run this server
+    itself spawned) AND has_running_db_row()'s pid-verified DB row (a run
+    started directly from the CLI, which the registry alone can't see).
+    Without the second check, a CLI-started run - invisible to is_running()
+    - would let a panel click launch a genuine concurrent duplicate against
+    the same pipeline key, exactly the race this guard exists to prevent.
+    """
+    if is_running(key) or has_running_db_row(session, key):
+        raise HTTPException(status_code=409, detail=f"{key} is already running")
     try:
         log_path = trigger(key, module, args)
     except PipelineAlreadyRunning as exc:
@@ -560,7 +588,9 @@ def _trigger_or_409(key: str, module: str, args: list[str]) -> PipelineTriggerOu
 
 
 @router.post("/ingestion/arxiv/run", response_model=PipelineTriggerOut)
-def trigger_arxiv_ingestion(payload: ArxivIngestionTrigger) -> PipelineTriggerOut:
+def trigger_arxiv_ingestion(
+    payload: ArxivIngestionTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.search_query is not None:
         args += ["--search-query", payload.search_query]
@@ -568,11 +598,13 @@ def trigger_arxiv_ingestion(payload: ArxivIngestionTrigger) -> PipelineTriggerOu
         args += ["--page-size", str(payload.page_size)]
     if payload.max_pages is not None:
         args += ["--max-pages", str(payload.max_pages)]
-    return _trigger_or_409("ingestion_arxiv", "researchbridge.ingestion.cli", args)
+    return _trigger_or_409(session, "ingestion_arxiv", "researchbridge.ingestion.cli", args)
 
 
 @router.post("/ingestion/springer/run", response_model=PipelineTriggerOut)
-def trigger_springer_ingestion(payload: SpringerIngestionTrigger) -> PipelineTriggerOut:
+def trigger_springer_ingestion(
+    payload: SpringerIngestionTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.query is not None:
         args += ["--query", payload.query]
@@ -580,23 +612,27 @@ def trigger_springer_ingestion(payload: SpringerIngestionTrigger) -> PipelineTri
         args += ["--page-size", str(payload.page_size)]
     if payload.max_pages is not None:
         args += ["--max-pages", str(payload.max_pages)]
-    return _trigger_or_409("ingestion_springer", "researchbridge.ingestion.cli_springer", args)
+    return _trigger_or_409(session, "ingestion_springer", "researchbridge.ingestion.cli_springer", args)
 
 
 @router.post("/ingestion/semantic-scholar/run", response_model=PipelineTriggerOut)
-def trigger_semantic_scholar_ingestion(payload: SemanticScholarIngestionTrigger) -> PipelineTriggerOut:
+def trigger_semantic_scholar_ingestion(
+    payload: SemanticScholarIngestionTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.query is not None:
         args += ["--query", payload.query]
     if payload.max_pages is not None:
         args += ["--max-pages", str(payload.max_pages)]
     return _trigger_or_409(
-        "ingestion_semantic_scholar", "researchbridge.ingestion.cli_semantic_scholar", args
+        session, "ingestion_semantic_scholar", "researchbridge.ingestion.cli_semantic_scholar", args
     )
 
 
 @router.post("/ingestion/core/run", response_model=PipelineTriggerOut)
-def trigger_core_ingestion(payload: CoreIngestionTrigger) -> PipelineTriggerOut:
+def trigger_core_ingestion(
+    payload: CoreIngestionTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.query is not None:
         args += ["--query", payload.query]
@@ -604,11 +640,11 @@ def trigger_core_ingestion(payload: CoreIngestionTrigger) -> PipelineTriggerOut:
         args += ["--page-size", str(payload.page_size)]
     if payload.max_pages is not None:
         args += ["--max-pages", str(payload.max_pages)]
-    return _trigger_or_409("ingestion_core", "researchbridge.ingestion.cli_core", args)
+    return _trigger_or_409(session, "ingestion_core", "researchbridge.ingestion.cli_core", args)
 
 
 @router.post("/extraction/run", response_model=PipelineTriggerOut)
-def trigger_extraction(payload: ExtractionTrigger) -> PipelineTriggerOut:
+def trigger_extraction(payload: ExtractionTrigger, session: Session = Depends(get_session)) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.limit is not None:
         args += ["--limit", str(payload.limit)]
@@ -616,35 +652,39 @@ def trigger_extraction(payload: ExtractionTrigger) -> PipelineTriggerOut:
         args += ["--extractor", payload.extractor]
     if payload.force:
         args += ["--force"]
-    return _trigger_or_409("extraction", "researchbridge.extraction.cli", args)
+    return _trigger_or_409(session, "extraction", "researchbridge.extraction.cli", args)
 
 
 @router.post("/embedding/run", response_model=PipelineTriggerOut)
-def trigger_embedding(payload: EmbeddingTrigger) -> PipelineTriggerOut:
+def trigger_embedding(payload: EmbeddingTrigger, session: Session = Depends(get_session)) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.limit is not None:
         args += ["--limit", str(payload.limit)]
     if payload.force:
         args += ["--force"]
-    return _trigger_or_409("embedding", "researchbridge.embedding.cli_embed", args)
+    return _trigger_or_409(session, "embedding", "researchbridge.embedding.cli_embed", args)
 
 
 @router.post("/fulltext/run", response_model=PipelineTriggerOut)
-def trigger_fulltext(payload: FullTextFetchTrigger) -> PipelineTriggerOut:
+def trigger_fulltext(
+    payload: FullTextFetchTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.limit is not None:
         args += ["--limit", str(payload.limit)]
     if payload.force:
         args += ["--force"]
-    return _trigger_or_409("fulltext", "researchbridge.fulltext.cli", args)
+    return _trigger_or_409(session, "fulltext", "researchbridge.fulltext.cli", args)
 
 
 @router.post("/retrieval-eval/run", response_model=PipelineTriggerOut)
-def trigger_retrieval_eval(payload: RetrievalEvalTrigger) -> PipelineTriggerOut:
+def trigger_retrieval_eval(
+    payload: RetrievalEvalTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.k is not None:
         args += ["--k", str(payload.k)]
-    return _trigger_or_409("retrieval_eval", "researchbridge.retrieval.cli_evaluate", args)
+    return _trigger_or_409(session, "retrieval_eval", "researchbridge.retrieval.cli_evaluate", args)
 
 
 @router.get("/retrieval-eval", response_model=RetrievalEvalOut)
@@ -666,13 +706,15 @@ def get_retrieval_eval() -> RetrievalEvalOut:
 
 
 @router.post("/extraction-eval/run", response_model=PipelineTriggerOut)
-def trigger_extraction_eval(payload: ExtractionEvalTrigger) -> PipelineTriggerOut:
+def trigger_extraction_eval(
+    payload: ExtractionEvalTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = []
     if payload.threshold is not None:
         args += ["--threshold", str(payload.threshold)]
     if payload.extractor is not None:
         args += ["--extractor", payload.extractor]
-    return _trigger_or_409("extraction_eval", "researchbridge.extraction.cli_evaluate", args)
+    return _trigger_or_409(session, "extraction_eval", "researchbridge.extraction.cli_evaluate", args)
 
 
 @router.get("/extraction-eval", response_model=ExtractionEvalOut)
@@ -695,8 +737,10 @@ def get_extraction_eval() -> ExtractionEvalOut:
 
 
 @router.post("/citations-fetch/run", response_model=PipelineTriggerOut)
-def trigger_citations_fetch(payload: CitationsFetchTrigger) -> PipelineTriggerOut:
+def trigger_citations_fetch(
+    payload: CitationsFetchTrigger, session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     args: list[str] = ["--all", "--save", "--source", payload.source]
     if payload.force:
         args += ["--force"]
-    return _trigger_or_409("citations_fetch", "researchbridge.citations.cli_fetch", args)
+    return _trigger_or_409(session, "citations_fetch", "researchbridge.citations.cli_fetch", args)

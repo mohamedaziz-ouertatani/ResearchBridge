@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from researchbridge.api.admin_routes import has_running_db_row
 from researchbridge.api.deps import get_session
 from researchbridge.api.pipeline_triggers import PipelineAlreadyRunning, is_running, tail_log, trigger
 from researchbridge.api.schemas import (
@@ -100,7 +101,13 @@ def review_gap(
 
 
 @router.post("/detect", response_model=PipelineTriggerOut)
-def trigger_detect() -> PipelineTriggerOut:
+def trigger_detect(session: Session = Depends(get_session)) -> PipelineTriggerOut:
+    # Same guard as admin_routes.py's _trigger_or_409: is_running() alone
+    # can't see a detection run started directly from the CLI rather than
+    # this button, so a click here could otherwise launch a genuine
+    # concurrent duplicate against a run already going.
+    if is_running(PIPELINE_KEY) or has_running_db_row(session, PIPELINE_KEY):
+        raise HTTPException(status_code=409, detail=f"{PIPELINE_KEY} is already running")
     try:
         log_path = trigger(PIPELINE_KEY, "researchbridge.gaps.cli_detect", ["--all", "--save"])
     except PipelineAlreadyRunning as exc:

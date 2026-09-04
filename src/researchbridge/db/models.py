@@ -49,6 +49,14 @@ class IngestionRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The OS process id that created this row, set once at row-creation
+    time (never reused for a later re-check). admin_routes.py's liveness
+    check uses this to tell a still-alive run apart from one whose process
+    crashed or was killed without ever reaching the code that marks
+    status "failed"/"stopped" - a status="running" row alone, with no
+    process actually behind it, is not itself proof anything is running.
+    NULL for rows written before this column existed."""
     resume_state: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     records_fetched: Mapped[int] = mapped_column(Integer, default=0)
     records_inserted: Mapped[int] = mapped_column(Integer, default=0)
@@ -143,6 +151,8 @@ class CitationFetchRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """See IngestionRun.pid's docstring - the liveness check this backs."""
     papers_seen: Mapped[int] = mapped_column(Integer, default=0)
     papers_failed: Mapped[int] = mapped_column(Integer, default=0)
     edges_created: Mapped[int] = mapped_column(Integer, default=0)
@@ -223,6 +233,8 @@ class ExtractionRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """See IngestionRun.pid's docstring - the liveness check this backs."""
     papers_processed: Mapped[int] = mapped_column(Integer, default=0)
     claims_created: Mapped[int] = mapped_column(Integer, default=0)
     candidates_rejected: Mapped[int] = mapped_column(Integer, default=0)
@@ -275,6 +287,8 @@ class EmbeddingRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """See IngestionRun.pid's docstring - the liveness check this backs."""
     papers_processed: Mapped[int] = mapped_column(Integer, default=0)
     papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -298,6 +312,8 @@ class GapDetectionRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """See IngestionRun.pid's docstring - the liveness check this backs."""
     papers_seen: Mapped[int] = mapped_column(Integer, default=0)
     papers_skipped: Mapped[int] = mapped_column(Integer, default=0)
     papers_failed: Mapped[int] = mapped_column(Integer, default=0)
@@ -502,6 +518,8 @@ class FullTextFetchRun(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """See IngestionRun.pid's docstring - the liveness check this backs."""
     papers_seen: Mapped[int] = mapped_column(Integer, default=0)
     papers_fetched: Mapped[int] = mapped_column(Integer, default=0)
     papers_skipped_no_url: Mapped[int] = mapped_column(Integer, default=0)

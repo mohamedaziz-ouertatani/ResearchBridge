@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -1109,6 +1110,21 @@ def test_trigger_409s_when_already_running(client, monkeypatch) -> None:
     assert response.status_code == 409
 
 
+def test_trigger_409s_for_a_run_this_server_did_not_spawn_but_is_still_alive(client, session) -> None:
+    # A run started directly from the CLI has no entry in is_running()'s
+    # in-process registry, so without also checking the DB row, a panel
+    # click here would launch a genuine concurrent duplicate against a
+    # pipeline that's already actively running.
+    session.add(
+        EmbeddingRun(model_name="fake", status="running", started_at=datetime.now(timezone.utc), pid=os.getpid())
+    )
+    session.commit()
+
+    response = client.post("/api/admin/embedding/run", json={})
+
+    assert response.status_code == 409
+
+
 def test_pipeline_status_reflects_is_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
@@ -1135,9 +1151,10 @@ def test_pipeline_status_reflects_a_running_row_this_server_did_not_spawn(client
     # A run started directly from the CLI (rb-fulltext-fetch) - or one that
     # outlived a server restart - has no entry in the in-process _RUNNING
     # registry is_running() checks, but its own *_runs row still says
-    # "running". The admin panel's dot must reflect that real state, not
-    # just "did this server process spawn it".
-    session.add(FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc)))
+    # "running" with a pid that's actually alive (the test process's own
+    # pid stands in for "definitely alive" here). The admin panel's dot
+    # must reflect that real state, not just "did this server spawn it".
+    session.add(FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=os.getpid()))
     session.commit()
 
     body = client.get("/api/admin/pipeline").json()
@@ -1146,13 +1163,53 @@ def test_pipeline_status_reflects_a_running_row_this_server_did_not_spawn(client
 
 
 def test_pipeline_status_ingestion_running_is_scoped_to_its_own_source(client, session) -> None:
-    session.add(IngestionRun(source="arxiv", status="running", started_at=datetime.now(timezone.utc)))
+    session.add(
+        IngestionRun(source="arxiv", status="running", started_at=datetime.now(timezone.utc), pid=os.getpid())
+    )
     session.commit()
 
     body = client.get("/api/admin/pipeline").json()
 
     assert body["running"]["ingestion_arxiv"] is True
     assert body["running"]["ingestion_springer"] is False
+
+
+def test_pipeline_status_treats_a_running_row_with_no_pid_as_not_running(client, session) -> None:
+    # A row that predates the pid column (or one somehow written without
+    # it) can't be verified either way - status="running" alone is not
+    # proof anything is actually running (that's exactly the bug this
+    # whole liveness check exists to fix), so it must not count as running.
+    session.add(FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=None))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"]["fulltext"] is False
+
+
+def test_pipeline_status_treats_a_running_row_with_a_dead_pid_as_not_running(client, session) -> None:
+    # The classic zombie case this fix targets: a process crashed or was
+    # killed without ever reaching the code that marks its row "failed" -
+    # the row is stuck saying "running" forever with nothing behind it.
+    dead_pid = _an_almost_certainly_dead_pid()
+    session.add(FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=dead_pid))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["running"]["fulltext"] is False
+
+
+def _an_almost_certainly_dead_pid() -> int:
+    """A pid picked to almost certainly not belong to any running process
+    right now, for testing the "stale row, dead process" path without
+    depending on a specific pid actually being free at test time."""
+    import psutil
+
+    candidate = 999999
+    while psutil.pid_exists(candidate):
+        candidate -= 1
+    return candidate
 
 
 def test_notifications_includes_completed_citation_fetch_run(client, session) -> None:

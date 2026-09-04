@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from researchbridge.gaps.batch import run_all
 from researchbridge.gaps.cluster import DEFAULT_MIN_CLUSTER_SIZE, DEFAULT_SIMILARITY_THRESHOLD
 from researchbridge.gaps.detect import detect_candidate_gaps
 from researchbridge.gaps.persistence import save_candidate_gaps
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,7 +49,7 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser | No
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.WARNING)
+    configure_pipeline_logging("gaps", logging.WARNING)
     load_config()
 
     parser = build_parser()
@@ -118,7 +120,7 @@ def _run_batch(session, embedder, args: argparse.Namespace) -> None:
     mode = "saving" if args.save else "dry run"
     print(f"Running gap detection over every embedded paper ({mode})...")
 
-    run = GapDetectionRun(status="running", force=args.force)
+    run = GapDetectionRun(status="running", force=args.force, pid=os.getpid())
     session.add(run)
     session.commit()
 

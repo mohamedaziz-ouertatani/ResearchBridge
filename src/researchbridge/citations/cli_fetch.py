@@ -22,6 +22,7 @@ from researchbridge.citations.fetch import (
 from researchbridge.config import load_config
 from researchbridge.db.models import CitationFetchRun, Paper
 from researchbridge.db.session import make_engine, make_session_factory
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,7 +57,7 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser | No
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.WARNING)
+    configure_pipeline_logging("citations_fetch", logging.WARNING)
     load_config()
 
     parser = build_parser()
@@ -107,7 +108,7 @@ def _run_batch(session, fetcher, args: argparse.Namespace) -> None:
     mode = "saving" if args.save else "dry run"
     print(f"Running citation fetch over every {args.source} paper ({mode})...")
 
-    run = CitationFetchRun(source=args.source, status="running")
+    run = CitationFetchRun(source=args.source, status="running", pid=os.getpid())
     session.add(run)
     session.commit()
 

@@ -7,6 +7,7 @@ Idempotent: skips papers that already have an embeddings row for this
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
@@ -45,7 +46,7 @@ class EmbeddingPipeline:
 
     def run(self, limit: int | None = None, force: bool = False) -> str:
         session = self.session_factory()
-        run = EmbeddingRun(model_name=self.embedder.model_name, status="running", force=force)
+        run = EmbeddingRun(model_name=self.embedder.model_name, status="running", force=force, pid=os.getpid())
         session.add(run)
         session.commit()
         run_id = str(run.id)

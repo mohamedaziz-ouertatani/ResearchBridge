@@ -34,6 +34,7 @@ from researchbridge.benchmark.cli_sample import DEFAULT_OUTPUT_DIR
 from researchbridge.config import load_config
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.embedding.model import SentenceTransformerEmbedder
+from researchbridge.pipeline_logging import configure_pipeline_logging
 from researchbridge.retrieval.base import Retriever
 from researchbridge.retrieval.bm25 import Bm25Retriever
 from researchbridge.retrieval.embedding_retriever import EmbeddingRetriever
@@ -49,7 +50,7 @@ DEFAULT_RESULTS_PATH = Path("benchmark/retrieval_eval_results.json")
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.WARNING)
+    configure_pipeline_logging("retrieval_eval", logging.WARNING)
     load_config()
 
     parser = argparse.ArgumentParser(description="Evaluate TF-IDF, BM25, embedding, and hybrid retrieval.")

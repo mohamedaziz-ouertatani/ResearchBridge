@@ -44,13 +44,14 @@ from researchbridge.extraction.heuristic import HeuristicExtractor
 from researchbridge.extraction.hybrid import HybridExtractor
 from researchbridge.extraction.semantic import SemanticExtractor
 from researchbridge.extraction.type_validation_evaluation import TypeValidationScore, evaluate_claim_type_validation
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 EXTRACTORS = ("heuristic", "semantic", "hybrid")
 DEFAULT_RESULTS_PATH = Path("benchmark/extraction_eval_results.json")
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.WARNING)
+    configure_pipeline_logging("extraction_eval", logging.WARNING)
     load_config()
 
     parser = argparse.ArgumentParser(description="Evaluate one or both extractors against the Sec 25 benchmark.")

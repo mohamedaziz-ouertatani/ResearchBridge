@@ -12,6 +12,7 @@ use - see the full-text-aware extraction design spec.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -41,7 +42,7 @@ class FullTextFetchPipeline:
 
     def run(self, limit: int | None = None, force: bool = False) -> str:
         session = self.session_factory()
-        run = FullTextFetchRun(status="running", force=force)
+        run = FullTextFetchRun(status="running", force=force, pid=os.getpid())
         session.add(run)
         session.commit()
         run_id = str(run.id)

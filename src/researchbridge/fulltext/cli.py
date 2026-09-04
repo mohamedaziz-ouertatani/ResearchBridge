@@ -7,6 +7,7 @@ import os
 from researchbridge.config import load_config
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.fulltext.pipeline import FullTextFetchPipeline
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_pipeline_logging("fulltext", logging.INFO)
     load_config()
 
     parser = build_parser()

@@ -8,12 +8,13 @@ from researchbridge.config import load_config
 from researchbridge.connectors.semantic_scholar import SemanticScholarConnector
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.ingestion.pipeline import IngestionPipeline
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 DEFAULT_QUERY = '"artificial intelligence" | "machine learning" | "computer science"'
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_pipeline_logging("ingestion_semantic_scholar", logging.INFO)
     load_config()
 
     parser = argparse.ArgumentParser(description="Run a Semantic Scholar ingestion pass.")

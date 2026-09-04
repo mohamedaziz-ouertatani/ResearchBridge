@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +10,16 @@ from sqlalchemy import text
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_session
-from researchbridge.db.models import AnalysisClaim, CandidateGap, CandidateGapEvidence, ClaimEvidence, Evidence, ExtractedClaim, Paper
+from researchbridge.db.models import (
+    AnalysisClaim,
+    CandidateGap,
+    CandidateGapEvidence,
+    ClaimEvidence,
+    Evidence,
+    ExtractedClaim,
+    GapDetectionRun,
+    Paper,
+)
 
 
 @pytest.fixture()
@@ -332,3 +342,16 @@ def test_db_rejects_invalid_status_bypassing_the_api(session) -> None:
     with pytest.raises(Exception, match="ck_candidate_gaps_status"):
         _add_gap(session, seed, other, status="bogus")
     session.rollback()  # the failed commit leaves the session unusable until rolled back
+
+
+def test_trigger_detect_409s_for_a_run_this_server_did_not_spawn_but_is_still_alive(client, session) -> None:
+    # Same reasoning as admin_routes.py's _trigger_or_409: is_running()'s
+    # in-process registry can't see a detection run started directly from
+    # the CLI, so without also checking the DB row, this endpoint could
+    # launch a genuine concurrent duplicate against one already going.
+    session.add(GapDetectionRun(status="running", started_at=datetime.now(timezone.utc), pid=os.getpid()))
+    session.commit()
+
+    response = client.post("/api/gaps/detect")
+
+    assert response.status_code == 409

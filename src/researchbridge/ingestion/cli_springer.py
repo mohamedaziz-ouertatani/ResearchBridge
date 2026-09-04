@@ -8,12 +8,13 @@ from researchbridge.config import load_config
 from researchbridge.connectors.springer import SpringerConnector
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.ingestion.pipeline import IngestionPipeline
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 DEFAULT_QUERY = '"artificial intelligence" OR "machine learning" OR "computer science"'
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_pipeline_logging("ingestion_springer", logging.INFO)
     load_config()
 
     parser = argparse.ArgumentParser(description="Run a Springer Nature ingestion pass.")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -41,7 +42,9 @@ class IngestionPipeline:
         from scratch.
         """
         session = self.session_factory()
-        run = IngestionRun(source=self.connector.source_name, status="running", resume_state=resume_state)
+        run = IngestionRun(
+            source=self.connector.source_name, status="running", resume_state=resume_state, pid=os.getpid()
+        )
         session.add(run)
         session.commit()
         run_id = str(run.id)

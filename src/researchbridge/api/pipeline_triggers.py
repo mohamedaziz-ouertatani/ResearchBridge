@@ -17,13 +17,15 @@ I spawned still alive right now."
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from researchbridge.pipeline_logging import LOG_FILE_ENV_VAR, LOGS_DIR
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-LOGS_DIR = REPO_ROOT / "logs"
 
 _RUNNING: dict[str, subprocess.Popen] = {}
 
@@ -42,10 +44,13 @@ def is_running(key: str) -> bool:
 def tail_log(key: str, lines: int = 200) -> str:
     """The last `lines` lines of the most recent log file for this pipeline
     key, or "" if none exists yet. Finds "most recent" by filename (the
-    timestamp trigger() embeds sorts lexicographically), not mtime - no
-    extra state to track beyond what's already on disk, and it keeps
-    working across a server restart the way the in-process _RUNNING
-    registry deliberately doesn't (see module docstring)."""
+    timestamp trigger() and configure_pipeline_logging() both embed sorts
+    lexicographically), not mtime - no extra state to track beyond what's
+    already on disk, and it keeps working across a server restart the way
+    the in-process _RUNNING registry deliberately doesn't (see module
+    docstring). This is also why a run started directly from a terminal
+    is tailable here too, as long as its CLI entry point called
+    configure_pipeline_logging(key) - see pipeline_logging.py."""
     candidates = sorted(LOGS_DIR.glob(f"{key}-*.log"))
     if not candidates:
         return ""
@@ -105,6 +110,12 @@ def trigger(key: str, module: str, args: list[str]) -> Path:
         stdout=log_file,
         stderr=subprocess.STDOUT,
         cwd=REPO_ROOT,
+        # Tells the child's own configure_pipeline_logging() call that its
+        # stdout/stderr is already this exact file (via the redirect
+        # above), so it adds only a console handler instead of also
+        # opening a second FileHandler on the same path (see
+        # pipeline_logging.py).
+        env={**os.environ, LOG_FILE_ENV_VAR: str(log_path)},
     )
     _RUNNING[key] = proc
     return log_path

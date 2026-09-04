@@ -426,6 +426,14 @@ class PipelineRunOut(BaseModel):
     """Run-type-specific numeric fields, e.g. records_fetched/inserted/
     duplicate/failed for an ingestion run - kept as a dict rather than a
     field per run type so one schema covers all three pipeline stages."""
+    pid: int | None
+    """The OS process id this run's own row recorded at creation time (see
+    db/models.py's IngestionRun.pid docstring) - shown for a still-"running"
+    row so an operator can correlate it with `ps`/Task Manager, e.g. to
+    confirm a CLI-started run the admin panel now also detects and to stop
+    it manually if needed. None for runs from before this column existed,
+    and for any run once it's no longer "running" (kept only while it's
+    live and might need correlating)."""
 
 
 class AssessmentStats(BaseModel):
@@ -495,12 +503,18 @@ class PipelineStatus(BaseModel):
     """Run history for rb-fulltext-fetch, same shape as the other *_runs
     lists. Started via POST /api/admin/fulltext/run."""
     running: dict[str, bool]
-    """Whether an admin-triggered subprocess is currently alive per pipeline
-    key - see PIPELINE_KEYS in admin_routes.py for the full, current set
+    """Whether a pipeline is actually running right now, per pipeline key -
+    see PIPELINE_KEYS in admin_routes.py for the full, current set
     (ingestion x4, extraction, embedding, retrieval_eval, extraction_eval,
-    citations_fetch, fulltext). Independent of the *_runs history above: a
-    run row can say "running" from a crashed/killed process, this reflects
-    only what this server process itself is still tracking."""
+    citations_fetch, fulltext). True when either this server has a live
+    subprocess handle for it (started via the trigger button), or its own
+    *_runs row still says status="running" AND that row's pid is a
+    process that's actually alive right now - covering a run started
+    directly from the CLI, or one that outlived a server restart. A row
+    that just says "running" with no verifiably-live pid behind it (a
+    crashed or killed process that never reached the code to mark itself
+    failed/stopped) does NOT count - see admin_routes.py's
+    _has_running_db_row for the full reasoning."""
 
 
 class Notification(BaseModel):

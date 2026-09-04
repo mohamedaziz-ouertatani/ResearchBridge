@@ -7,10 +7,11 @@ from researchbridge.config import load_config
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.embedding.model import SentenceTransformerEmbedder
 from researchbridge.embedding.pipeline import EmbeddingPipeline, reset_embedding_data
+from researchbridge.pipeline_logging import configure_pipeline_logging
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_pipeline_logging("embedding", logging.INFO)
     load_config()
 
     parser = argparse.ArgumentParser(description="Compute embeddings for ingested papers.")
