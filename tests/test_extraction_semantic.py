@@ -49,18 +49,19 @@ def _use_controlled_field_queries(monkeypatch, queries: dict[str, str]) -> None:
 
 def test_empty_abstract_yields_no_candidates() -> None:
     extractor = SemanticExtractor(WordOverlapEmbedder())
-    assert extractor.extract(_paper(None)) == []
-    assert extractor.extract(_paper("   ")) == []
+    assert extractor.extract(_paper(None), {}) == []
+    assert extractor.extract(_paper("   "), {}) == []
 
 
 def test_picks_the_more_similar_sentence(monkeypatch) -> None:
     _use_controlled_field_queries(monkeypatch, {"method": "graph neural network approach"})
     abstract = "We use a graph neural network approach for this task. Weather today is unrelated and fine."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     method = next(c for c in candidates if c.claim_type == "method")
     assert method.claim_text == "We use a graph neural network approach for this task."
+    assert method.section == "abstract"
 
 
 def test_every_candidate_is_a_verbatim_substring_of_the_abstract(monkeypatch) -> None:
@@ -70,7 +71,7 @@ def test_every_candidate_is_a_verbatim_substring_of_the_abstract(monkeypatch) ->
     )
     abstract = "Latency under load breaks the system. We use a graph neural network approach here."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     assert len(candidates) > 0
     for c in candidates:
@@ -84,7 +85,7 @@ def test_zero_overlap_field_gets_no_candidate(monkeypatch) -> None:
     _use_controlled_field_queries(monkeypatch, {"applications": "zzqx wwky unrelated_token_xyz"})
     abstract = "We use a graph neural network approach for this task."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     assert candidates == []
 
@@ -95,7 +96,7 @@ def test_strong_overlap_gets_medium_confidence(monkeypatch) -> None:
     _use_controlled_field_queries(monkeypatch, {"method": "graph neural"})
     abstract = "Graph neural nets work."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     expected_similarity = 2 / math.sqrt(2 * 4)
     assert expected_similarity >= semantic_module.MEDIUM_CONFIDENCE_SIMILARITY
@@ -113,7 +114,7 @@ def test_weak_but_above_threshold_overlap_gets_low_confidence(monkeypatch) -> No
     _use_controlled_field_queries(monkeypatch, {"method": "graph neural network"})
     abstract = "Graph theory helps model networks well."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     expected_similarity = 1 / math.sqrt(3 * 6)
     assert semantic_module.MIN_SIMILARITY <= expected_similarity < semantic_module.MEDIUM_CONFIDENCE_SIMILARITY
@@ -138,7 +139,7 @@ def test_one_sentence_cannot_win_two_fields(monkeypatch) -> None:
     )
     abstract = "Generic graph neural network approach data challenge. Specific graph data only."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     by_field = {c.claim_type: c.claim_text for c in candidates}
     assert by_field["problem"].startswith("Generic")
@@ -153,8 +154,75 @@ def test_fields_are_evaluated_independently(monkeypatch) -> None:
     )
     abstract = "Latency under load breaks the system. We use a graph approach here."
 
-    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract))
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
 
     types = {c.claim_type for c in candidates}
     assert "problem" in types
     assert "dataset" not in types
+
+
+def test_full_text_match_wins_over_an_abstract_match_for_the_same_field(monkeypatch) -> None:
+    _use_controlled_field_queries(monkeypatch, {"method": "graph neural network approach"})
+    abstract = "We use a graph neural network approach for this task."
+    sections = {"methods": "We use a graph neural network approach in the methods section specifically."}
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), sections)
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.section == "methods"
+    assert "methods section specifically" in method.claim_text
+
+
+def test_full_text_confidence_is_not_bumped_above_the_similarity_banding(monkeypatch) -> None:
+    # unlike HeuristicExtractor, a semantic full-text hit keeps the same
+    # medium/low confidence banding as an abstract hit would - similarity
+    # scores aren't the same kind of certainty as a verbatim cue-phrase hit
+    _use_controlled_field_queries(monkeypatch, {"method": "graph neural"})
+    sections = {"methods": "Graph neural nets work."}
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(None), sections)
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.confidence == "medium"  # same banding rule as the abstract-only test above
+    assert method.section == "methods"
+
+
+def test_two_fields_sharing_a_target_section_still_cannot_win_the_same_sentence(monkeypatch) -> None:
+    # method and dataset both target ("methods", "experiments") in
+    # FIELD_SECTIONS - this reproduces test_one_sentence_cannot_win_two_fields
+    # but for two fields sharing a resolved full-text section, proving the
+    # collision-avoidance grouping (not just the abstract-only pool) works
+    _use_controlled_field_queries(
+        monkeypatch,
+        {
+            "method": "graph neural network approach data challenge",
+            "dataset": "graph neural network data",
+        },
+    )
+    sections = {"methods": "Generic graph neural network approach data challenge. Specific graph data only."}
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(None), sections)
+
+    by_field = {c.claim_type: c.claim_text for c in candidates}
+    assert by_field["method"].startswith("Generic")
+    assert by_field["dataset"].startswith("Specific")
+    assert by_field["method"] != by_field["dataset"]
+
+
+def test_field_abstains_rather_than_falling_back_to_abstract_when_its_section_has_zero_overlap(
+    monkeypatch,
+) -> None:
+    # unlike HeuristicExtractor's cue-phrase presence/absence check,
+    # SemanticExtractor commits to a field's resolved pool once
+    # sentences_for_field returns sentences for it - a below-threshold
+    # match there means the field abstains, it does not fall back and
+    # re-search the abstract (that would reopen the exact "does this
+    # field's own best-scoring sentence get to have it" ambiguity that
+    # the pool grouping exists to avoid).
+    _use_controlled_field_queries(monkeypatch, {"method": "graph neural network approach"})
+    abstract = "We use a graph neural network approach for this task."
+    sections = {"methods": "zzqx wwky unrelated_token_xyz completely different content here."}
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), sections)
+
+    assert "method" not in {c.claim_type for c in candidates}

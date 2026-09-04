@@ -1,14 +1,15 @@
 """Improvement over the heuristic baseline (Sec 26): embedding-similarity
-sentence selection instead of fixed cue phrases.
+sentence selection instead of fixed cue phrases, over the abstract or a
+full-text section when one exists (Sec 46).
 
 Still extractive, not generative - for each Sec 28 field, embed every
-sentence in the abstract and pick whichever is closest to a description of
-that field, taking the sentence itself as the claim. That keeps the same
+candidate sentence and pick whichever is closest to a description of that
+field, taking the sentence itself as the claim. That keeps the same
 verbatim-grounding guarantee the heuristic extractor has (the pipeline's
 grounding check in extraction/pipeline.py requires an exact substring of
-the abstract), which a generative model answering in its own words could
-not offer without weakening Sec 15's "no Grounding Illusion" rule - not a
-call to make quietly while chasing a better score.
+whatever section produced it), which a generative model answering in its
+own words could not offer without weakening Sec 15's "no Grounding
+Illusion" rule - not a call to make quietly while chasing a better score.
 
 The heuristic baseline's weakest fields (research_question, applications:
 0 recall) are exactly where fixed strings are the wrong tool - real
@@ -18,21 +19,30 @@ similarity doesn't need the wording to match, only the meaning to.
 
 Uses the Week 6 embedding model (SentenceTransformerEmbedder / all-
 MiniLM-L6-v2) - no new model, no new dependency, and it's already fast
-enough for this: one batched embed_texts() call per paper covers every
-sentence and every field description at once.
+enough for this: one batched embed_texts() call per candidate pool covers
+every sentence and every field description in that pool at once.
 
-Each sentence proposes only its own single best-matching field (a real
-bug this fixed: on short, jargon-dense abstracts, all-MiniLM-L6-v2 can
-rate a fluent-but-content-free sentence - e.g. "This report has been
-updated for posterity..." - higher against several field anchors than
-the sentence that actually describes the method, because it rewards
-grammatically ordinary prose over jargon-heavy technical prose almost
-independent of topical relevance. Picking each field's best sentence
-independently let that one attractive-but-wrong sentence get duplicated
-across four different fields on a real paper. Requiring each sentence to
-serve at most one field - whichever it matches best - means a field with
-no sentence that actually prefers it abstains instead of inheriting
-someone else's leftover.
+Each sentence proposes only its own single best-matching field WITHIN ITS
+OWN CANDIDATE POOL (a real bug this fixed: on short, jargon-dense
+abstracts, all-MiniLM-L6-v2 can rate a fluent-but-content-free sentence -
+e.g. "This report has been updated for posterity..." - higher against
+several field anchors than the sentence that actually describes the
+method, because it rewards grammatically ordinary prose over jargon-heavy
+technical prose almost independent of topical relevance. Picking each
+field's best sentence independently let that one attractive-but-wrong
+sentence get duplicated across four different fields on a real paper.
+Requiring each sentence to serve at most one field - whichever it matches
+best - means a field with no sentence that actually prefers it abstains
+instead of inheriting someone else's leftover.
+
+"Within its own candidate pool" matters once full text is involved: two
+fields that resolve to the SAME full-text section (e.g. method and
+dataset both -> methods/experiments) share a real collision risk and must
+be matched together; two fields resolving to different sections (or one
+resolving to a section and another falling back to the abstract) have
+disjoint sentence pools and can never collide with each other. extract()
+groups fields by their exact resolved pool before running the matching -
+see _match_pool.
 """
 
 from __future__ import annotations
@@ -42,6 +52,7 @@ from collections import defaultdict
 from researchbridge.db.models import Paper
 from researchbridge.embedding.base import Embedder
 from researchbridge.extraction.base import ClaimCandidate
+from researchbridge.extraction.sections import sentences_for_field
 from researchbridge.extraction.sentences import split_sentences
 
 SEMANTIC_MODEL_VERSION = "semantic-v3"
@@ -70,7 +81,9 @@ _FIELD_QUERIES: dict[str, str] = {
 # percentile and made the extractor abstain on nearly everything. These
 # numbers come from the raw similarity distribution alone, never from
 # ground-truth match/no-match labels - reading the instrument's own scale,
-# not tuning a threshold against the benchmark it's evaluated on.
+# not tuning a threshold against the benchmark it's evaluated on. Reused
+# unchanged for full-text sentences (Sec 46) - re-tuning for that
+# distribution is future work once real full-text extraction data exists.
 MIN_SIMILARITY = 0.15
 MEDIUM_CONFIDENCE_SIMILARITY = 0.28
 
@@ -82,19 +95,46 @@ class SemanticExtractor:
     def __init__(self, embedder: Embedder) -> None:
         self.embedder = embedder
 
-    def extract(self, paper: Paper) -> list[ClaimCandidate]:
-        if not paper.abstract or not paper.abstract.strip():
-            return []
+    def extract(self, paper: Paper, sections: dict[str, str]) -> list[ClaimCandidate]:
+        abstract_sentences = (
+            split_sentences(paper.abstract) if paper.abstract and paper.abstract.strip() else []
+        )
 
-        sentences = split_sentences(paper.abstract)
+        # Group fields by the EXACT pool they'll draw from - same pool
+        # means real collision risk, different pools can never collide.
+        pool_fields: dict[str, list[str]] = defaultdict(list)
+        pool_sentences: dict[str, list[str]] = {}
+        pool_section: dict[str, str | None] = {}
+
+        for field in _FIELD_QUERIES:
+            full_text_pairs = sentences_for_field(field, sections)
+            if full_text_pairs:
+                section_name = full_text_pairs[0][1]  # one sentences_for_field call = one section
+                pool_key = f"fulltext:{section_name}"
+                pool_sentences.setdefault(pool_key, [s for s, _ in full_text_pairs])
+                pool_section[pool_key] = section_name
+            else:
+                pool_key = "abstract"
+                pool_sentences.setdefault(pool_key, abstract_sentences)
+                pool_section[pool_key] = None
+            pool_fields[pool_key].append(field)
+
+        candidates: list[ClaimCandidate] = []
+        for pool_key, fields in pool_fields.items():
+            candidates.extend(self._match_pool(fields, pool_sentences[pool_key], pool_section[pool_key]))
+        return candidates
+
+    def _match_pool(
+        self, fields: list[str], sentences: list[str], section_name: str | None
+    ) -> list[ClaimCandidate]:
         if not sentences:
             return []
 
-        fields = list(_FIELD_QUERIES)
         vectors = self.embedder.embed_texts(sentences + [_FIELD_QUERIES[f] for f in fields])
         sentence_vectors, field_vectors = vectors[: len(sentences)], vectors[len(sentences) :]
 
-        # each sentence's own best-matching field, and its score there
+        # each sentence's own best-matching field (within this pool only),
+        # and its score there
         proposals: dict[str, list[tuple[str, float]]] = defaultdict(list)
         for sentence, svec in zip(sentences, sentence_vectors, strict=True):
             similarities = {
@@ -113,6 +153,8 @@ class SemanticExtractor:
             if similarity < MIN_SIMILARITY:
                 continue
             confidence = "medium" if similarity >= MEDIUM_CONFIDENCE_SIMILARITY else "low"
-            candidates.append(ClaimCandidate(field, sentence, sentence, confidence))
-
+            if section_name is not None:
+                candidates.append(ClaimCandidate(field, sentence, sentence, confidence, section=section_name))
+            else:
+                candidates.append(ClaimCandidate(field, sentence, sentence, confidence))
         return candidates
