@@ -49,4 +49,22 @@ describe("ExtractedClaims", () => {
 
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
+
+  it("tags a claim drawn from a named full-text section", () => {
+    render(<ExtractedClaims claims={[claim({ confidence: "high", section: "methods" })]} />);
+
+    expect(screen.getByText("high confidence · from methods")).toBeInTheDocument();
+  });
+
+  it("does not tag a claim drawn from the abstract", () => {
+    render(<ExtractedClaims claims={[claim({ confidence: "medium", section: "abstract" })]} />);
+
+    expect(screen.getByText("medium confidence")).toBeInTheDocument();
+  });
+
+  it("does not tag a claim with no section (legacy/stub data)", () => {
+    render(<ExtractedClaims claims={[claim({ confidence: "low", section: null })]} />);
+
+    expect(screen.getByText("low confidence")).toBeInTheDocument();
+  });
 });

@@ -17,8 +17,14 @@ export type PaperSummary = {
 export type ExtractedClaim = {
   claim_type: string;
   text: string;
-  /** The extractor's own self-reported confidence ("medium" | "low") - not a validated accuracy score. */
+  /**
+   * The extractor's own self-reported confidence ("high" | "medium" | "low") - not a validated
+   * accuracy score. "high" only occurs for a cue-phrase hit in a named full-text section; abstract-only
+   * matches top out at "medium".
+   */
   confidence: string;
+  /** "abstract", or a full-text section name (e.g. "methods", "discussion") when the paper has full text
+   * and the claim was drawn from it instead. */
   section: string | null;
   extraction_method: string;
 };

@@ -41,14 +41,19 @@ class ExtractedClaimOut(BaseModel):
     claim_type: str
     text: str
     confidence: str
-    """"medium" or "low" - the extractor's own self-reported confidence,
-    not a validated accuracy signal. Measured per-field precision varies
-    widely (0.10-0.88 F1 depending on the field) and does not track this
-    label cleanly: "problem" claims are labeled "low" whenever the
-    extractor falls back to an abstract's opening sentence, yet that field
-    measures as the single most reliable one. Treat this as provenance,
-    not as a trustworthiness score."""
+    """"high", "medium", or "low" - the extractor's own self-reported
+    confidence, not a validated accuracy signal ("high" only occurs for a
+    cue-phrase hit in a named full-text section; abstract-only matches top
+    out at "medium"). Measured per-field precision varies widely
+    (0.10-0.88 F1 depending on the field) and does not track this label
+    cleanly: "problem" claims are labeled "low" whenever the extractor
+    falls back to an abstract's opening sentence, yet that field measures
+    as the single most reliable one. Treat this as provenance, not as a
+    trustworthiness score."""
     section: str | None
+    """"abstract", or a full-text section name (e.g. "methods",
+    "discussion") when the paper has full text and the claim was drawn
+    from it instead."""
     extraction_method: str
 
     model_config = {"from_attributes": True}
