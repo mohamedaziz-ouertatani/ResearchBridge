@@ -13,6 +13,7 @@ from researchbridge.db.models import (
     ExtractionError,
     ExtractionRun,
     Paper,
+    PaperFullText,
 )
 from researchbridge.extraction.base import ClaimCandidate
 from researchbridge.extraction.pipeline import ExtractionPipeline, reset_extraction_data
@@ -40,8 +41,13 @@ class FakeExtractor:
     extraction_method: str = "fake"
     model_version: str = "fake-v1"
     raises_for: set = field(default_factory=set)
+    sections_seen: dict = field(default_factory=dict)
+    """paper_id -> the `sections` dict this extractor was actually called
+    with, for tests that need to confirm the pipeline looked up and passed
+    through the right paper_fulltext row."""
 
-    def extract(self, paper: Paper) -> list[ClaimCandidate]:
+    def extract(self, paper: Paper, sections: dict[str, str]) -> list[ClaimCandidate]:
+        self.sections_seen[paper.id] = sections
         if paper.id in self.raises_for:
             raise RuntimeError("boom")
         return self.candidates_by_paper_id.get(paper.id, [])
@@ -70,7 +76,7 @@ def test_stub_extractor_creates_grounded_evidence_and_claim(session_factory) -> 
 
         evidence = session.get(Evidence, claim.evidence_id)
         assert evidence.text == "We propose a new method for X."
-        assert evidence.section == "Abstract"
+        assert evidence.section == "abstract"
         assert evidence.extraction_method == "stub"
         assert evidence.model_version == STUB_MODEL_VERSION
         assert evidence.confidence == "medium"
@@ -355,7 +361,7 @@ def test_research_gap_claim_persists_its_validation_tier(session_factory) -> Non
         extraction_method = "fake"
         model_version = "fake-v1"
 
-        def extract(self, paper):
+        def extract(self, paper, sections):
             return [
                 ClaimCandidate(
                     claim_type="research_gap",
@@ -371,3 +377,122 @@ def test_research_gap_claim_persists_its_validation_tier(session_factory) -> Non
     claim = session.execute(select(ExtractedClaim).where(ExtractedClaim.paper_id == paper.id)).scalar_one()
     assert claim.validation_tier == "strong"
     session.close()
+
+
+def test_paper_with_no_fulltext_row_gets_an_empty_sections_dict(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1")
+    session.close()
+
+    extractor = FakeExtractor()
+    pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
+    pipeline.run()
+
+    assert extractor.sections_seen[paper.id] == {}
+
+
+def test_paper_with_fulltext_row_gets_its_sections_passed_through(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1")
+    session.add(
+        PaperFullText(
+            paper_id=paper.id, sections={"methods": "We propose a graph-based method."},
+            source_url="https://example.com/p1.pdf",
+        )
+    )
+    session.commit()
+
+    extractor = FakeExtractor()
+    pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
+    pipeline.run()
+
+    assert extractor.sections_seen[paper.id] == {"methods": "We propose a graph-based method."}
+
+
+def test_full_text_candidate_is_grounded_against_its_own_section_not_the_abstract(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1", abstract="This abstract does not contain the method sentence.")
+    session.add(
+        PaperFullText(
+            paper_id=paper.id, sections={"methods": "We propose a graph-based method for X."},
+            source_url="https://example.com/p1.pdf",
+        )
+    )
+    session.commit()
+
+    extractor = FakeExtractor(
+        candidates_by_paper_id={
+            paper.id: [
+                ClaimCandidate(
+                    claim_type="method", claim_text="We propose a graph-based method for X.",
+                    evidence_quote="We propose a graph-based method for X.", confidence="high",
+                    section="methods",
+                )
+            ]
+        }
+    )
+    pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(ExtractionRun, run_id)
+        assert run.claims_created == 1  # grounded against sections["methods"], not the abstract
+
+        claim = session.execute(select(ExtractedClaim).where(ExtractedClaim.paper_id == paper.id)).scalar_one()
+        evidence = session.get(Evidence, claim.evidence_id)
+        assert evidence.section == "methods"
+        assert evidence.source_locator == "methods"
+    finally:
+        session.close()
+
+
+def test_full_text_candidate_with_a_quote_not_in_its_claimed_section_is_rejected(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1")
+    session.add(
+        PaperFullText(
+            paper_id=paper.id, sections={"methods": "We propose a graph-based method for X."},
+            source_url="https://example.com/p1.pdf",
+        )
+    )
+    session.commit()
+
+    extractor = FakeExtractor(
+        candidates_by_paper_id={
+            paper.id: [
+                ClaimCandidate(
+                    claim_type="method", claim_text="fabricated text",
+                    evidence_quote="This sentence does not appear in the methods section.",
+                    confidence="high", section="methods",
+                )
+            ]
+        }
+    )
+    pipeline = ExtractionPipeline(extractor=extractor, session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(ExtractionRun, run_id)
+        assert run.claims_created == 0
+        assert run.candidates_rejected == 1
+    finally:
+        session.close()
+
+
+def test_abstract_section_candidate_persists_section_abstract(session_factory) -> None:
+    session = session_factory()
+    paper = _make_paper(session, "P1", abstract="We propose a new method for X.")
+    session.commit()
+
+    pipeline = ExtractionPipeline(extractor=StubExtractor(), session_factory=session_factory)
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        claim = session.execute(select(ExtractedClaim).where(ExtractedClaim.paper_id == paper.id)).scalar_one()
+        evidence = session.get(Evidence, claim.evidence_id)
+        assert evidence.section == "abstract"
+    finally:
+        session.close()

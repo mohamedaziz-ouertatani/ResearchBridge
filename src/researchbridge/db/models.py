@@ -476,9 +476,8 @@ class PaperFullText(Base):
     heuristic sections (Sec 46). One row per paper - re-fetching under
     --force updates this row in place rather than inserting a duplicate.
 
-    No consumer yet: extraction/pipeline.py stays abstract-only until a
-    separate future slice extends it to use this table - see
-    fulltext/pipeline.py's module docstring.
+    Consumed by extraction/pipeline.py, which looks up a paper's row here
+    (if any) and passes its sections to the Extractor in use.
     """
 
     __tablename__ = "paper_fulltext"

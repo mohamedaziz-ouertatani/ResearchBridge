@@ -8,13 +8,16 @@ rejects the candidate and logs it to extraction_errors rather than silently
 storing or silently relabeling it:
 
 1. Grounding (_quote_is_grounded): the evidence_quote is verified against
-   the paper's abstract - the concrete mechanism behind the blueprint's "no
-   Grounding Illusion" rule, §15. This proves the quote is not fabricated.
+   whatever section it claims to come from - paper.abstract when
+   candidate.section == "abstract", or paper_fulltext.sections[candidate.
+   section] when it's a real full-text section (Sec 46) - the concrete
+   mechanism behind the blueprint's "no Grounding Illusion" rule, §15.
+   This proves the quote is not fabricated.
 
 2. Claim-type validation (extraction/validation.py::validate_claim_type):
    grounding alone does not prove the quote actually expresses the claim
    type it was filed under - a quote can be a verbatim, grounded substring
-   of the abstract and still be a results sentence mislabeled as a
+   of its section and still be a results sentence mislabeled as a
    research_gap. This is the semantic check for that.
 """
 
@@ -35,6 +38,7 @@ from researchbridge.db.models import (
     ExtractionError,
     ExtractionRun,
     Paper,
+    PaperFullText,
     ResearchAssessmentEvidence,
 )
 from researchbridge.extraction.base import Extractor
@@ -133,21 +137,27 @@ class ExtractionPipeline:
         return run_id
 
     def _process_paper(self, session: Session, run: ExtractionRun, paper: Paper) -> None:
+        fulltext_row = session.execute(
+            select(PaperFullText).where(PaperFullText.paper_id == paper.id)
+        ).scalar_one_or_none()
+        sections = fulltext_row.sections if fulltext_row is not None else {}
+
         try:
-            candidates = self.extractor.extract(paper)
+            candidates = self.extractor.extract(paper, sections)
         except Exception as exc:  # noqa: BLE001 - one extractor failure must not crash the run
             logger.exception("Extractor failed for paper %s", paper.id)
             self._record_error(session, run.id, paper.id, "extractor_error", str(exc)[:2000])
             return
 
         for candidate in candidates:
-            if not _quote_is_grounded(candidate.evidence_quote, paper.abstract):
+            haystack = paper.abstract if candidate.section == "abstract" else sections.get(candidate.section)
+            if not _quote_is_grounded(candidate.evidence_quote, haystack):
                 self._record_error(
                     session,
                     run.id,
                     paper.id,
                     "ungrounded_quote",
-                    f"evidence_quote not found in paper.abstract: {candidate.evidence_quote!r}",
+                    f"evidence_quote not found in section {candidate.section!r}: {candidate.evidence_quote!r}",
                 )
                 run.candidates_rejected += 1
                 continue
@@ -170,9 +180,9 @@ class ExtractionPipeline:
                     evidence = Evidence(
                         paper_id=paper.id,
                         evidence_type=candidate.claim_type,
-                        section="Abstract",
+                        section=candidate.section,
                         text=candidate.evidence_quote,
-                        source_locator="abstract",
+                        source_locator=candidate.section,
                         extraction_method=self.extractor.extraction_method,
                         model_version=self.extractor.model_version,
                         confidence=candidate.confidence,
@@ -212,10 +222,10 @@ class ExtractionPipeline:
         )
 
 
-def _quote_is_grounded(quote: str, abstract: str | None) -> bool:
-    if not quote or not abstract:
+def _quote_is_grounded(quote: str, haystack: str | None) -> bool:
+    if not quote or not haystack:
         return False
-    return _normalize_whitespace(quote) in _normalize_whitespace(abstract)
+    return _normalize_whitespace(quote) in _normalize_whitespace(haystack)
 
 
 def _normalize_whitespace(text: str) -> str:

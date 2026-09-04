@@ -23,7 +23,7 @@ class StubExtractor:
     extraction_method = "stub"
     model_version = STUB_MODEL_VERSION
 
-    def extract(self, paper: Paper) -> list[ClaimCandidate]:
+    def extract(self, paper: Paper, sections: dict[str, str]) -> list[ClaimCandidate]:
         if not paper.abstract or not paper.abstract.strip():
             return []
 

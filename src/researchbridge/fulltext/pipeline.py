@@ -4,9 +4,9 @@ Structurally mirrors extraction/pipeline.py: idempotent paper selection,
 per-paper try/except that logs to fulltext_fetch_errors and continues
 rather than crashing the run, incremental run-history updates.
 
-No consumer yet - extraction/pipeline.py and every Extractor implementation
-stay abstract-only. Wiring full text into extraction is a separate, future
-slice (see the design spec's "Two-slice split").
+Consumed by extraction/pipeline.py, which looks up each paper's
+paper_fulltext row (if any) and passes its sections to the Extractor in
+use - see the full-text-aware extraction design spec.
 """
 
 from __future__ import annotations
