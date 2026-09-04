@@ -8,6 +8,10 @@ export type PipelineRun = {
   error_summary: string | null;
   source: string | null;
   counts: Record<string, number>;
+  /** OS process id, present only while status is "running" - lets an operator
+   * correlate a run (including one started directly from the CLI, which this
+   * panel now also detects) with `ps`/Task Manager. */
+  pid: number | null;
 };
 
 export type PipelineKey =

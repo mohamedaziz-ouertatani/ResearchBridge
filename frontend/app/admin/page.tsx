@@ -761,7 +761,7 @@ function RunSection({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <span className="eyebrow inline-flex items-center gap-1.5">
           {title}
-          <InfoTooltip text="Fill in the fields and click run to start this pipeline as a background job. It keeps running even if you navigate away; come back to this tab to check progress or stop it." />
+          <InfoTooltip text="Fill in the fields and click run to start this pipeline as a background job. It keeps running even if you navigate away; come back to this tab to check progress or stop it. “Running now” and the live log also pick up a run started directly from a terminal (not just this button), as long as it's still alive." />
         </span>
         <span
           className={`readout text-[0.6875rem] ${running ? "text-[var(--live)]" : "text-[var(--ink-faint)]"}`}
@@ -902,6 +902,14 @@ function RunSection({
                   {run.source && (
                     <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
                       {run.source.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {run.pid != null && (
+                    <span
+                      className="eyebrow text-[0.625rem] text-[var(--ink-faint)]"
+                      title="OS process id - correlate with `ps` or Task Manager, e.g. to stop a run started outside this panel"
+                    >
+                      pid {run.pid}
                     </span>
                   )}
                 </span>
