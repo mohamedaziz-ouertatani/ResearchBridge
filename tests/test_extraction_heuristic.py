@@ -20,17 +20,18 @@ def test_split_sentences_handles_basic_punctuation() -> None:
 
 
 def test_empty_abstract_yields_no_candidates() -> None:
-    assert HeuristicExtractor().extract(_paper(None)) == []
-    assert HeuristicExtractor().extract(_paper("   ")) == []
+    assert HeuristicExtractor().extract(_paper(None), {}) == []
+    assert HeuristicExtractor().extract(_paper("   "), {}) == []
 
 
 def test_method_cue_phrase_is_matched() -> None:
     abstract = "Prior work struggles with X. We propose a graph-based method for X. It works on real data."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     method = next(c for c in candidates if c.claim_type == "method")
     assert method.claim_text == "We propose a graph-based method for X."
     assert method.confidence == "medium"
+    assert method.section == "abstract"
 
 
 def test_every_candidate_is_a_verbatim_substring_of_the_abstract() -> None:
@@ -39,7 +40,7 @@ def test_every_candidate_is_a_verbatim_substring_of_the_abstract() -> None:
         "We propose a lock-free queue. Our results show a 3x speedup. "
         "However, throughput degrades past 64 threads."
     )
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     assert len(candidates) > 0
     for c in candidates:
@@ -50,7 +51,7 @@ def test_every_candidate_is_a_verbatim_substring_of_the_abstract() -> None:
 def test_field_with_no_cue_match_is_omitted_not_fabricated() -> None:
     # no cue phrase for any field except an implicit "problem" opening sentence
     abstract = "Something happens in this domain."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     types = {c.claim_type for c in candidates}
     assert "dataset" not in types
@@ -59,7 +60,7 @@ def test_field_with_no_cue_match_is_omitted_not_fabricated() -> None:
 
 def test_problem_falls_back_to_first_sentence_at_low_confidence() -> None:
     abstract = "Coordination across regions is expensive. We propose a cheaper protocol."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     problem = next(c for c in candidates if c.claim_type == "problem")
     assert problem.claim_text == "Coordination across regions is expensive."
@@ -70,7 +71,7 @@ def test_problem_not_added_when_a_real_cue_phrase_already_covers_it() -> None:
     # first sentence itself matches a stronger cue phrase (method) -> no
     # separate low-confidence "problem" duplicate of the same sentence
     abstract = "We propose a new caching layer. It reduces latency significantly."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     problems = [c for c in candidates if c.claim_type == "problem"]
     assert problems == []
@@ -78,7 +79,7 @@ def test_problem_not_added_when_a_real_cue_phrase_already_covers_it() -> None:
 
 def test_research_gap_cue_phrase_is_matched() -> None:
     abstract = "We propose a new caching layer. Extending this to distributed settings remains future work."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     gap = next(c for c in candidates if c.claim_type == "research_gap")
     assert gap.claim_text == "Extending this to distributed settings remains future work."
@@ -90,7 +91,7 @@ def test_future_work_no_longer_counted_as_a_limitation() -> None:
     # weakness of this work" with "what's left for next time" - Sec 32
     # treats them as distinct explicit-gap categories.
     abstract = "We propose a new caching layer. Extending this to distributed settings remains future work."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     types = {c.claim_type for c in candidates}
     assert "limitations" not in types
@@ -101,7 +102,59 @@ def test_more_specific_phrase_takes_priority_over_vaguer_one() -> None:
     # "our contribution" (main_contribution) should win over a later, vaguer
     # "we show that" sentence also present in the same abstract
     abstract = "Our contribution is a new proof technique. Separately, we show that it generalizes."
-    candidates = HeuristicExtractor().extract(_paper(abstract))
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
 
     contribution = next(c for c in candidates if c.claim_type == "main_contribution")
     assert contribution.claim_text == "Our contribution is a new proof technique."
+
+
+def test_full_text_match_wins_over_an_abstract_match_for_the_same_field() -> None:
+    abstract = "However, the abstract only vaguely gestures at a limitation."
+    sections = {"discussion": "However, throughput degrades past 64 threads under load."}
+    candidates = HeuristicExtractor().extract(_paper(abstract), sections)
+
+    limitations = [c for c in candidates if c.claim_type == "limitations"]
+    assert len(limitations) == 1
+    assert limitations[0].claim_text == "However, throughput degrades past 64 threads under load."
+
+
+def test_full_text_cue_phrase_hit_gets_high_confidence() -> None:
+    abstract = "An abstract with no limitation cue phrase at all."
+    sections = {"discussion": "However, throughput degrades past 64 threads under load."}
+    candidates = HeuristicExtractor().extract(_paper(abstract), sections)
+
+    limitation = next(c for c in candidates if c.claim_type == "limitations")
+    assert limitation.confidence == "high"
+    assert limitation.section == "discussion"
+
+
+def test_full_text_evidence_quote_is_grounded_in_the_section_not_the_abstract() -> None:
+    abstract = "A short abstract that does not mention the method at all."
+    sections = {"methods": "We propose a graph-based method for X."}
+    candidates = HeuristicExtractor().extract(_paper(abstract), sections)
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.evidence_quote == "We propose a graph-based method for X."
+    assert method.evidence_quote not in abstract
+
+
+def test_falls_back_to_abstract_when_full_text_section_has_no_cue_phrase_match() -> None:
+    abstract = "We propose a graph-based method for X."
+    sections = {"methods": "This section describes implementation details with no cue phrase at all."}
+    candidates = HeuristicExtractor().extract(_paper(abstract), sections)
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.section == "abstract"
+    assert method.confidence == "medium"
+
+
+def test_problem_stays_abstract_only_even_with_full_text_available() -> None:
+    # "problem" has no FIELD_SECTIONS entry by design - its fallback never
+    # looks at full text, regardless of what sections are available
+    abstract = "Coordination across regions is expensive."
+    sections = {"introduction": "This paper is about coordination in distributed systems."}
+    candidates = HeuristicExtractor().extract(_paper(abstract), sections)
+
+    problem = next(c for c in candidates if c.claim_type == "problem")
+    assert problem.section == "abstract"
+    assert problem.claim_text == "Coordination across regions is expensive."

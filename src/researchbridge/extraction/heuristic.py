@@ -1,4 +1,5 @@
-"""Baseline Extractor (Sec 28/29): cue-phrase sentence matching over the abstract.
+"""Baseline Extractor (Sec 28/29): cue-phrase sentence matching over the
+abstract, or a full-text section when one exists and has a match (Sec 46).
 
 Deliberately naive - the extraction analogue of the retrieval package's
 TF-IDF/BM25 baselines (see retrieval/tfidf.py, bm25.py). The point of a
@@ -7,17 +8,21 @@ baseline is to be simple enough to establish a floor that a real method
 here is expected to be mediocre; that's the honest starting number Sec 28's
 evaluation is meant to produce, not a defect to paper over.
 
-For each Sec 28 field, split the abstract into sentences and take the
-first one matching an ordered list of cue phrases. No cue match -> no
-candidate for that field, never a fabricated guess (same "leave it blank"
-rule used throughout the benchmark annotations themselves - see
-benchmark/annotation_template.py). "problem" is the one exception: most
-abstracts open by stating the problem/motivation before any of the other
-cue phrases appear, so it falls back to the first sentence at low
-confidence when no stronger cue phrase matches.
+For each Sec 28 field, first try sentences_for_field(field, sections) (the
+paper's own most-likely full-text section for that field, per
+FIELD_SECTIONS priority order) - a cue-phrase hit there gets
+confidence="high" (Sec 15: "explicit statement in a named section"). If
+that's empty (no full text, or no section recognized), fall back to
+searching paper.abstract exactly as before Sec 46, confidence="medium". No
+cue match anywhere -> no candidate for that field, never a fabricated
+guess. "problem" is the one exception: most abstracts open by stating the
+problem/motivation before any of the other cue phrases appear, so it falls
+back to the first abstract sentence at low confidence when no stronger cue
+phrase matches - this fallback is abstract-only by design (see
+FIELD_SECTIONS's docstring), full text is never consulted for it.
 
-Every candidate's evidence_quote is the matched sentence verbatim, so it
-is grounded in the abstract by construction - the pipeline's grounding
+Every candidate's evidence_quote is a verbatim sentence from wherever it
+was matched, so it is grounded by construction - the pipeline's grounding
 check (extraction/pipeline.py::_quote_is_grounded) will always pass.
 """
 
@@ -25,6 +30,7 @@ from __future__ import annotations
 
 from researchbridge.db.models import Paper
 from researchbridge.extraction.base import ClaimCandidate
+from researchbridge.extraction.sections import sentences_for_field
 from researchbridge.extraction.sentences import split_sentences
 
 HEURISTIC_MODEL_VERSION = "cue-phrase-v1"
@@ -76,26 +82,38 @@ class HeuristicExtractor:
     extraction_method = "heuristic"
     model_version = HEURISTIC_MODEL_VERSION
 
-    def extract(self, paper: Paper) -> list[ClaimCandidate]:
-        if not paper.abstract or not paper.abstract.strip():
-            return []
+    def extract(self, paper: Paper, sections: dict[str, str]) -> list[ClaimCandidate]:
+        abstract_sentences = (
+            split_sentences(paper.abstract) if paper.abstract and paper.abstract.strip() else []
+        )
 
-        sentences = split_sentences(paper.abstract)
         candidates: list[ClaimCandidate] = []
-        used_sentences: set[str] = set()
+        used_abstract_sentences: set[str] = set()
 
         for field, phrases in _CUE_PHRASES.items():
-            sentence = _first_matching_sentence(sentences, phrases)
+            full_text_pairs = sentences_for_field(field, sections)
+            if full_text_pairs:
+                match = _first_matching_pair(full_text_pairs, phrases)
+                if match is not None:
+                    sentence, section_name = match
+                    candidates.append(
+                        ClaimCandidate(field, sentence, sentence, confidence="high", section=section_name)
+                    )
+                    continue  # full text produced a candidate - it wins over the abstract (Sec 46)
+
+            sentence = _first_matching_sentence(abstract_sentences, phrases)
             if sentence is not None:
                 candidates.append(ClaimCandidate(field, sentence, sentence, confidence="medium"))
-                used_sentences.add(sentence)
+                used_abstract_sentences.add(sentence)
 
         # skip the fallback if the opening sentence was already claimed by a
         # real cue-phrase match above - relabeling it "problem" too would be
         # a duplicate, and quite possibly a mislabel (a method sentence isn't
         # the problem statement just because it happens to open the abstract)
-        if sentences and sentences[0] not in used_sentences:
-            candidates.append(ClaimCandidate("problem", sentences[0], sentences[0], confidence="low"))
+        if abstract_sentences and abstract_sentences[0] not in used_abstract_sentences:
+            candidates.append(
+                ClaimCandidate("problem", abstract_sentences[0], abstract_sentences[0], confidence="low")
+            )
 
         return candidates
 
@@ -105,4 +123,12 @@ def _first_matching_sentence(sentences: list[str], phrases: list[str]) -> str | 
         for sentence in sentences:
             if phrase in sentence.lower():
                 return sentence
+    return None
+
+
+def _first_matching_pair(pairs: list[tuple[str, str]], phrases: list[str]) -> tuple[str, str] | None:
+    for phrase in phrases:
+        for sentence, section_name in pairs:
+            if phrase in sentence.lower():
+                return sentence, section_name
     return None
