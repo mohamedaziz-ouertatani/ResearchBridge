@@ -857,3 +857,44 @@ def test_llm_stages_opportunity_evidence_is_linked_with_role_opportunity(
     )
     session.close()
     assert {link.evidence_id for link in opportunity_links} == {evidence_id}
+
+
+def test_llm_stages_splits_speculative_opportunities_into_a_separate_claim(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content=(
+            "Direct: real-time fraud screening API for banks [1]\n"
+            "Adjacent: a broader fraud-risk monitoring platform [1]\n"
+            "Speculative: an industry-wide fraud intelligence network [1]"
+        ),
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "applications", "real-time payment fraud screening")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    claims = session.execute(
+        select(AnalysisClaim).where(
+            AnalysisClaim.source_table == "research_assessments", AnalysisClaim.source_id == assessment.id
+        )
+    ).scalars().all()
+    session.close()
+
+    speculation_claims = [c for c in claims if c.claim_type == "speculation"]
+    non_application_opportunity_claims = [
+        c for c in claims if c.claim_type == "opportunity" and "direct" in c.claim_text.lower()
+    ]
+    assert len(speculation_claims) == 1
+    assert "industry-wide fraud intelligence network" in speculation_claims[0].claim_text
+    assert len(non_application_opportunity_claims) == 1
+    opportunity_claim = non_application_opportunity_claims[0]
+    assert "industry-wide" not in opportunity_claim.claim_text
+    assert "real-time fraud screening API" in opportunity_claim.claim_text
+    assert "broader fraud-risk monitoring platform" in opportunity_claim.claim_text

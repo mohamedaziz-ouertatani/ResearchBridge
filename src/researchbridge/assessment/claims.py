@@ -8,9 +8,21 @@ one claim with claim_text set to the field's own text verbatim (so the web
 report and export can match a claim back to its field by exact text - see
 AssessmentReport.tsx's claimForText / export.py's _claim_for_text). The two
 JSONB list fields become one claim each too, with claim_text a deterministic
-join of the list (see _render_applications/_render_opportunities) - nothing
-elsewhere currently tries to match those two by exact text, so the join
-format only has to be internally consistent, not mirrored in the frontend.
+join of the list (see render_applications_text/render_opportunities_text) -
+nothing elsewhere currently tries to match those two by exact text, so the
+join format only has to be internally consistent, not mirrored in the
+frontend.
+
+potential_opportunities is itself split across two roles/claim_types, not
+one: opportunity_synthesis.py already tags each generated opportunity with
+a tier (direct/adjacent/speculative - blueprint Sec 33). The "speculative"
+tier is a real, already-existing signal for claim_type="speculation" (Sec
+16's most speculative bucket) - direct/adjacent stay claim_type="opportunity".
+This is the one place in the codebase currently producing "speculation"
+claims; "hypothesis" has no producer at all (see CandidateGap's own
+docstring - turning a recurring pattern into a proposed hypothesis is a
+further, unimplemented step, not something this module or gaps/claims.py
+attempts).
 
 research_gap_text is mirrored ONLY when research_gap_source ==
 "input_specific". When the assessment reused an existing candidate_gaps row
@@ -45,14 +57,17 @@ SOURCE_TABLE = "research_assessments"
 
 # role -> claim_type. "comparison" summarizes what retrieved papers directly
 # show (fact). "application"/"opportunity" are plausible practical uses of a
-# capability - Sec 16's "opportunity" bucket, not a certainty. Everything
-# else is reasoning derived from evidence (inference).
+# capability - Sec 16's "opportunity" bucket, not a certainty. "speculation"
+# is the speculative-tier subset of potential_opportunities specifically -
+# see this module's docstring. Everything else is reasoning derived from
+# evidence (inference).
 CLAIM_TYPE_BY_ROLE = {
     "comparison": "fact",
     "novelty": "inference",
     "research_gap": "inference",
     "application": "opportunity",
     "opportunity": "opportunity",
+    "speculation": "speculation",
     "feasibility": "inference",
     "risk": "inference",
 }

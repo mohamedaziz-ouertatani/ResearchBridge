@@ -136,6 +136,14 @@ def build_assessment(
 
     opportunities_json: list[dict] | None = None
     opportunity_evidence_ids: set[str] = set()
+    non_speculative_evidence_ids: set[str] = set()
+    speculative_evidence_ids: set[str] = set()
+    """Evidence cited by each tier of synthesized opportunity, tracked
+    separately (not derived by subtracting one from the combined pool) -
+    the same evidence can legitimately support both a modest and a
+    speculative reading of the same application, so the two sets can and
+    do overlap. Used by assessment/claims.py to route claim_type="opportunity"
+    vs "speculation" (see that module's docstring)."""
     if enable_llm_stages and applications.status == "found":
         source_applications = [
             SourceApplication(
@@ -151,6 +159,12 @@ def build_assessment(
             opportunities_json, opportunity_evidence_ids = to_persisted_opportunities(
                 source_applications, synthesis_result
             )
+            for opp in synthesis_result.opportunities:
+                target = speculative_evidence_ids if opp.tier == "speculative" else non_speculative_evidence_ids
+                for i in opp.source_application_indices:
+                    evidence_id_str = source_applications[i - 1].evidence_id
+                    if evidence_id_str is not None:
+                        target.add(evidence_id_str)
         except OpportunitySynthesisUnavailable:
             pass  # fail closed - keep assess_opportunities()'s deterministic NULL default
 
@@ -260,9 +274,15 @@ def build_assessment(
             ResearchAssessmentEvidence(research_assessment_id=assessment.id, evidence_id=evidence_id, role="risk")
         )
 
-    combined_opportunity_evidence_ids = list(opportunities.evidence_ids) + [
-        uuid.UUID(evidence_id_str) for evidence_id_str in opportunity_evidence_ids
+    # Split by tier for the claims layer only (ResearchAssessmentEvidence
+    # above stays role="opportunity" for every tier - this split is just
+    # for claim_type, see assessment/claims.py's docstring).
+    non_speculative_opportunities = [
+        o for o in (assessment.potential_opportunities or []) if o["tier"] != "speculative"
     ]
+    speculative_opportunities = [o for o in (assessment.potential_opportunities or []) if o["tier"] == "speculative"]
+    non_speculative_opportunity_evidence_ids = [uuid.UUID(evidence_id_str) for evidence_id_str in non_speculative_evidence_ids]
+    speculative_opportunity_evidence_ids = [uuid.UUID(evidence_id_str) for evidence_id_str in speculative_evidence_ids]
 
     save_claims_for_assessment(
         session,
@@ -280,9 +300,10 @@ def build_assessment(
                 else None
             ),
             "opportunity": (
-                render_opportunities_text(assessment.potential_opportunities)
-                if assessment.potential_opportunities
-                else None
+                render_opportunities_text(non_speculative_opportunities) if non_speculative_opportunities else None
+            ),
+            "speculation": (
+                render_opportunities_text(speculative_opportunities) if speculative_opportunities else None
             ),
             "feasibility": feasibility.reasoning,
             "risk": risks.text,
@@ -292,7 +313,8 @@ def build_assessment(
             "novelty": novelty.evidence_ids,
             "research_gap": gap.evidence_ids,
             "application": applications.evidence_ids,
-            "opportunity": combined_opportunity_evidence_ids,
+            "opportunity": list(opportunities.evidence_ids) + non_speculative_opportunity_evidence_ids,
+            "speculation": speculative_opportunity_evidence_ids,
             "feasibility": feasibility.evidence_ids,
             "risk": risks.evidence_ids,
         },

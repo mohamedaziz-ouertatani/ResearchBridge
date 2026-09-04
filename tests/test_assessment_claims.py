@@ -194,6 +194,26 @@ def test_application_and_opportunity_roles_are_typed_opportunity(session_factory
     assert by_text_type == {"an application": "opportunity", "an opportunity": "opportunity"}
 
 
+def test_speculation_role_is_typed_speculation(session_factory) -> None:
+    session = session_factory()
+    ri = _research_input(session)
+    paper = _paper(session)
+    ev = _evidence(session, paper)
+    session.commit()
+    assessment = _assessment(session, ri)
+
+    saved = save_claims_for_assessment(
+        session,
+        assessment,
+        texts_by_role={"speculation": "a speculative opportunity"},
+        evidence_by_role={"speculation": [ev.id]},
+    )
+    session.commit()
+
+    session.close()
+    assert saved[0].claim_type == "speculation"
+
+
 def test_render_applications_text_joins_application_and_source() -> None:
     applications = [
         {"application": "fraud screening", "source_paper": "Paper A", "paper_id": "x", "evidence_id": "y"},
