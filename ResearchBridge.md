@@ -21,6 +21,7 @@ This changes what counts as a realistic MVP. When proposing architecture or road
 - Start with exactly one data source (arXiv). Add a second source only once ingestion, normalization, and dedup work end-to-end on the first.
 - Confidence values must be things a solo builder can actually justify — categorical (High/Medium/Low) tied to explicit rules, not decimal floats implying a calibration process that doesn't exist yet.
 - The roadmap below is written in phases; treat "Phase 1" as the only phase with committed weekly milestones. Phases 2–5 stay directional until Phase 1 ships and is evaluated.
+  **Status update:** Phase 1 has shipped and been evaluated (§24's 40-paper benchmark exists under `benchmark/annotations/`), and Phases 2–4 are also substantially built — see "Current Implementation Status" right after this section for what actually exists today. The phase write-ups below are kept as the historical plan/rationale record, not a forward-looking TODO list.
 
 **Free/Open-Source First.** This is a project-wide constraint, not a suggestion — it applies to every phase and every architectural decision below:
 
@@ -34,6 +35,84 @@ This changes what counts as a realistic MVP. When proposing architecture or road
 - Never assume an API is free — verify its current pricing/licensing before recommending it.
 - Avoid vendor lock-in: keep every external provider behind a replaceable interface.
 - Target state: the builder can develop and demonstrate the MVP with zero mandatory software/API costs, excluding optional hardware, electricity, or internet costs.
+
+---
+
+## Current Implementation Status
+
+This blueprint is written phase-by-phase as a forward-looking plan (per the
+Builder Context above), and most of the document below still reads that
+way. In practice the build has moved well past Phase 1. This section is a
+factual snapshot of what exists today, kept here so the phase sections
+below aren't mistaken for an open TODO list. Update this section, not the
+historical phase write-ups, as the system evolves further.
+
+**Ingestion (§4–8).** Four source connectors are live, not one:
+`ArxivConnector`, `SemanticScholarConnector`, `SpringerConnector`, and
+`CoreConnector` (`src/researchbridge/connectors/`) — Springer Nature and
+CORE, both originally listed as "Future sources" in §4, have already been
+built. PubMed Central and Crossref-as-a-paper-source remain future work;
+Crossref is used today only as a citation-edge source (below), not for
+paper ingestion. Ingestion reliability (§8) is implemented via
+`ingestion_runs`/`ingestion_errors` tables recording per-run counts and
+failures, exposed through the admin pipeline-monitoring routes.
+
+**Retrieval (§26–27).** All four baselines are implemented and compared:
+TF-IDF, BM25, embedding retrieval (`all-MiniLM-L6-v2` via
+sentence-transformers), and hybrid lexical+semantic (`rb-retrieval-compare`,
+`rb-retrieval-evaluate`).
+
+**Extraction (§28–29).** `HeuristicExtractor`, `SemanticExtractor`, and
+`HybridExtractor` are implemented behind the `Extractor` interface, plus
+`StubExtractor` for tests — all local/free, per the Free/Open-Source First
+constraint. No paid-API extractor has been built; that leg of the
+interface remains theoretical.
+
+**Citations (§12, §31).** `paper_citations` plus `citation_fetch_runs`;
+`rb-citations-fetch` pulls edges from Semantic Scholar or CrossRef.
+
+**Gap detection (§32).** `rb-gaps-detect` and `rb-gaps-calibrate`
+implement explicit and implicit cross-paper gap clustering
+(`gaps/detect.py`, `gaps/cluster.py`, `gaps/calibration.py`) with
+`gap_detection_runs` tracking. The "Temporal Patterns" pipeline step
+shown in §32's diagram was never implemented inside the gap engine itself
+— see "Corpus Trends," below, for the real (differently-scoped) feature
+that replaced it.
+
+**The ResearchAssessment product loop (§2A, §33, §45).** This is the
+furthest along: `POST /api/assessments` (idea input) and
+`POST /api/assessments/upload` (document input — the "Uploaded-Paper Path"
+in §2A is real, not aspirational) both run the full pipeline —
+retrieval, novelty, gap (reused or freshly detected), technical
+feasibility, applications, opportunity synthesis, and a recommendation
+with confidence — populating `research_assessments` end to end, not just
+the thin vertical slice §45 describes as the starting point. Reviewers can
+re-run an assessment, mark it human-reviewed, inspect a similarity graph,
+and export the report as PDF or DOCX (none of which §2A/§49 describe).
+
+**Corpus Q&A (not in this blueprint's original scope).** `POST /api/ask`
+answers free-text questions by retrieving candidate papers, then
+re-ranking their already-extracted claims/evidence against the question
+— returning verbatim grounded quotes, never generated prose (see
+`docs/superpowers/specs/2026-08-26-corpus-qa-design.md`). An optional,
+off-by-default layer (`OLLAMA_ENABLED`, `POST /api/ask/summarize`) adds a
+local Ollama model that synthesizes a short summary strictly over the
+quotes already returned, with citation markers validated against the real
+hit list before being shown — raw quotes stay visible either way. This
+extends, rather than violates, the "no Grounding Illusion" principle in
+§15: generation is additive and citation-checked, never a replacement for
+evidence.
+
+**Corpus Trends (a real version of §32's "Temporal Patterns" step).**
+`GET /api/trends` and the `/trends` page show per-year counts of each
+extracted claim type within one category — a direct count query, not
+semantic clustering or inferred patterns (see
+`docs/superpowers/specs/2026-08-28-trend-temporal-view-design.md`).
+
+**Not yet built:** `analysis_claims`/`claim_evidence` (§16), the Phase 3+
+split entity tables (§14), `opportunity_assessments` (§41), PubMed Central
+ingestion, any paid-API extractor, and all of Phase 5 (§48, external market
+data/patents/companies).
 
 ---
 
@@ -388,15 +467,18 @@ Useful for:
 
 ## PubMed Central Open Access
 
-Keep as a later-expansion source, although it is less central to the initial CS/AI corpus.
+Keep as a later-expansion source, although it is less central to the initial CS/AI corpus. Not yet implemented.
+
+## Springer Nature and CORE (implemented, ahead of this section's original ordering)
+
+Both were originally listed below as "Future sources" but have since been built as full connectors (`SpringerConnector`, `CoreConnector`) alongside arXiv and Semantic Scholar — see "Current Implementation Status" above for registration/API-key details. Treat this section's phase ordering ("arXiv first, Semantic Scholar next") as historical: it described the correct order to *start* in, not a ceiling on how many sources exist today.
 
 ## Future sources
 
-Potential future sources include:
+Potential future sources still not implemented:
 
-- CORE
-- Crossref
-- Springer Nature APIs
+- PubMed Central
+- Crossref (as a paper-ingestion source — it is already used as a citation-edge source, see §31/Current Implementation Status)
 - IEEE
 - ACM
 - institutional repositories
@@ -1792,6 +1874,16 @@ benchmark_papers
 benchmark_annotations
 ```
 
+**Operational/reliability tables (§8, implemented but not originally listed
+here):** `ingestion_runs`, `ingestion_errors`, `extraction_runs`,
+`extraction_errors`, `embedding_runs`, `citation_fetch_runs`,
+`gap_detection_runs` — one run-tracking table per pipeline stage, each
+recording status/counts/errors so a broken run is discoverable without
+re-reading logs, per §8's reliability requirement.
+
+**Gap engine tables (§32, implemented):** `candidate_gaps`,
+`candidate_gap_evidence`.
+
 **Product-facing schema** (needed once retrieval + extraction exist — not a
 Phase 1 starting table, but not deferred to "Phase 3+ once justified" either,
 since the product's core loop needs it as soon as there's a corpus to compare
@@ -2067,6 +2159,10 @@ Success condition:
 
 > A clean, reproducible, searchable CS/AI corpus exists — built and validated by one person, on one source, before adding either a second source or a second knowledge-extraction category.
 
+**Status: shipped.** Three more connectors (Semantic Scholar, Springer,
+CORE) have since been added on top of the validated arXiv pipeline — see
+"Current Implementation Status" above.
+
 ---
 
 ## Phase 2 — Retrieval & Extraction Baselines
@@ -2084,6 +2180,9 @@ Deliver:
 Success condition:
 
 > We have measurable retrieval and extraction performance.
+
+**Status: shipped** (`rb-retrieval-compare`/`rb-retrieval-evaluate`,
+`rb-extract-evaluate`).
 
 ---
 
@@ -2108,6 +2207,11 @@ Success condition:
 
 > The system can identify defensible candidate research gaps with supporting evidence.
 
+**Status: shipped**, except the "temporal analysis" deliverable — never
+built inside the gap engine; a differently-scoped Corpus Trends feature
+covers per-category temporal counts instead (see "Current Implementation
+Status" above).
+
 ---
 
 ## Phase 4 — Research-to-Impact
@@ -2131,6 +2235,10 @@ Success condition:
 >
 > A user can submit an idea or paper and receive a complete, evidence-grounded ResearchAssessment report (§49).
 
+**Status: shipped** — both the idea path and the uploaded-document path
+produce a fully populated report, including PDF/DOCX export, which
+neither §2A nor §49 originally described.
+
 ---
 
 ## Phase 5 — Expansion
@@ -2147,6 +2255,11 @@ Potential additions:
 - additional scientific domains.
 
 Do NOT start Phase 5 until earlier phases have measurable evidence of value.
+
+**Status: not started.** No external market data, patents, companies, or
+regulatory sources are integrated; `market_potential_level`/
+`economic_impact_level`-style fields stay `NOT ASSESSED` in every real
+assessment, exactly as §21 prescribes for evidence the corpus alone can't support.
 
 ---
 
@@ -2422,6 +2535,8 @@ The fundamental architecture is:
 > **Reliable Corpus → Evidence → Retrieval → Knowledge → Gap → Opportunity → Human Validation**
 
 This is being built by one person. Every phase beyond Phase 1 is directional, not committed — re-plan Phase 2's weekly milestones only once Phase 1 has shipped and the benchmark evaluation is in hand. Vision documents don't need to match execution timelines; roadmaps do.
+
+**As of this revision, Phases 1–4 have shipped** (see "Current Implementation Status" near the top of this document), including two capabilities — Corpus Q&A and Corpus Trends — that weren't originally planned in this blueprint at all. Phase 5 has not started. Keep this closing note current as the single fastest way to check whether the rest of the document still describes a plan or now describes history.
 
 Use this revised blueprint as the **current source of truth** for future technical decisions about ResearchBridge.
 
