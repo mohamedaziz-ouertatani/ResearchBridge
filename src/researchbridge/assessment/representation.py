@@ -36,7 +36,7 @@ def build_research_representation(raw_text: str, embedder: Embedder) -> str:
         return raw_text
 
     transient_paper = Paper(abstract=raw_text)
-    candidates = HybridExtractor(embedder).extract(transient_paper)
+    candidates = HybridExtractor(embedder).extract(transient_paper, {})
 
     # A short or single-sentence input can have the same sentence chosen for
     # more than one field (e.g. the heuristic's "problem" fallback and the
