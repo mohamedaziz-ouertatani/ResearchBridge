@@ -4,7 +4,7 @@
     {
       "name": "api",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "researchbridge.api.app:app", "--port", "8000"],
+      "runtimeArgs": ["run", "uvicorn", "researchbridge.api.app:app", "--port", "8000", "--reload"],
       "port": 8000
     },
     {
