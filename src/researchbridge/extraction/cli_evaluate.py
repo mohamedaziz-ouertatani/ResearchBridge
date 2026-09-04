@@ -29,11 +29,12 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from researchbridge.benchmark.cli_sample import DEFAULT_OUTPUT_DIR
 from researchbridge.benchmark.store import ANNOTATION_FIELDS, load_all
 from researchbridge.config import load_config
-from researchbridge.db.models import Paper
+from researchbridge.db.models import Paper, PaperFullText
 from researchbridge.db.session import make_engine, make_session_factory
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.model import SentenceTransformerEmbedder
@@ -88,7 +89,7 @@ def main() -> None:
         scores_by_extractor: dict[str, dict[str, FieldScore]] = {}
         for name in names:
             extractor = _make_extractor(name, embedder)
-            scores = _evaluate_one(extractor, usable, papers_by_source_id, embedder, args.threshold)
+            scores = _evaluate_one(session, extractor, usable, papers_by_source_id, embedder, args.threshold)
             scores_by_extractor[extractor.extraction_method] = scores
             print(f"\n=== {extractor.extraction_method} ({len(usable)} papers, threshold={args.threshold}) ===")
             _print_table(scores)
@@ -112,8 +113,20 @@ def _make_extractor(name: str, embedder: Embedder) -> Extractor:
     raise ValueError(f"unknown extractor {name!r}")
 
 
-def _evaluate_one(extractor, annotations, papers_by_source_id, embedder: Embedder, threshold: float) -> dict[str, FieldScore]:
-    predictions = {a.source_id: extractor.extract(papers_by_source_id[a.source_id]) for a in annotations}
+def _evaluate_one(
+    session: Session, extractor, annotations, papers_by_source_id, embedder: Embedder, threshold: float
+) -> dict[str, FieldScore]:
+    paper_ids = [p.id for p in papers_by_source_id.values()]
+    fulltext_by_paper_id = {
+        row.paper_id: row.sections
+        for row in session.execute(select(PaperFullText).where(PaperFullText.paper_id.in_(paper_ids))).scalars()
+    }
+    predictions = {
+        a.source_id: extractor.extract(
+            papers_by_source_id[a.source_id], fulltext_by_paper_id.get(papers_by_source_id[a.source_id].id, {})
+        )
+        for a in annotations
+    }
     ground_truth = {
         a.source_id: {**a.fields, "research_gap": a.research_gap.get("remaining", "")} for a in annotations
     }
