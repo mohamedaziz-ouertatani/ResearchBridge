@@ -840,16 +840,20 @@ function Field({
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="eyebrow">{label}</span>
-          <span className="flex items-baseline gap-3">
+          <span className="flex items-baseline divide-x divide-[var(--rule-soft)]">
             {claim && (
               <span
-                className="readout text-[0.75rem] text-[var(--ink-faint)]"
+                className="readout pr-5 text-[0.75rem] text-[var(--ink-faint)]"
                 title={`Structured as a "${claim.claim_type}" claim (Sec 16) - confidence: ${claim.confidence}`}
               >
                 {claim.claim_type} · confidence: {claim.confidence}
               </span>
             )}
-            {level && <span className="readout text-[0.75rem] text-[var(--ink-soft)]">{level.replace("_", " ")}</span>}
+            {level && (
+              <span className="readout pl-5 text-[0.75rem] text-[var(--ink-soft)]">
+                level: {level.replace("_", " ")}
+              </span>
+            )}
           </span>
         </div>
 
