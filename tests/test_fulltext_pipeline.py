@@ -170,6 +170,74 @@ def test_unexpected_parse_error_is_logged_and_run_continues_instead_of_crashing(
         session.close()
 
 
+def test_nul_bytes_in_extracted_text_are_stripped_before_persisting(session_factory, monkeypatch) -> None:
+    # Postgres' JSONB column rejects NUL bytes outright (a PDF-extraction
+    # artifact) with a DataError raised at flush time - this crashed a
+    # production run because _persist() had no error handling at all.
+    # Stripping the byte here means the paper still fetches successfully
+    # instead of failing the same way on every retry.
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    paper = _paper(session)
+    session.close()
+
+    monkeypatch.setattr(pipeline_module, "parse_pdf", lambda pdf_bytes: {"body": "bad\x00null byte"})
+    monkeypatch.setattr(
+        pipeline_module.requests, "get", Mock(return_value=Mock(content=b"pdf-bytes", raise_for_status=Mock()))
+    )
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(FullTextFetchRun, run_id)
+        assert run.status == "completed"
+        assert run.papers_fetched == 1
+        assert run.papers_failed == 0
+        row = session.query(PaperFullText).filter_by(paper_id=paper.id).one()
+        assert row.sections == {"body": "badnull byte"}
+    finally:
+        session.close()
+
+
+def test_persist_failure_is_logged_run_continues_and_completes(session_factory, monkeypatch) -> None:
+    # A persist-time error (of any kind, not just the NUL-byte case above)
+    # must fail only that one paper, the run must reach "completed" (not
+    # get stuck "running" forever), and a later paper in the same run
+    # must still be processed - proving per-paper isolation, not just
+    # per-run failure.
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    paper_a = _paper(session, source_id="2401.00001")
+    paper_b = _paper(session, source_id="2401.00002")
+    session.close()
+
+    monkeypatch.setattr(pipeline_module, "parse_pdf", lambda pdf_bytes: {"body": "hello"})
+    monkeypatch.setattr(
+        pipeline_module.requests, "get", Mock(return_value=Mock(content=b"pdf-bytes", raise_for_status=Mock()))
+    )
+    monkeypatch.setattr(pipeline_module.FullTextFetchPipeline, "_persist", Mock(side_effect=ValueError("boom")))
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(FullTextFetchRun, run_id)
+        assert run.status == "completed"
+        assert run.papers_seen == 2
+        assert run.papers_fetched == 0
+        assert run.papers_failed == 2
+        errors = session.query(FullTextFetchError).filter_by(fulltext_fetch_run_id=run.id).all()
+        assert {e.paper_id for e in errors} == {paper_a.id, paper_b.id}
+        assert all(e.error_type == "persist_error" for e in errors)
+    finally:
+        session.close()
+
+
 def test_idempotent_skips_already_fetched_paper(session_factory, monkeypatch) -> None:
     import researchbridge.fulltext.pipeline as pipeline_module
 

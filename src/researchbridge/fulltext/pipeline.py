@@ -71,6 +71,9 @@ class FullTextFetchPipeline:
 
         except Exception as exc:  # noqa: BLE001 - run must record failure, not crash silently
             logger.exception("Full-text fetch run %s failed", run_id)
+            session.rollback()  # the triggering error may have left the session's
+            # transaction aborted - without this, the commit below would fail the
+            # same way, and the run would stay "running" in the DB forever
             run.status = "failed"
             run.error_summary = str(exc)[:2000]
             run.finished_at = datetime.now(UTC)
@@ -117,8 +120,7 @@ class FullTextFetchPipeline:
             run.papers_failed += 1
             return
 
-        self._persist(session, paper, sections, url)
-        run.papers_fetched += 1
+        self._persist_or_record_failure(session, run, paper, sections, url)
 
     def _process_core_paper(self, session: Session, run: FullTextFetchRun, paper: Paper) -> None:
         if not self.core_api_key:
@@ -137,10 +139,33 @@ class FullTextFetchPipeline:
             run.papers_skipped_no_url += 1
             return
 
-        self._persist(session, paper, split_sections(text), CORE_OUTPUT_URL_TEMPLATE.format(core_id=paper.source_id))
+        self._persist_or_record_failure(
+            session, run, paper, split_sections(text), CORE_OUTPUT_URL_TEMPLATE.format(core_id=paper.source_id)
+        )
+
+    def _persist_or_record_failure(
+        self, session: Session, run: FullTextFetchRun, paper: Paper, sections: dict[str, str], source_url: str
+    ) -> None:
+        try:
+            self._persist(session, paper, sections, source_url)
+            session.flush()  # force the INSERT/UPDATE now, so a data-integrity
+            # error (e.g. a NUL byte JSONB rejects) is caught here, per-paper,
+            # rather than surfacing later at the run loop's own session.commit()
+        except Exception as exc:  # noqa: BLE001 - one paper's bad data must not crash a multi-hour run
+            session.rollback()  # required before the session can be used again -
+            # the failed flush leaves the transaction aborted
+            logger.exception("Full-text persist failed for paper %s", paper.id)
+            self._record_error(session, run.id, paper.id, "persist_error", str(exc)[:2000])
+            run.papers_failed += 1
+            return
+
         run.papers_fetched += 1
 
     def _persist(self, session: Session, paper: Paper, sections: dict[str, str], source_url: str) -> None:
+        # PDF/CORE text extraction can embed NUL bytes, which Postgres'
+        # JSONB type rejects outright - strip them so a bad paper doesn't
+        # deterministically fail the same way on every retry.
+        sections = {name: content.replace("\x00", "") for name, content in sections.items()}
         existing = session.execute(select(PaperFullText).where(PaperFullText.paper_id == paper.id)).scalar_one_or_none()
         if existing is not None:
             existing.sections = sections
