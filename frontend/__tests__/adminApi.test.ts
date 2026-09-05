@@ -48,6 +48,32 @@ describe("adminApi", () => {
     );
   });
 
+  it("getPaperFulltext() requests the paper's full text with no-store caching", async () => {
+    mockFetchOnce({ sections: { introduction: "hello" }, source_url: "https://example.test/p1.pdf" });
+
+    const result = await adminApi.getPaperFulltext("p1");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/admin/papers/p1/fulltext`,
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(result).toEqual({ sections: { introduction: "hello" }, source_url: "https://example.test/p1.pdf" });
+  });
+
+  it("getPaperFulltext() returns null on 404 instead of throwing - no full text isn't an error", async () => {
+    mockFetchOnce(null, { ok: false, status: 404 });
+
+    const result = await adminApi.getPaperFulltext("p1");
+
+    expect(result).toBeNull();
+  });
+
+  it("getPaperFulltext() still throws on a non-404 failure", async () => {
+    mockFetchOnce(null, { ok: false, status: 500 });
+
+    await expect(adminApi.getPaperFulltext("p1")).rejects.toThrow("Request failed (500)");
+  });
+
   it("triggerArxivIngestion() posts the ingestion params as JSON", async () => {
     mockFetchOnce({ started: true, pipeline: "ingestion_arxiv", log_file: "x.log" });
 

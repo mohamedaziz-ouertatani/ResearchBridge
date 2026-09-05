@@ -35,6 +35,7 @@ from researchbridge.api.schemas import (
     GapReviewStats,
     Notification,
     PaperExclude,
+    PaperFullTextOut,
     PaperSummary,
     PipelineRunOut,
     PipelineStatus,
@@ -59,6 +60,7 @@ from researchbridge.db.models import (
     IngestionRun,
     Paper,
     PaperCitation,
+    PaperFullText,
     ResearchAssessment,
 )
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
@@ -121,6 +123,9 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
     papers_with_embeddings = session.execute(
         select(func.count(func.distinct(Embedding.paper_id)))
     ).scalar_one()
+    papers_with_fulltext = session.execute(
+        select(func.count(func.distinct(PaperFullText.paper_id)))
+    ).scalar_one()
     papers_by_source = dict(
         session.execute(select(Paper.source, func.count(Paper.id)).group_by(Paper.source)).all()
     )
@@ -129,6 +134,7 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         total_papers=total_papers,
         papers_with_claims=papers_with_claims,
         papers_with_embeddings=papers_with_embeddings,
+        papers_with_fulltext=papers_with_fulltext,
         papers_by_source=papers_by_source,
         corpus_health=_corpus_health(session),
         assessment_stats=_assessment_stats(session),
@@ -567,6 +573,17 @@ def exclude_paper(
     session.commit()
 
     return to_summary(session, paper)
+
+
+@router.get("/papers/{paper_id}/fulltext", response_model=PaperFullTextOut)
+def get_paper_fulltext(paper_id: uuid.UUID, session: Session = Depends(get_session)) -> PaperFullTextOut:
+    fulltext = session.execute(
+        select(PaperFullText).where(PaperFullText.paper_id == paper_id)
+    ).scalar_one_or_none()
+    if fulltext is None:
+        raise HTTPException(status_code=404, detail=f"No full text stored for paper {paper_id}")
+
+    return PaperFullTextOut.model_validate(fulltext)
 
 
 def _trigger_or_409(session: Session, key: str, module: str, args: list[str]) -> PipelineTriggerOut:

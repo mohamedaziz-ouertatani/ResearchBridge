@@ -37,6 +37,13 @@ class PaperSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaperFullTextOut(BaseModel):
+    sections: dict[str, str]
+    source_url: str
+
+    model_config = {"from_attributes": True}
+
+
 class ExtractedClaimOut(BaseModel):
     claim_type: str
     text: str
@@ -480,6 +487,7 @@ class PipelineStatus(BaseModel):
     total_papers: int
     papers_with_claims: int
     papers_with_embeddings: int
+    papers_with_fulltext: int
     papers_by_source: dict[str, int]
     corpus_health: CorpusHealth
     assessment_stats: AssessmentStats

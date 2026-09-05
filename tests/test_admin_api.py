@@ -28,6 +28,7 @@ from researchbridge.db.models import (
     IngestionRun,
     Paper,
     PaperCitation,
+    PaperFullText,
     ResearchAssessment,
     ResearchInput,
 )
@@ -128,6 +129,17 @@ def test_pipeline_status_reports_corpus_coverage(client, session, embedder) -> N
     assert body["total_papers"] == 3
     assert body["papers_with_embeddings"] == 2
     assert body["papers_with_claims"] == 1
+
+
+def test_pipeline_status_reports_papers_with_fulltext(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    _add_paper(session, embedder, "p2")
+    session.add(PaperFullText(paper_id=paper.id, sections={"body": "text"}, source_url="https://example.test/p1.pdf"))
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["papers_with_fulltext"] == 1
 
 
 def test_pipeline_status_reports_corpus_health_missing_doi(client, session, embedder) -> None:
@@ -593,6 +605,39 @@ def test_get_paper_still_works_after_exclusion(client, session, embedder) -> Non
 
     assert response.status_code == 200
     assert response.json()["excluded_at"] is not None
+
+
+def test_get_paper_fulltext_returns_sections_and_source_url(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    session.add(
+        PaperFullText(
+            paper_id=paper.id, sections={"introduction": "hello", "methods": "we did X"},
+            source_url="https://example.test/p1.pdf",
+        )
+    )
+    session.commit()
+
+    response = client.get(f"/api/admin/papers/{paper.id}/fulltext")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sections"] == {"introduction": "hello", "methods": "we did X"}
+    assert body["source_url"] == "https://example.test/p1.pdf"
+
+
+def test_get_paper_fulltext_404s_when_paper_has_none(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1")
+    session.commit()
+
+    response = client.get(f"/api/admin/papers/{paper.id}/fulltext")
+
+    assert response.status_code == 404
+
+
+def test_get_paper_fulltext_404s_for_unknown_paper(client) -> None:
+    response = client.get(f"/api/admin/papers/{uuid.uuid4()}/fulltext")
+
+    assert response.status_code == 404
 
 
 def test_pipeline_status_orders_runs_most_recent_first(client, session) -> None:

@@ -8,7 +8,7 @@ import {
   type PaperSummary,
   type SearchHit,
 } from "@/lib/api";
-import { adminApi } from "@/lib/adminApi";
+import { adminApi, type PaperFullText } from "@/lib/adminApi";
 import { CitationGraph } from "@/components/CitationGraph";
 import { ExtractedClaims } from "@/components/ExtractedClaims";
 import { GaugeLegend } from "@/components/ProximityGauge";
@@ -59,6 +59,61 @@ function ExcludeToggle({
         <span className="text-[0.6875rem] text-[var(--live)]">save failed</span>
       )}
     </span>
+  );
+}
+
+/** Only renders once a fetch confirms full text exists for this paper - most
+    papers don't have any yet (Sec 46's rb-fulltext-fetch is still working
+    through the corpus), so this stays silent for them rather than showing
+    an empty disclosure. Raw extracted sections, not a reading view - this
+    is for verifying what extraction saw, not for reading the paper. */
+function FullTextPanel({ paperId }: { paperId: string }) {
+  const [fulltext, setFulltext] = useState<PaperFullText | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFulltext(null);
+    setOpen(false);
+    adminApi
+      .getPaperFulltext(paperId)
+      .then(setFulltext)
+      .catch(() => {});
+  }, [paperId]);
+
+  if (!fulltext) return null;
+
+  return (
+    <div className="mt-10 border-t border-[var(--rule)] pt-8">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="eyebrow inline-flex items-center gap-2 hover:text-[var(--ink)]"
+      >
+        full text available
+        <span className="text-[var(--ink-faint)]">{open ? "▾ hide" : "▸ show"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-5 space-y-6">
+          {Object.entries(fulltext.sections).map(([name, content]) => (
+            <div key={name}>
+              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{name.replace(/_/g, " ")}</span>
+              <pre className="mt-2 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
+                {content}
+              </pre>
+            </div>
+          ))}
+          <a
+            href={fulltext.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="eyebrow inline-block underline underline-offset-4 hover:text-[var(--ink)]"
+          >
+            source ↗
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -181,6 +236,8 @@ export default function PaperDetail({
           )}
 
           <ExtractedClaims claims={claims} />
+
+          <FullTextPanel paperId={id} />
 
           <section className="mt-16">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--rule)] pb-3">

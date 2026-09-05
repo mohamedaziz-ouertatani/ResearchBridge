@@ -107,6 +107,11 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
                 value={corpusStats.embedded_papers}
                 total={corpusStats.total_papers}
               />
+              <ProportionBar
+                label="with full text"
+                value={status.papers_with_fulltext}
+                total={corpusStats.total_papers}
+              />
             </div>
           </>
         )}

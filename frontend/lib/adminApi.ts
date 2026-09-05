@@ -55,6 +55,7 @@ export type PipelineStatus = {
   total_papers: number;
   papers_with_claims: number;
   papers_with_embeddings: number;
+  papers_with_fulltext: number;
   papers_by_source: Record<string, number>;
   corpus_health: CorpusHealth;
   assessment_stats: AssessmentStats;
@@ -67,6 +68,11 @@ export type PipelineStatus = {
   gap_detection_runs: PipelineRun[];
   fulltext_fetch_runs: PipelineRun[];
   running: Record<PipelineKey, boolean>;
+};
+
+export type PaperFullText = {
+  sections: Record<string, string>;
+  source_url: string;
 };
 
 export type PipelineTriggerResult = {
@@ -148,6 +154,13 @@ export const adminApi = {
     }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<PaperSummary>;
+    }),
+
+  getPaperFulltext: (id: string) =>
+    fetch(`${API_BASE}/api/admin/papers/${id}/fulltext`, { cache: "no-store" }).then((response) => {
+      if (response.status === 404) return null; // no full text stored - not an error condition
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return response.json() as Promise<PaperFullText>;
     }),
 
   triggerArxivIngestion: (params: { search_query?: string; page_size?: number; max_pages?: number }) =>
