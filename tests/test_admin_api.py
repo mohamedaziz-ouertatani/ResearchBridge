@@ -1245,6 +1245,46 @@ def test_pipeline_status_treats_a_running_row_with_a_dead_pid_as_not_running(cli
     assert body["running"]["fulltext"] is False
 
 
+def test_pipeline_status_marks_a_stale_running_row_failed_in_the_db(client, session) -> None:
+    # Beyond just not counting a dead-pid row as "running" in this
+    # response, the row itself must be corrected in the DB - otherwise it
+    # stays stuck saying "running" forever in the run history list, which
+    # renders each row's raw status with no liveness check of its own.
+    dead_pid = _an_almost_certainly_dead_pid()
+    run = FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=dead_pid)
+    session.add(run)
+    session.commit()
+
+    client.get("/api/admin/pipeline")
+
+    session.refresh(run)
+    assert run.status == "failed"
+    assert run.finished_at is not None
+
+
+def test_pipeline_status_leaves_a_genuinely_running_row_untouched(client, session) -> None:
+    run = FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=os.getpid())
+    session.add(run)
+    session.commit()
+
+    client.get("/api/admin/pipeline")
+
+    session.refresh(run)
+    assert run.status == "running"
+    assert run.finished_at is None
+
+
+def test_pipeline_status_does_not_touch_a_running_row_with_no_pid(client, session) -> None:
+    run = FullTextFetchRun(status="running", started_at=datetime.now(timezone.utc), pid=None)
+    session.add(run)
+    session.commit()
+
+    client.get("/api/admin/pipeline")
+
+    session.refresh(run)
+    assert run.status == "running"
+
+
 def _an_almost_certainly_dead_pid() -> int:
     """A pid picked to almost certainly not belong to any running process
     right now, for testing the "stale row, dead process" path without

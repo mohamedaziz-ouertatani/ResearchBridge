@@ -116,6 +116,8 @@ RUN_MODEL_BY_KEY: dict[str, tuple[type, str | None]] = {
 
 @router.get("/pipeline", response_model=PipelineStatus)
 def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
+    _reconcile_stale_running_runs(session)
+
     total_papers = session.execute(select(func.count(Paper.id))).scalar_one()
     papers_with_claims = session.execute(
         select(func.count(func.distinct(ExtractedClaim.paper_id)))
@@ -209,6 +211,36 @@ def has_running_db_row(session: Session, key: str) -> bool:
         conditions.append(model.source == source)
     pids = session.execute(select(model.pid).where(and_(*conditions))).scalars().all()
     return any(pid is not None and psutil.pid_exists(pid) for pid in pids)
+
+
+def _reconcile_stale_running_runs(session: Session) -> None:
+    """Self-heals a *_runs row stuck at status="running" whose process is
+    no longer alive - e.g. a run started directly from the CLI (or one
+    killed outside this API, like Stop-Process) never reaches the code
+    that would otherwise mark its row "failed"/"stopped", leaving it
+    reading "running" forever even after has_running_db_row() (and this
+    endpoint's `running` flag) correctly stop counting it as live.
+
+    Runs on every call to this endpoint - which the admin panel already
+    polls every 15s - so a stuck row corrects itself within one poll
+    cycle instead of persisting until someone notices and fixes it by
+    hand. A row with no pid (written before that column existed) can't be
+    verified either way, so it's left alone, same as has_running_db_row().
+    """
+    changed = False
+    for model, source in RUN_MODEL_BY_KEY.values():
+        conditions = [model.status == "running"]
+        if source is not None:
+            conditions.append(model.source == source)
+        rows = session.execute(select(model).where(and_(*conditions))).scalars().all()
+        for row in rows:
+            if row.pid is not None and not psutil.pid_exists(row.pid):
+                row.status = "failed"
+                row.error_summary = "Process no longer running - marked failed automatically."
+                row.finished_at = datetime.now(timezone.utc)
+                changed = True
+    if changed:
+        session.commit()
 
 
 @router.get("/notifications", response_model=list[Notification])
