@@ -155,7 +155,7 @@ class CoreConnector:
         year_published = record.get("yearPublished")
         publication_date = _parse_datetime(record.get("publishedDate"))
         if publication_date is None and year_published:
-            publication_date = date(int(year_published), 1, 1)
+            publication_date = _year_to_date(year_published, record.get("id"))
 
         url = record.get("downloadUrl")
         if not url:
@@ -194,4 +194,20 @@ def _parse_datetime(value: str | None) -> date | None:
     try:
         return datetime.fromisoformat(value).date()
     except ValueError:
+        return None
+
+
+def _year_to_date(year_published: Any, core_id: Any) -> date | None:
+    """date(year, 1, 1), or None if year_published isn't a real, in-range
+    year - found live (2026-09-02/09-03): a CORE record with
+    yearPublished=10000 raised an uncaught ValueError ("year 10000 is out
+    of range") that propagated out of fetch() and killed the entire
+    ingestion run (pipeline.py's per-run try/except has no per-record
+    granularity), discarding that whole in-flight page rather than just
+    this one record's publication_date. One bad year from CORE's own
+    metadata should never be able to take down a run."""
+    try:
+        return date(int(year_published), 1, 1)
+    except (TypeError, ValueError):
+        logger.warning("CORE record %s has an unusable yearPublished %r - leaving publication_date unset", core_id, year_published)
         return None

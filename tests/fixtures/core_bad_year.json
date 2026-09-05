@@ -1,0 +1,24 @@
+{
+  "totalHits": 1,
+  "limit": 1,
+  "offset": 0,
+  "results": [
+    {
+      "id": 555666777,
+      "doi": null,
+      "title": "A Paper With Garbage Metadata",
+      "abstract": "This record has an out-of-range yearPublished value.",
+      "authors": [
+        {"name": "Eve Example"}
+      ],
+      "yearPublished": 10000,
+      "publishedDate": null,
+      "language": {"code": "en", "name": "English"},
+      "downloadUrl": null,
+      "sourceFulltextUrls": [],
+      "publisher": "Example Publisher",
+      "documentType": "research",
+      "subjects": ["Computer Science"]
+    }
+  ]
+}

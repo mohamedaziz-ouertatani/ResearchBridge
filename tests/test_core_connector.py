@@ -74,6 +74,22 @@ def test_publication_date_falls_back_to_year_when_no_published_date() -> None:
 
 
 @responses.activate
+def test_out_of_range_year_published_does_not_crash_the_fetch() -> None:
+    """Live failure (2026-09-02/09-03): a real CORE record with
+    yearPublished=10000 raised an uncaught ValueError that killed the
+    whole ingestion run instead of just leaving this one record's
+    publication_date unset - see core.py's _year_to_date docstring."""
+    responses.add(responses.GET, CORE_SEARCH_URL, body=_load("core_bad_year.json"), status=200)
+
+    connector = CoreConnector(query="machine learning", api_key="fake-key")
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[0]
+
+    assert paper.publication_date is None
+    assert paper.raw_metadata["yearPublished"] == 10000
+
+
+@responses.activate
 def test_url_falls_back_to_source_fulltext_urls_when_no_download_url() -> None:
     responses.add(responses.GET, CORE_SEARCH_URL, body=_load("core_page1.json"), status=200)
 
