@@ -9,6 +9,7 @@ import pytest
 
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
+from researchbridge.extraction.validation import validate_claim_type
 
 _WORD = re.compile(r"[a-z]+")
 NEAR = 0.1  # comfortably within the relevance gate AND the closer NEAR_DISTANCE gate
@@ -568,6 +569,111 @@ def test_not_found_result_has_no_tier(session_factory, embedder) -> None:
 
     session.close()
     assert result.tier is None
+
+
+# --- End-to-end regression (2026-09-05): a real federated-learning
+# healthcare assessment surfaced a meta-discourse "we conclude the paper by
+# discussing the existing gaps and future work" sentence as the reported
+# research gap, while a genuinely substantive limitation ("existing FL
+# approaches often struggle to cope with system heterogeneity...") on
+# another relevant paper never got a chance to be considered, because the
+# explicit-gap path (gap.py) short-circuits on the first relevant paper with
+# ANY research_gap claim. The real fix is upstream, in extraction/
+# validation.py's weak-tier research_gap check (_META_DISCOURSE_GAP_RE) -
+# these tests mirror extraction/pipeline.py's own gate (validate_claim_type
+# before persisting a claim) to prove the composed behavior end-to-end:
+# the boilerplate sentence can never reach ExtractedClaim, so gap.py can
+# never select it as the research gap.
+
+
+def _claim_if_valid(session, paper: Paper, claim_type: str, text: str) -> uuid.UUID | None:
+    """Mirrors extraction/pipeline.py's own gate: a candidate claim is only
+    persisted if validate_claim_type accepts it - exactly what stands
+    between a boilerplate sentence and the extracted_claims table in the
+    real pipeline, not something assess_research_gap itself re-checks."""
+    validation = validate_claim_type(claim_type, text)
+    if not validation.is_valid:
+        return None
+    return _claim(session, paper, claim_type, text, validation_tier=validation.tier)
+
+
+def test_meta_discourse_boilerplate_is_never_selected_as_the_research_gap(session_factory, embedder) -> None:
+    # Only the boilerplate sentence and one genuine, but single-paper,
+    # limitation exist in the neighborhood - with the boilerplate correctly
+    # rejected at validation time, there is no explicit research_gap claim
+    # left, and a lone "limitations" claim can never single-handedly clear
+    # the cross-paper clustering bar (min_cluster_size) - so the correct
+    # result is "not found", not the boilerplate text and not an
+    # automatically-promoted single-paper gap.
+    session = session_factory()
+    boilerplate_paper = _paper(session, "healthcare-xai", title="Federated XAI for E-Healthcare Systems")
+    tdc_fl_paper = _paper(session, "tdc-fl", title="TDC-FL: heterogeneous healthcare federated learning")
+
+    boilerplate_evidence_id = _claim_if_valid(
+        session, boilerplate_paper, "research_gap",
+        "We conclude the paper by discussing the existing gaps and future work in an e-healthcare system",
+    )
+    assert boilerplate_evidence_id is None  # rejected at the validation gate, never persisted
+
+    _claim_if_valid(
+        session, tdc_fl_paper, "limitations",
+        "However, existing FL approaches often struggle to cope with system heterogeneity, "
+        "unreliable client behaviour, and privacy risks challenges that are especially critical "
+        "in healthcare settings.",
+    )
+    session.commit()
+
+    result = assess_research_gap(
+        session, [(boilerplate_paper.id, NEAR), (tdc_fl_paper.id, NEAR)], embedder,
+        min_cluster_size=3, similarity_threshold=0.3,
+    )
+
+    session.close()
+    assert result.status == "not_found"
+    assert result.text is None
+    assert result.source is None
+
+
+def test_meta_discourse_boilerplate_never_blocks_a_genuine_cross_paper_cluster(session_factory, embedder) -> None:
+    # The boilerplate paper is the NEAREST relevant paper (would have won
+    # the old nearest-first explicit-gap short-circuit outright). With it
+    # rejected at validation time, the explicit-gap path finds nothing, so
+    # the assessment correctly falls through to the existing inferred
+    # cross-paper machinery, which is untouched by this fix and still
+    # requires real cross-paper corroboration (min_cluster_size, similarity
+    # threshold) - not lowered or special-cased for this scenario.
+    session = session_factory()
+    boilerplate_paper = _paper(session, "healthcare-xai", title="Federated XAI for E-Healthcare Systems")
+    a = _paper(session, "a")
+    b = _paper(session, "b")
+    c = _paper(session, "c")
+
+    boilerplate_evidence_id = _claim_if_valid(
+        session, boilerplate_paper, "research_gap",
+        "We conclude the paper by discussing the existing gaps and future work in an e-healthcare system",
+    )
+    assert boilerplate_evidence_id is None
+
+    for paper, text in [
+        (a, "However, the system is tested only offline in this setup."),
+        (b, "However, we test the system only offline in our setup."),
+        (c, "However, testing here happens only offline within this setup."),
+    ]:
+        _claim_if_valid(session, paper, "limitations", text)
+    session.commit()
+
+    result = assess_research_gap(
+        session,
+        [(boilerplate_paper.id, NEAR), (a.id, NEAR), (b.id, NEAR), (c.id, NEAR)],
+        embedder, min_cluster_size=3, similarity_threshold=0.3,
+    )
+
+    session.close()
+    assert result.status == "found"
+    assert result.source == "input_specific"
+    assert result.tier == "strong_gap"
+    assert "discussing the existing gaps" not in result.text
+    assert "conclude the paper" not in result.text
 
 
 def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embedder) -> None:

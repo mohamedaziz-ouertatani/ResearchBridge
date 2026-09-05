@@ -659,6 +659,55 @@ def test_future_work_naming_a_real_limitation_is_still_strong() -> None:
     assert result.tier == "strong"
 
 
+def test_meta_discourse_gap_boilerplate_is_rejected() -> None:
+    # real production example (2026-09-05 investigation, a federated-
+    # learning healthcare assessment): this sentence names zero actual
+    # content - it's a table-of-contents-style self-reference ("here's the
+    # section where we talk about this"), not a stated unresolved problem.
+    # Matched _WEAK_GAP_LANGUAGE_RE on "future work" alone before this fix.
+    text = "We conclude the paper by discussing the existing gaps and future work in an e-healthcare system"
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+
+
+def test_future_work_is_discussed_passive_boilerplate_is_rejected() -> None:
+    text = "Future work is discussed in Section 6."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+
+
+def test_the_paper_discusses_existing_gaps_boilerplate_is_rejected() -> None:
+    text = "The paper discusses existing gaps and future research."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is False
+
+
+def test_genuine_weak_tier_future_research_with_substantive_content_is_accepted() -> None:
+    # regression guard: the meta-discourse guard must not reject an ordinary
+    # weak-tier claim just because it mentions "future research" - only the
+    # self-referential "the paper discusses gaps/future work" shape.
+    text = "This limitation remains unresolved and motivates future research into cross-domain generalization."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+
+
+def test_strong_tier_sentence_mentioning_discuss_is_still_accepted() -> None:
+    # regression guard: the meta-discourse guard only applies to the
+    # weak-tier path (per validation.py's existing "strong tier is trusted
+    # either way" stance for other weak-tier-only guards) - a sentence with
+    # unambiguous strong-tier gap language must still pass even if it
+    # happens to use the word "discuss".
+    text = "We discuss why this remains an open problem."
+    result = validate_claim_type("research_gap", text)
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
 def test_non_research_gap_types_have_no_tier() -> None:
     text = "However, the approach does not scale to graphs with more than a million nodes."
     result = validate_claim_type("limitations", text)

@@ -161,6 +161,32 @@ _STRONG_GAP_LANGUAGE_RE = re.compile(
 )
 _WEAK_GAP_LANGUAGE_RE = re.compile(r"\bfuture (work|research)\b|\bgap (in|between)\b", re.IGNORECASE)
 
+# Meta-discourse: the sentence describes the PAPER'S OWN STRUCTURE - that a
+# gaps/future-work discussion exists somewhere in the paper - rather than
+# stating what that gap or future work actually is. Real production example
+# (2026-09-05 investigation, a federated-learning healthcare assessment):
+# "We conclude the paper by discussing the existing gaps and future work in
+# an e-healthcare system" matched _WEAK_GAP_LANGUAGE_RE on "future work" and
+# had no competing result/technical-gap-metric signal, so it passed as
+# tier="weak" - but it names zero content, purely a table-of-contents-style
+# self-reference ("here's the section where we talk about this"). This is a
+# distinct failure shape from the already-fixed "future research"/"future
+# work will focus on X" cases (this module's own worked examples above):
+# those describe genuine-looking (if generic) forward-looking CONTENT; this
+# has no content at all. Anchored to the specific verbs a paper uses to
+# refer to its own sections (discuss/conclude/present) governing "gap(s)"
+# within the same clause, or the passive "future work is discussed" shape -
+# not a bare blocklist on "discuss"/"future work"/"gap" individually, so a
+# substantive sentence that happens to use one of those words in passing
+# (e.g. "We discuss why this remains an open problem") is untouched; the
+# strong tier is unaffected either way, matching this module's existing
+# "strong tier is trusted either way" stance for other weak-tier-only guards.
+_META_DISCOURSE_GAP_RE = re.compile(
+    r"\b(discuss(es|ing)?|conclude[sd]?|present(s|ed)?)\b[^.;]{0,40}\b(existing )?gaps?\b[^.;]{0,20}\bfuture (work|research)\b"
+    r"|\bfuture (work|research)\b[^.;]{0,20}\b(is|are|will be) discussed\b",
+    re.IGNORECASE,
+)
+
 # A second, distinct false-positive shape for "gap (in|between)", found in a
 # real ResearchAssessment export (2026-09-03 investigation): "continuously
 # computes the gap between 'Average Daily Demand' and 'Instantaneous
@@ -570,6 +596,7 @@ def validate_claim_type(claim_type: str, text: str) -> ValidationResult:
             _WEAK_GAP_LANGUAGE_RE.search(text)
             and not _has_result_signal(text)
             and not _TECHNICAL_GAP_METRIC_RE.search(text)
+            and not _META_DISCOURSE_GAP_RE.search(text)
         ):
             return ValidationResult(True, tier="weak")
         return ValidationResult(
