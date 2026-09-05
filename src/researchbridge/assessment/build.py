@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -74,6 +75,7 @@ from researchbridge.assessment.existing_solutions import build_existing_solution
 from researchbridge.assessment.external_validation import assess_external_validation
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
+from researchbridge.assessment.language import is_likely_non_latin_script
 from researchbridge.assessment.novelty import assess_novelty
 from researchbridge.assessment.opportunities import assess_opportunities
 from researchbridge.assessment.opportunity_synthesis import (
@@ -135,6 +137,16 @@ def build_assessment(
         [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
         dimension_coverages=dimension_coverages,
     )
+    if is_likely_non_latin_script(research_input.raw_text):
+        novelty = replace(
+            novelty,
+            reasoning=(
+                "Note: this idea appears to be written in a non-English/non-Latin-"
+                "script language. This corpus and its embedding model are English-"
+                "optimized, so retrieval quality (and therefore this novelty signal) "
+                "is less reliable here than for English input.\n\n" + novelty.reasoning
+            ),
+        )
 
     retrieved_paper_uuids = [paper.id for paper, _distance, _claims in papers_with_claims]
     papers_by_distance = [(paper.id, distance) for paper, distance, _claims in papers_with_claims]
