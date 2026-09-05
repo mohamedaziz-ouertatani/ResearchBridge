@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import psutil
 import pytest
 
 from researchbridge.api import pipeline_triggers as pt
@@ -200,6 +201,81 @@ def test_stop_returns_false_when_process_already_finished(monkeypatch, tmp_path)
     proc._poll_result = 0  # finished on its own before stop() is called
 
     assert pt.stop("ingestion_springer") is False
+
+
+class FakePsutilProcess:
+    """psutil.Process's terminate/kill/wait shape, for the fallback_pid path -
+    a separate fake from FakeProcess since psutil raises its own
+    TimeoutExpired/NoSuchProcess types, not subprocess's."""
+
+    def __init__(self, hangs: bool = False) -> None:
+        self.terminated = False
+        self.killed = False
+        self._hangs = hangs
+        self._waited_once = False
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        if self._hangs and not self._waited_once:
+            self._waited_once = True
+            raise psutil.TimeoutExpired(seconds=timeout)
+        return 0
+
+
+def test_stop_falls_back_to_the_db_pid_when_not_in_the_registry(monkeypatch) -> None:
+    """Regression test for a real incident: the API server restarted (this
+    registry resets on restart - see module docstring) while a Springer
+    ingestion subprocess kept running underneath it (deliberately detached
+    so it survives exactly that). The admin "stop" button then 409'd
+    against a process that was very much still alive."""
+    fake_proc = FakePsutilProcess()
+    monkeypatch.setattr(pt.psutil, "pid_exists", lambda pid: True)
+    monkeypatch.setattr(pt.psutil, "Process", lambda pid: fake_proc)
+
+    result = pt.stop("ingestion_springer", fallback_pid=36808)
+
+    assert result is True
+    assert fake_proc.terminated is True
+    assert fake_proc.killed is False
+
+
+def test_stop_fallback_escalates_to_kill_when_terminate_does_not_stop_it(monkeypatch) -> None:
+    fake_proc = FakePsutilProcess(hangs=True)
+    monkeypatch.setattr(pt.psutil, "pid_exists", lambda pid: True)
+    monkeypatch.setattr(pt.psutil, "Process", lambda pid: fake_proc)
+
+    result = pt.stop("ingestion_springer", fallback_pid=36808)
+
+    assert result is True
+    assert fake_proc.terminated is True
+    assert fake_proc.killed is True
+
+
+def test_stop_returns_false_when_fallback_pid_is_not_alive(monkeypatch) -> None:
+    monkeypatch.setattr(pt.psutil, "pid_exists", lambda pid: False)
+
+    assert pt.stop("ingestion_springer", fallback_pid=99999) is False
+
+
+def test_stop_prefers_the_in_memory_registry_over_the_fallback_pid(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
+    proc = FakeProcess(poll_result=None)
+    monkeypatch.setattr(pt.subprocess, "Popen", lambda *a, **k: proc)
+    pt.trigger("ingestion_springer", "researchbridge.ingestion.cli_springer", [])
+
+    pid_exists_called = []
+    monkeypatch.setattr(pt.psutil, "pid_exists", lambda pid: pid_exists_called.append(pid) or True)
+
+    result = pt.stop("ingestion_springer", fallback_pid=36808)
+
+    assert result is True
+    assert proc.terminated is True
+    assert pid_exists_called == []  # never consulted - the in-memory handle was enough
 
 
 def test_trigger_allowed_again_after_stop(monkeypatch, tmp_path) -> None:

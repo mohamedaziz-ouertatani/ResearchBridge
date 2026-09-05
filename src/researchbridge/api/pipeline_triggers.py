@@ -23,6 +23,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import psutil
+
 from researchbridge.pipeline_logging import LOG_FILE_ENV_VAR, LOGS_DIR
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -72,7 +74,7 @@ def tail_log(key: str, lines: int = 200) -> str:
     return "\n".join(content.splitlines()[-lines:])
 
 
-def stop(key: str) -> bool:
+def stop(key: str, fallback_pid: int | None = None) -> bool:
     """Terminate the subprocess running under `key`, if any.
 
     Returns True if something was actually running and got signaled, False
@@ -82,20 +84,44 @@ def stop(key: str) -> bool:
     softer signal to try first the way there would be on POSIX. A short
     wait() still happens so `is_running(key)` reads False immediately after
     a caller awaits this, rather than racing the OS's own cleanup.
-    """
-    proc = _RUNNING.get(key)
-    if proc is None or proc.poll() is not None:
-        _RUNNING.pop(key, None)
-        return False
 
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait(timeout=5)
+    fallback_pid (2026-09-05): this in-memory registry resets on server
+    restart (see module docstring) - but the subprocess itself is
+    deliberately detached from the parent's console specifically so it
+    SURVIVES that restart, running on regardless. Before this fallback, a
+    restart between trigger and stop left no way to actually stop such a
+    run: the caller's own admin_routes.py already solves this exact gap
+    for DETECTING liveness (has_running_db_row/_reconcile_stale_running_
+    runs, both via psutil.pid_exists against the *_runs row's own stored
+    pid), but stop() never got the equivalent - a "stop" button click
+    would silently 409 ("not running") against a process that was very
+    much still running. When the in-memory handle is gone, fall back to
+    killing this OS-level pid directly if it's still alive."""
+    proc = _RUNNING.get(key)
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        _RUNNING.pop(key, None)
+        return True
     _RUNNING.pop(key, None)
-    return True
+
+    if fallback_pid is not None and psutil.pid_exists(fallback_pid):
+        try:
+            proc = psutil.Process(fallback_pid)
+            proc.terminate()
+            proc.wait(timeout=5)
+        except psutil.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        except psutil.NoSuchProcess:
+            return False
+        return True
+
+    return False
 
 
 def trigger(key: str, module: str, args: list[str]) -> Path:

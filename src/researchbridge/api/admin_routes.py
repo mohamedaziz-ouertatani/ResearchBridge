@@ -585,19 +585,27 @@ def stop_pipeline(key: str, session: Session = Depends(get_session)) -> Pipeline
     if key not in PIPELINE_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown pipeline key {key!r}")
 
-    stopped = stop(key)
+    model_entry = RUN_MODEL_BY_KEY.get(key)
+    run = None
+    if model_entry is not None:
+        model, source = model_entry
+        query = select(model).where(model.status == "running")
+        if source is not None:
+            query = query.where(model.source == source)
+        run = session.execute(query.order_by(model.started_at.desc()).limit(1)).scalar_one_or_none()
+
+    # fallback_pid (2026-09-05): the in-memory subprocess registry resets on
+    # server restart, but the subprocess itself is deliberately detached so
+    # it survives that restart - without this, a run that outlived a
+    # restart could never be stopped again, 409ing forever against a
+    # process that's genuinely still alive. See pipeline_triggers.stop()'s
+    # own docstring for the full reasoning; same pid this endpoint's own
+    # has_running_db_row()/_reconcile_stale_running_runs already trust for
+    # liveness detection.
+    stopped = stop(key, fallback_pid=run.pid if run is not None else None)
     if not stopped:
         raise HTTPException(status_code=409, detail=f"{key} is not running")
 
-    model_entry = RUN_MODEL_BY_KEY.get(key)
-    if model_entry is None:
-        return PipelineStopOut(stopped=True, pipeline=key)
-
-    model, source = model_entry
-    query = select(model).where(model.status == "running")
-    if source is not None:
-        query = query.where(model.source == source)
-    run = session.execute(query.order_by(model.started_at.desc()).limit(1)).scalar_one_or_none()
     if run is not None:
         run.status = "stopped"
         run.finished_at = datetime.now(timezone.utc)

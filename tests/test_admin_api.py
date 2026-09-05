@@ -562,7 +562,7 @@ def test_stop_marks_the_running_row_stopped(client, session, monkeypatch) -> Non
         ExtractionRun(extractor_name="hybrid", status="running", started_at=datetime.now(timezone.utc))
     )
     session.commit()
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     response = client.post("/api/admin/extraction/stop")
 
@@ -574,13 +574,41 @@ def test_stop_marks_the_running_row_stopped(client, session, monkeypatch) -> Non
     assert run.error_summary == "Stopped by operator"
 
 
+def test_stop_passes_the_running_rows_pid_as_the_fallback(client, session, monkeypatch) -> None:
+    """Regression test: stop_pipeline() must look up the running row's own
+    pid and pass it through to stop()'s fallback_pid, so a run that
+    outlived a server restart (the in-memory registry resets on restart -
+    see pipeline_triggers.py's module docstring) can still be stopped
+    instead of 409ing forever against a process that's genuinely still
+    alive."""
+    import researchbridge.api.admin_routes as routes_module
+
+    session.add(
+        ExtractionRun(extractor_name="hybrid", status="running", pid=54321, started_at=datetime.now(timezone.utc))
+    )
+    session.commit()
+
+    received: list[int | None] = []
+
+    def fake_stop(key: str, fallback_pid: int | None = None) -> bool:
+        received.append(fallback_pid)
+        return True
+
+    monkeypatch.setattr(routes_module, "stop", fake_stop)
+
+    response = client.post("/api/admin/extraction/stop")
+
+    assert response.status_code == 200
+    assert received == [54321]
+
+
 def test_stop_only_touches_the_matching_ingestion_source(client, session, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
     session.add(IngestionRun(source="arxiv", status="running", started_at=datetime.now(timezone.utc)))
     session.add(IngestionRun(source="springer", status="running", started_at=datetime.now(timezone.utc)))
     session.commit()
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     client.post("/api/admin/ingestion_arxiv/stop")
 
@@ -591,7 +619,7 @@ def test_stop_only_touches_the_matching_ingestion_source(client, session, monkey
 def test_stop_409s_when_nothing_is_running(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
-    monkeypatch.setattr(routes_module, "stop", lambda key: False)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: False)
 
     response = client.post("/api/admin/embedding/stop")
 
@@ -962,7 +990,7 @@ def test_trigger_retrieval_eval_passes_k_override(client, monkeypatch) -> None:
 def test_stop_retrieval_eval_does_not_error_without_a_run_model(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     response = client.post("/api/admin/retrieval_eval/stop")
 
@@ -1048,7 +1076,7 @@ def test_trigger_extraction_eval_passes_threshold_and_extractor_overrides(client
 def test_stop_extraction_eval_does_not_error_without_a_run_model(client, monkeypatch) -> None:
     import researchbridge.api.admin_routes as routes_module
 
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     response = client.post("/api/admin/extraction_eval/stop")
 
@@ -1148,7 +1176,7 @@ def test_stop_citations_fetch_marks_the_running_row_stopped(client, session, mon
 
     session.add(CitationFetchRun(source="crossref", status="running"))
     session.commit()
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     response = client.post("/api/admin/citations_fetch/stop")
 
@@ -1164,7 +1192,7 @@ def test_stop_gaps_marks_the_running_row_stopped(client, session, monkeypatch) -
 
     session.add(GapDetectionRun(status="running"))
     session.commit()
-    monkeypatch.setattr(routes_module, "stop", lambda key: True)
+    monkeypatch.setattr(routes_module, "stop", lambda key, fallback_pid=None: True)
 
     response = client.post("/api/admin/gaps/stop")
 
