@@ -92,12 +92,9 @@ const REPORT_GROUPS = [
     index: "03",
     title: "notes",
     description: "What this reading doesn't settle, and how the recommendation was reached.",
-    items: [
-      { id: "external-validation", label: "external validation needed" },
-      { id: "reasoning", label: "recommendation reasoning" },
-    ],
+    items: [{ id: "reasoning", label: "recommendation reasoning" }],
   },
-] as const;
+];
 
 export function AssessmentReport({
   assessment,
@@ -310,10 +307,6 @@ export function AssessmentReport({
         </Group>
 
         <Group {...REPORT_GROUPS[2]}>
-          <Field id="external-validation" label="external validation needed" gradeable={false}>
-            <Prose text={assessment.external_validation_needed} />
-          </Field>
-
           <Field id="reasoning" label="recommendation reasoning" gradeable={false}>
             <Preformatted
               text={[
@@ -812,9 +805,9 @@ function Field({
    * assessment predating the claims layer - not an error. */
   claim?: AnalysisClaim;
   /** False for fields the literature cannot back either way - the reader's own
-      input, the list of papers retrieved, the external-validation disclaimer.
-      Their gutter stays blank so "—" keeps one precise meaning: this reading
-      could have been grounded and wasn't. */
+      input, the list of papers retrieved. Their gutter stays blank so "—"
+      keeps one precise meaning: this reading could have been grounded and
+      wasn't. */
   gradeable?: boolean;
   children: React.ReactNode;
 }) {

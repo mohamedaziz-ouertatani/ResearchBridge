@@ -74,7 +74,6 @@ export type ResearchAssessment = {
   technical_feasibility_reasoning: string | null;
   potential_opportunities: PotentialOpportunity[] | null;
   risks_and_limitations: string | null;
-  external_validation_needed: string;
   recommendation: string | null;
   confidence: string | null;
   human_reviewed: boolean;

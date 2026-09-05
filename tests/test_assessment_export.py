@@ -41,7 +41,6 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         technical_feasibility_reasoning="A graph attention mechanism was described.",
         potential_opportunities=None,
         risks_and_limitations="- Paper Title: evaluated only on offline datasets",
-        external_validation_needed="Market potential is NOT ASSESSED.",
         recommendation="Proceed with caution",
         confidence="medium",
         human_reviewed=False,

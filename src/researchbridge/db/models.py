@@ -599,7 +599,6 @@ class ResearchAssessment(Base):
     technical_feasibility_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     technical_feasibility_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     risks_and_limitations: Mapped[str | None] = mapped_column(Text, nullable=True)
-    external_validation_needed: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[str | None] = mapped_column(String, nullable=True)
     human_reviewed: Mapped[bool] = mapped_column(nullable=False, default=False)

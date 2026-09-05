@@ -31,7 +31,6 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         technical_feasibility_reasoning="Two relevant papers document applicable methods.",
         potential_opportunities=None,
         risks_and_limitations=None,
-        external_validation_needed="Always required.",
         recommendation="HIGH PRIORITY",
         confidence="high",
         human_reviewed=False,

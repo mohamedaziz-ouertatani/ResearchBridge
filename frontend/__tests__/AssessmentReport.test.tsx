@@ -30,7 +30,6 @@ function baseAssessment(overrides: Partial<ResearchAssessment> = {}): ResearchAs
     technical_feasibility_reasoning: null,
     potential_opportunities: null,
     risks_and_limitations: null,
-    external_validation_needed: "Independent replication is needed before deployment.",
     recommendation: "worth pursuing",
     confidence: "medium",
     human_reviewed: false,

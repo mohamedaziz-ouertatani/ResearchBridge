@@ -2,7 +2,10 @@
 
 ResearchInput -> Retrieve Related Papers -> Compare/Extract -> Novelty ->
 Research Gap -> Applications -> Feasibility -> Opportunities -> Risks ->
-External Validation -> Recommendation/Confidence.
+Recommendation/Confidence.
+
+(External validation - patent/market lookups scoped to Tunisia - was
+removed; see git history for that stage.)
 
 Idea-only input, per the roadmap's build-order guidance (Sec 45):
 retrieval reuses search_by_text() unchanged (no input-side extraction yet -
@@ -54,7 +57,6 @@ that doesn't pass one simply gets the pre-existing 0.35-only behavior.
 
 from __future__ import annotations
 
-import os
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -72,7 +74,6 @@ from researchbridge.assessment.claims import (
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.existing_solutions import build_existing_solutions
-from researchbridge.assessment.external_validation import assess_external_validation
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.language import is_likely_non_latin_script
@@ -87,19 +88,9 @@ from researchbridge.assessment.opportunity_synthesis import (
 from researchbridge.assessment.recommendation import assess_recommendation
 from researchbridge.assessment.representation import build_research_representation
 from researchbridge.assessment.risks import assess_risks
-from researchbridge.connectors.epo_patents import EPOPatentConnector
-from researchbridge.connectors.world_bank import WorldBankConnector
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.search import search_by_text
-
-
-def _build_patent_connector() -> EPOPatentConnector | None:
-    consumer_key = os.environ.get("EPO_OPS_CONSUMER_KEY")
-    consumer_secret = os.environ.get("EPO_OPS_CONSUMER_SECRET")
-    if not consumer_key or not consumer_secret:
-        return None
-    return EPOPatentConnector(consumer_key=consumer_key, consumer_secret=consumer_secret)
 
 
 def build_assessment(
@@ -203,14 +194,6 @@ def build_assessment(
             pass  # fail closed - keep assess_opportunities()'s deterministic NULL default
 
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
-    external_validation = assess_external_validation(
-        title=research_input.title,
-        raw_text=research_input.raw_text,
-        has_applications=bool(applications.applications),
-        patent_connector=_build_patent_connector(),
-        market_connector=WorldBankConnector(),
-    )
-    external_validation_needed = external_validation.text
     recommendation = assess_recommendation(
         novelty_level=novelty.level,
         # only count the gap as "found" for recommendation purposes if it's
@@ -262,7 +245,6 @@ def build_assessment(
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),
         risks_and_limitations=risks.text,
-        external_validation_needed=external_validation_needed,
         recommendation=recommendation.recommendation,
         confidence=recommendation.confidence,
         completed_at=datetime.now(UTC),

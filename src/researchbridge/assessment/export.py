@@ -194,11 +194,6 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             evidence=by_role.get("risk", []),
             claim=_claim_for_text(assessment.claims, assessment.risks_and_limitations),
         ),
-        ReportSection(
-            label="External validation needed",
-            body=assessment.external_validation_needed,
-            group="notes",
-        ),
     ]
 
 
