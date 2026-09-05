@@ -237,7 +237,7 @@ export default function PaperDetail({
           {paper.abstract && (
             <div className="mt-10 border-t border-[var(--rule)] pt-8">
               <span className="eyebrow">abstract</span>
-              <p className="mt-4 max-w-[68ch] text-[1.0625rem] leading-[1.7] text-[var(--ink)]">
+              <p className="mt-4 max-w-[90ch] text-[1.0625rem] leading-[1.7] text-[var(--ink)]">
                 {paper.abstract}
               </p>
             </div>
