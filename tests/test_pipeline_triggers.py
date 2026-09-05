@@ -59,6 +59,31 @@ def test_trigger_spawns_a_subprocess_with_the_expected_command(monkeypatch, tmp_
     assert log_path.exists()
 
 
+def test_trigger_detaches_the_subprocess_from_the_parent_console(monkeypatch, tmp_path) -> None:
+    # Without this, an interrupt delivered to the API server's own console
+    # (uvicorn's --reload restarting on a source-file change, or a Ctrl+C
+    # in whatever terminal hosts it) broadcasts to every process attached
+    # to that console - including this subprocess - killing a multi-hour
+    # pipeline run with a bare KeyboardInterrupt unrelated to the pipeline
+    # itself. This is a regression test for a real production incident.
+    calls = []
+
+    def fake_popen(cmd, **kwargs):
+        calls.append(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
+    monkeypatch.setattr(pt.subprocess, "Popen", fake_popen)
+
+    pt.trigger("extraction", "researchbridge.extraction.cli", [])
+
+    kwargs = calls[0]
+    if pt.sys.platform == "win32":
+        assert kwargs["creationflags"] == pt.subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        assert kwargs["start_new_session"] is True
+
+
 def test_trigger_raises_when_already_running(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(pt, "LOGS_DIR", tmp_path)
     monkeypatch.setattr(pt.subprocess, "Popen", lambda *a, **k: FakeProcess(poll_result=None))

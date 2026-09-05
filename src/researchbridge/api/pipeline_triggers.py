@@ -29,6 +29,20 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 _RUNNING: dict[str, subprocess.Popen] = {}
 
+# Without this, a triggered subprocess inherits the API server's console
+# (and process group, on Windows) - so ANY interrupt delivered to that
+# console (uvicorn's own --reload restarting itself on a source-file
+# change; a Ctrl+C in whatever terminal is hosting it) broadcasts to every
+# attached process and kills the subprocess too, mid-run, with a bare
+# KeyboardInterrupt that has nothing to do with the pipeline itself. This
+# gives the child its own process group (Windows) / session (POSIX) so a
+# signal aimed at the parent's console no longer reaches it.
+_DETACH_FROM_PARENT_CONSOLE: dict[str, object] = (
+    {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    if sys.platform == "win32"
+    else {"start_new_session": True}
+)
+
 
 class PipelineAlreadyRunning(Exception):
     def __init__(self, key: str) -> None:
@@ -116,6 +130,7 @@ def trigger(key: str, module: str, args: list[str]) -> Path:
         # opening a second FileHandler on the same path (see
         # pipeline_logging.py).
         env={**os.environ, LOG_FILE_ENV_VAR: str(log_path)},
+        **_DETACH_FROM_PARENT_CONSOLE,
     )
     _RUNNING[key] = proc
     return log_path
