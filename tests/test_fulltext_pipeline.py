@@ -138,6 +138,38 @@ def test_parse_failure_is_logged_and_run_continues(session_factory, monkeypatch)
         session.close()
 
 
+def test_unexpected_parse_error_is_logged_and_run_continues_instead_of_crashing(session_factory, monkeypatch) -> None:
+    # A real production run crashed on an uncaught KeyError from deep
+    # inside parse_pdf() (see test_fulltext_parse.py's Unicode case-fold
+    # regression test) because only PdfParseError was caught here - any
+    # other exception from parse_pdf() must fail just that one paper.
+    import researchbridge.fulltext.pipeline as pipeline_module
+
+    session = session_factory()
+    paper = _paper(session)
+    session.close()
+
+    monkeypatch.setattr(pipeline_module, "parse_pdf", Mock(side_effect=KeyError("introductıon")))
+    monkeypatch.setattr(
+        pipeline_module.requests, "get", Mock(return_value=Mock(content=b"pdf-bytes", raise_for_status=Mock()))
+    )
+
+    pipeline = FullTextFetchPipeline(session_factory=session_factory)
+    run_id = pipeline.run()
+
+    session = session_factory()
+    try:
+        run = session.get(FullTextFetchRun, run_id)
+        assert run.status == "completed"
+        assert run.papers_failed == 1
+        assert run.papers_fetched == 0
+        errors = session.query(FullTextFetchError).filter_by(paper_id=paper.id).all()
+        assert len(errors) == 1
+        assert errors[0].error_type == "parse_error"
+    finally:
+        session.close()
+
+
 def test_idempotent_skips_already_fetched_paper(session_factory, monkeypatch) -> None:
     import researchbridge.fulltext.pipeline as pipeline_module
 

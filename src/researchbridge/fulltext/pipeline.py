@@ -111,6 +111,11 @@ class FullTextFetchPipeline:
             self._record_error(session, run.id, paper.id, "parse_error", str(exc)[:2000])
             run.papers_failed += 1
             return
+        except Exception as exc:  # noqa: BLE001 - one malformed PDF must not crash a multi-hour run
+            logger.exception("Full-text parse raised an unexpected error for paper %s", paper.id)
+            self._record_error(session, run.id, paper.id, "parse_error", str(exc)[:2000])
+            run.papers_failed += 1
+            return
 
         self._persist(session, paper, sections, url)
         run.papers_fetched += 1

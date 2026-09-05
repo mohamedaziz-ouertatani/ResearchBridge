@@ -70,8 +70,13 @@ def split_sections(text: str) -> dict[str, str]:
 
     for line in lines:
         match = _HEADING_LINE_RE.match(line)
-        if match:
-            current = _SECTION_ALIASES[match.group(1).lower()]
+        section_name = _SECTION_ALIASES.get(match.group(1).lower()) if match else None
+        # IGNORECASE can match non-ASCII case-fold equivalents (e.g. Turkish
+        # dotless i, a PyMuPDF font-encoding artifact) that .lower() doesn't
+        # normalize back to the ASCII alias key - .get() treats that rare
+        # miss as "not actually a heading" instead of crashing the run.
+        if section_name is not None:
+            current = section_name
             sections.setdefault(current, [])
             matched_any = True
             continue

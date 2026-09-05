@@ -47,6 +47,18 @@ def test_split_sections_drops_empty_sections() -> None:
     assert sections["methods"] == "Real content."
 
 
+def test_split_sections_ignores_a_heading_line_that_ignorecase_matches_but_lower_cannot_normalize() -> None:
+    # Turkish dotless-i (U+0131): re.IGNORECASE matches it against ASCII
+    # "introduction" during matching, but match.group(1).lower() does not
+    # fold it back to ASCII "i" - a real PyMuPDF extraction artifact that
+    # crashed a production run with KeyError: 'introductıon' before
+    # split_sections() switched to a dict .get() fallback.
+    text = "Introductıon\nThis paper studies X.\n"
+    sections = split_sections(text)
+    assert "introduction" not in sections
+    assert sections["body"] == text.strip()
+
+
 def test_parse_pdf_wraps_extract_text_and_splits_it(monkeypatch) -> None:
     import researchbridge.fulltext.parse as parse_module
 
