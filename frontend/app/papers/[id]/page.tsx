@@ -106,7 +106,7 @@ function FullTextPanel({ paperId }: { paperId: string }) {
           {Object.entries(fulltext.sections).map(([name, content]) => (
             <div key={name}>
               <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{sectionLabel(name)}</span>
-              <pre className="mt-2 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
+              <pre className="mt-2 font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
                 {content}
               </pre>
             </div>
