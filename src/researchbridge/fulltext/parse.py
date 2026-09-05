@@ -70,7 +70,13 @@ def split_sections(text: str) -> dict[str, str]:
 
     for line in lines:
         match = _HEADING_LINE_RE.match(line)
-        section_name = _SECTION_ALIASES.get(match.group(1).lower()) if match else None
+        # Real headings are capitalized ("Introduction", "Conclusion") - a
+        # match starting lowercase is PDF text-wrap coincidence, not a title
+        # (e.g. "...its fundamental\nlimitations\nhave become..." wrapping
+        # the ordinary word "limitations" onto its own line mid-sentence,
+        # which happens to equal one of this file's own heading phrases).
+        is_capitalized = bool(match) and match.group(1)[:1].isupper()
+        section_name = _SECTION_ALIASES.get(match.group(1).lower()) if match and is_capitalized else None
         # IGNORECASE can match non-ASCII case-fold equivalents (e.g. Turkish
         # dotless i, a PyMuPDF font-encoding artifact) that .lower() doesn't
         # normalize back to the ASCII alias key - .get() treats that rare

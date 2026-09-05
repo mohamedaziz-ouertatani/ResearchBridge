@@ -59,6 +59,32 @@ def test_split_sections_ignores_a_heading_line_that_ignorecase_matches_but_lower
     assert sections["body"] == text.strip()
 
 
+def test_split_sections_ignores_a_lowercase_heading_shaped_word_mid_sentence() -> None:
+    # A real production case (arxiv 2607.24187): PDF text-wrap put the
+    # ordinary word "limitations" alone on its own line mid-sentence
+    # ("...its fundamental\nlimitations\nhave become increasingly
+    # apparent..."), which coincidentally equals one of this file's own
+    # heading phrases and incorrectly split the document there. Every real
+    # heading in that same paper's extracted text was capitalized
+    # ("Abstract", "1. Introduction", "7. Conclusion", "References") - this
+    # wasn't, which is the signal that distinguishes the two cases.
+    text = (
+        "Introduction\n"
+        "Prior approaches have shown real promise, but their fundamental\n"
+        "limitations\n"
+        "have become increasingly apparent over time.\n"
+    )
+    sections = split_sections(text)
+    assert "limitations" not in sections
+    assert "have become increasingly apparent over time." in sections["introduction"]
+
+
+def test_split_sections_still_matches_a_real_capitalized_heading() -> None:
+    text = "Limitations\nThis only works offline.\n"
+    sections = split_sections(text)
+    assert sections["limitations"] == "This only works offline."
+
+
 def test_parse_pdf_wraps_extract_text_and_splits_it(monkeypatch) -> None:
     import researchbridge.fulltext.parse as parse_module
 
