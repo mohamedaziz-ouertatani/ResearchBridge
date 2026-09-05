@@ -187,16 +187,24 @@ def _aggregate_from_coverage(scored_coverages: list[DimensionCoverage]) -> tuple
             f"(established) in the retrieved literature, suggesting substantial overlap with "
             f"existing work even if no single retrieved paper is a close overall match."
         )
+    weak = sum(1 for c in scored_coverages if c.status == "weak_evidence")
+    weak_note = (
+        f" ({weak} more show only weak, single-source evidence - not enough to establish overlap.)"
+        if weak
+        else ""
+    )
+
     if covered / n <= 0.3:
         return "high", (
-            f"Only {covered} of {n} dimensions of this idea have supporting evidence in the "
-            f"retrieved literature sample. This reflects limited directly related prior work "
-            f"within this corpus, not confirmed novelty against the wider scientific "
-            f"literature: the corpus covers only a specific CS/AI/ML slice, and this reflects "
-            f"the retrieved sample, not an exhaustive search."
+            f"Only {covered} of {n} dimensions of this idea have well-established evidence "
+            f"(matched by 2+ papers) in the retrieved literature sample.{weak_note} This "
+            f"reflects limited directly related prior work within this corpus, not confirmed "
+            f"novelty against the wider scientific literature: the corpus covers only a "
+            f"specific CS/AI/ML slice, and this reflects the retrieved sample, not an "
+            f"exhaustive search."
         )
     return "medium", (
-        f"{covered} of {n} dimensions of this idea have some supporting evidence in the "
-        f"retrieved literature - partial overlap with existing work, not a close match on "
-        f"every dimension."
+        f"{covered} of {n} dimensions of this idea have well-established evidence "
+        f"(matched by 2+ papers) in the retrieved literature.{weak_note} Partial overlap with "
+        f"existing work, not a close match on every dimension."
     )
