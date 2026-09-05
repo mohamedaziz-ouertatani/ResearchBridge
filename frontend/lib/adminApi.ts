@@ -61,6 +61,7 @@ export type PipelineStatus = {
   assessment_stats: AssessmentStats;
   gap_stats: GapReviewStats;
   ingestion_errors_by_type: Record<string, number>;
+  analysis_claims_by_type: Record<string, number>;
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];

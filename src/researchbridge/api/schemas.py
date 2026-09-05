@@ -496,6 +496,10 @@ class PipelineStatus(BaseModel):
     """Grouped counts of the most recent ingestion errors (see
     _ingestion_errors_by_type's ERROR_SAMPLE_LIMIT) - a sample for spotting
     what's failing and why, not an exhaustive historical count."""
+    analysis_claims_by_type: dict[str, int]
+    """All-time count of every analysis_claims row by claim_type (fact/
+    inference/hypothesis/opportunity/speculation), across both producers
+    (gaps/claims.py, assessment/claims.py)."""
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]

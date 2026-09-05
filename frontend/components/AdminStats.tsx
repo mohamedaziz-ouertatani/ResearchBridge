@@ -23,6 +23,8 @@ import { YearStrip } from "@/components/YearStrip";
 
 const NOVELTY_ORDER = ["high", "medium", "low", "not_assessed"] as const;
 
+const CLAIM_TYPE_ORDER = ["fact", "inference", "hypothesis", "opportunity", "speculation"] as const;
+
 const GAP_RATING_DIMENSIONS: { key: keyof GapReviewStats & `mean_${string}`; label: string }[] = [
   { key: "mean_correctness", label: "correctness" },
   { key: "mean_relevance", label: "relevance" },
@@ -93,7 +95,7 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
           <>
             <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">papers by source</span>
             <div className="mt-2">
-              <BarList counts={corpusStats.papers_by_source} />
+              <SourceDonut counts={corpusStats.papers_by_source} />
             </div>
 
             <div className="mt-6 space-y-3">
@@ -244,6 +246,19 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
           <p className="text-[0.875rem] text-[var(--ink-faint)]">No assessments yet.</p>
         )}
       </StatGroup>
+
+      <StatGroup title="structured claims">
+        <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+          The Sec 16 reasoning layer (see the claims tab): every candidate gap and every gradeable
+          assessment field, mirrored as a typed claim - counted here across both producers, all-time.
+        </p>
+        <BarList
+          counts={Object.fromEntries(
+            CLAIM_TYPE_ORDER.map((type) => [type, status.analysis_claims_by_type[type] ?? 0]),
+          )}
+          preserveOrder
+        />
+      </StatGroup>
     </div>
   );
 }
@@ -254,6 +269,114 @@ function StatGroup({ title, children }: { title: string; children: React.ReactNo
       <span className="eyebrow">{title}</span>
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+// Fixed by source identity, never by rank - a filter or a shift in relative
+// volume must not repaint which color means "arxiv" (dataviz skill: "color
+// follows the entity, never its rank"). An unrecognized future source falls
+// back to --ink-faint (the BarList default) rather than reusing a slot.
+const SOURCE_COLORS: Record<string, string> = {
+  arxiv: "var(--chart-1)",
+  springer: "var(--chart-2)",
+  semantic_scholar: "var(--chart-3)",
+  core: "var(--chart-4)",
+};
+
+/** Corpus-by-source share as a donut - the one categorical (non-grayscale)
+    chart in this panel, four fixed-identity slots validated against this
+    app's own surfaces (see globals.css's --chart-1.. comment). A legend
+    with counts sits beside it so identity and value never depend on
+    color-matching alone, per the dataviz skill's labeling rules. */
+function SourceDonut({ counts }: { counts: Record<string, number> }) {
+  const entries = Object.entries(counts);
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  if (total === 0) return <p className="text-[0.875rem] text-[var(--ink-faint)]">No data.</p>;
+
+  const size = 220;
+  const strokeWidth = 34;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gap = 4; // px of surface-color separation between segments
+
+  let offset = 0;
+  const arcs = entries.map(([label, count]) => {
+    const length = Math.max((count / total) * circumference - gap, 0);
+    const arc = { label, count, color: SOURCE_COLORS[label] ?? "var(--ink-faint)", length, offset };
+    offset += (count / total) * circumference;
+    return arc;
+  });
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-8">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+        role="img"
+        aria-label="Papers by source"
+      >
+        {arcs.map((arc) => (
+          <circle
+            key={arc.label}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={arc.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${arc.length} ${circumference - arc.length}`}
+            strokeDashoffset={-arc.offset}
+            opacity={hovered === null || hovered === arc.label ? 1 : 0.35}
+            onMouseEnter={() => setHovered(arc.label)}
+            onMouseLeave={() => setHovered(null)}
+          />
+        ))}
+        <text
+          x={size / 2}
+          y={size / 2}
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="rotate-90 fill-[var(--ink)]"
+          style={{ transformOrigin: "center", fontSize: "2rem", fontWeight: 600 }}
+        >
+          {total.toLocaleString()}
+        </text>
+        <text
+          x={size / 2}
+          y={size / 2 + 26}
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="rotate-90 fill-[var(--ink-faint)] eyebrow"
+          style={{ transformOrigin: "center", fontSize: "0.625rem" }}
+        >
+          total papers
+        </text>
+      </svg>
+
+      <ul className="space-y-1.5">
+        {arcs.map((arc) => (
+          <li
+            key={arc.label}
+            className="flex items-center gap-2 text-[0.8125rem]"
+            onMouseEnter={() => setHovered(arc.label)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: arc.color, opacity: hovered === null || hovered === arc.label ? 1 : 0.35 }}
+            />
+            <span className="text-[var(--ink-soft)]">{arc.label.replace(/_/g, " ")}</span>
+            <span className="readout text-[var(--ink-faint)] tabular-nums">
+              {arc.count.toLocaleString()} ({((arc.count / total) * 100).toFixed(0)}%)
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -15,6 +15,7 @@ from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
 from researchbridge.db.models import (
     EMBEDDING_DIM,
+    AnalysisClaim,
     CandidateGap,
     CitationFetchRun,
     Embedding,
@@ -77,14 +78,17 @@ def client(session_factory, embedder):
 @pytest.fixture()
 def session(session_factory):
     s = session_factory()
-    # citation_fetch_runs has no FK to papers, so conftest's per-test
-    # TRUNCATE ... CASCADE (which clears candidate_gaps for free via its
-    # seed_paper_id FK) never reaches it - clear it explicitly before AND
-    # after, since test order across files isn't guaranteed.
-    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    # citation_fetch_runs and analysis_claims both have no FK to papers
+    # (the latter's source_id is polymorphic across candidate_gaps/
+    # research_assessments, so no FK is even possible), so conftest's
+    # per-test TRUNCATE ... CASCADE (which clears candidate_gaps for free
+    # via its seed_paper_id FK) never reaches either - clear both
+    # explicitly before AND after, since test order across files isn't
+    # guaranteed.
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs, analysis_claims CASCADE"))
     s.commit()
     yield s
-    s.execute(text("TRUNCATE TABLE citation_fetch_runs"))
+    s.execute(text("TRUNCATE TABLE citation_fetch_runs, analysis_claims CASCADE"))
     s.commit()
     s.close()
 
@@ -285,6 +289,36 @@ def test_pipeline_status_ingestion_errors_by_type_empty_when_none(client) -> Non
     body = client.get("/api/admin/pipeline").json()
 
     assert body["ingestion_errors_by_type"] == {}
+
+
+def test_pipeline_status_reports_analysis_claims_by_type(client, session) -> None:
+    session.add_all(
+        [
+            AnalysisClaim(
+                claim_type="fact", claim_text="x", confidence="medium", source_table="research_assessments",
+                source_id=uuid.uuid4(),
+            ),
+            AnalysisClaim(
+                claim_type="inference", claim_text="y", confidence="medium", source_table="candidate_gaps",
+                source_id=uuid.uuid4(),
+            ),
+            AnalysisClaim(
+                claim_type="inference", claim_text="z", confidence="medium", source_table="research_assessments",
+                source_id=uuid.uuid4(),
+            ),
+        ]
+    )
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["analysis_claims_by_type"] == {"fact": 1, "inference": 2}
+
+
+def test_pipeline_status_analysis_claims_by_type_empty_when_none(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["analysis_claims_by_type"] == {}
 
 
 def test_pipeline_status_lists_recent_ingestion_runs(client, session) -> None:

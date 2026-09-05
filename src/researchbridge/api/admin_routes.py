@@ -48,6 +48,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_summary
 from researchbridge.db.models import (
+    AnalysisClaim,
     CandidateGap,
     CitationFetchRun,
     Embedding,
@@ -142,6 +143,7 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         assessment_stats=_assessment_stats(session),
         gap_stats=_gap_stats(session),
         ingestion_errors_by_type=_ingestion_errors_by_type(session),
+        analysis_claims_by_type=_analysis_claims_by_type(session),
         ingestion_runs=[
             _to_run(run, ("records_fetched", "records_inserted", "records_duplicate", "records_failed"))
             for run in _recent(session, IngestionRun)
@@ -499,6 +501,18 @@ def _ingestion_errors_by_type(session: Session) -> dict[str, int]:
         .group_by(IngestionError.error_type)
     ).all()
     return dict(rows)
+
+
+def _analysis_claims_by_type(session: Session) -> dict[str, int]:
+    """Corpus-wide count of every analysis_claims row by claim_type (fact/
+    inference/hypothesis/opportunity/speculation), across both producers
+    (gaps/claims.py, assessment/claims.py) - an all-time count, not a
+    recent sample, since this table only ever grows one row per already-
+    reviewed-worthy gap/assessment field, nothing like ingestion's
+    error-log volume."""
+    return dict(
+        session.execute(select(AnalysisClaim.claim_type, func.count()).group_by(AnalysisClaim.claim_type)).all()
+    )
 
 
 def _assessment_stats(session: Session) -> AssessmentStats:

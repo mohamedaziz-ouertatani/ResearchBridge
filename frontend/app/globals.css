@@ -29,6 +29,17 @@
   --live: #b45309; /* reserved for active/typing state only */
   --cite-link: #3a5f8f;
 
+  /* Categorical chart palette (source distribution donut, admin stats) -
+     the one place besides --near/--far this interface uses hue instead of
+     ink/rule grayscale. Muted/desaturated to sit with --near/--live rather
+     than read as a generic dataviz-bright set. Validated (dataviz skill's
+     scripts/validate_palette.js): CVD-safe in this exact order, normal-
+     vision floor clear, contrast >=3:1 on this surface. */
+  --chart-1: #3a68b8; /* blue */
+  --chart-2: #4f8f5c; /* green */
+  --chart-3: #7a5ea8; /* violet */
+  --chart-4: #b8632f; /* rust */
+
   /* type-* rather than font-*: see the note in layout.tsx about Tailwind's
      built-in --font-sans/serif/mono theme keys shadowing same-named vars. */
   --type-display: var(--ff-grotesk), ui-sans-serif, system-ui, sans-serif;
@@ -58,6 +69,11 @@
   --far: #4c5860; /* cosine distance -> 1 */
   --live: #d97a2a; /* reserved for active/typing state only */
   --cite-link: #7ea6da;
+
+  --chart-1: #5b8ad6;
+  --chart-2: #4fa066;
+  --chart-3: #9a80c4;
+  --chart-4: #c97a48;
 }
 
 @theme inline {
@@ -72,6 +88,10 @@
   --color-far: var(--far);
   --color-live: var(--live);
   --color-cite-link: var(--cite-link);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
   --font-display: var(--type-display);
   --font-text: var(--type-text);
   --font-readout: var(--type-mono);
