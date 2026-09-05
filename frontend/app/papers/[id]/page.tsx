@@ -83,6 +83,14 @@ function FullTextPanel({ paperId }: { paperId: string }) {
 
   if (!fulltext) return null;
 
+  // "body" is split_sections()'s catch-all bucket for everything before the
+  // first heading it recognizes (title, authors, affiliations - even the
+  // abstract, when its heading line doesn't match cleanly) - not a genuine
+  // paper section, so it gets a label that says what it actually is instead
+  // of reading like one.
+  const sectionLabel = (name: string) =>
+    name === "body" ? "unclassified (before first detected heading)" : name.replace(/_/g, " ");
+
   return (
     <div className="mt-10 border-t border-[var(--rule)] pt-8">
       <button
@@ -97,7 +105,7 @@ function FullTextPanel({ paperId }: { paperId: string }) {
         <div className="mt-5 space-y-6">
           {Object.entries(fulltext.sections).map(([name, content]) => (
             <div key={name}>
-              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{name.replace(/_/g, " ")}</span>
+              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{sectionLabel(name)}</span>
               <pre className="mt-2 max-w-[68ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.65] whitespace-pre-wrap text-[var(--ink)]">
                 {content}
               </pre>
