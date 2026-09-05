@@ -29,16 +29,14 @@
   --live: #b45309; /* reserved for active/typing state only */
   --cite-link: #3a5f8f;
 
-  /* Categorical chart palette (source distribution donut, admin stats) -
-     the one place besides --near/--far this interface uses hue instead of
-     ink/rule grayscale. Muted/desaturated to sit with --near/--live rather
-     than read as a generic dataviz-bright set. Validated (dataviz skill's
-     scripts/validate_palette.js): CVD-safe in this exact order, normal-
-     vision floor clear, contrast >=3:1 on this surface. */
-  --chart-1: #3a68b8; /* blue */
-  --chart-2: #4f8f5c; /* green */
-  --chart-3: #7a5ea8; /* violet */
-  --chart-4: #b8632f; /* rust */
+  /* Source-distribution donut palette: a deliberate blue-to-gray fade
+     (identity carried by the always-visible legend/hover, not by hue
+     separation - this is a stylistic sequential ramp, not a CVD-checked
+     categorical palette). Monotonic lightness, darkest first. */
+  --chart-1: #2f5fa8; /* blue */
+  --chart-2: #5c7aa3; /* blue-gray */
+  --chart-3: #838fa0; /* gray-blue */
+  --chart-4: #9aa2ab; /* gray */
 
   /* type-* rather than font-*: see the note in layout.tsx about Tailwind's
      built-in --font-sans/serif/mono theme keys shadowing same-named vars. */
@@ -70,10 +68,10 @@
   --live: #d97a2a; /* reserved for active/typing state only */
   --cite-link: #7ea6da;
 
-  --chart-1: #5b8ad6;
-  --chart-2: #4fa066;
-  --chart-3: #9a80c4;
-  --chart-4: #c97a48;
+  --chart-1: #6f97d9;
+  --chart-2: #8798b0;
+  --chart-3: #9ea4ac;
+  --chart-4: #b3b8bd;
 }
 
 @theme inline {
