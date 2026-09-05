@@ -151,10 +151,19 @@ def test_ask_reports_summarization_available_true_when_enabled(
     assert response.json()["summarization_available"] is True
 
 
-def test_ask_reports_summarization_available_false_by_default(
+def test_ask_reports_summarization_available_true_by_default(
     client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
+    response = client.post("/api/ask", json={"question": "anything"})
+
+    assert response.json()["summarization_available"] is True
+
+
+def test_ask_reports_summarization_available_false_when_disabled(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
     response = client.post("/api/ask", json={"question": "anything"})
 
     assert response.json()["summarization_available"] is False
@@ -194,7 +203,7 @@ def test_summarize_returns_summary_when_enabled(
 def test_summarize_returns_503_when_disabled(
     client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
     hit = {
         "paper_id": str(uuid.uuid4()),
         "paper_title": "Paper A",

@@ -314,13 +314,11 @@ def test_opportunities_422s_without_any_potential_applications(client, session) 
 def test_opportunities_503s_when_ollama_is_disabled(
     client, session, embedder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # explicit unset, not just "don't set it": .env (loaded by create_app()
-    # -> load_config() -> load_dotenv, see test_qa_api.py's identical
-    # pattern) may have OLLAMA_ENABLED=true for local Ollama development,
-    # which load_dotenv(override=False) leaves in os.environ for the rest
-    # of this pytest process once any earlier test's create_app() call has
-    # loaded it - relying on "just don't set it" is not reliably "disabled"
-    monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
+    # explicit "false", not unset: ollama_enabled() defaults TRUE when unset
+    # (2026-09-05) - only an explicit false reliably reaches the disabled
+    # path here, regardless of whatever .env or an earlier test left in
+    # os.environ for the rest of this pytest process.
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
     body = _create_with_applications(client, session, embedder)
 
     response = client.post(f"/api/assessments/{body['id']}/opportunities")

@@ -91,7 +91,7 @@ def test_ollama_enabled_reflects_env_var(monkeypatch: pytest.MonkeyPatch) -> Non
     assert ollama_enabled() is False
 
     monkeypatch.delenv("OLLAMA_ENABLED", raising=False)
-    assert ollama_enabled() is False
+    assert ollama_enabled() is True
 
 
 def test_summarize_quotes_raises_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -84,7 +84,16 @@ class SummarizationUnavailable(Exception):
 
 
 def ollama_enabled() -> bool:
-    return os.environ.get("OLLAMA_ENABLED", "false").lower() == "true"
+    # Default TRUE (2026-09-05): opportunity/application-relevance/summary
+    # LLM stages are all fail-safe (fail-open or fail-closed to a
+    # deterministic NULL/unfiltered result - never a crash or fabricated
+    # output) if Ollama isn't actually installed/running, so defaulting to
+    # "try it" costs a real deployment nothing but a timeout, while
+    # defaulting to "off" silently left every fresh clone/deployment's
+    # product-opportunity field NULL forever unless an operator happened to
+    # discover and flip this var. Explicitly set OLLAMA_ENABLED=false to
+    # opt back out.
+    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:

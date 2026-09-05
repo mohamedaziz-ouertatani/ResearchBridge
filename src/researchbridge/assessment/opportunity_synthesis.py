@@ -340,8 +340,14 @@ class OpportunitySynthesisUnavailable(Exception):
 def ollama_enabled() -> bool:
     """Same flag as qa/summarize.py.ollama_enabled() - deliberately reused,
     not a new setting: wherever an operator already turned on the Q&A
-    summary layer, this becomes available too."""
-    return os.environ.get("OLLAMA_ENABLED", "false").lower() == "true"
+    summary layer, this becomes available too.
+
+    Default TRUE (2026-09-05, see qa/summarize.py.ollama_enabled()'s
+    docstring for the full reasoning): fails safe to a deterministic NULL
+    potential_opportunities if Ollama isn't actually available, so "off by
+    default" bought nothing but every fresh deployment silently never
+    generating product opportunities at all."""
+    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:

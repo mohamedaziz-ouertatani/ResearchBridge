@@ -104,8 +104,13 @@ class ApplicationRelevanceUnavailable(Exception):
 
 def ollama_enabled() -> bool:
     """Same flag as qa/summarize.py.ollama_enabled() / opportunity_synthesis
-    .py.ollama_enabled() - deliberately reused, not a new setting."""
-    return os.environ.get("OLLAMA_ENABLED", "false").lower() == "true"
+    .py.ollama_enabled() - deliberately reused, not a new setting.
+
+    Default TRUE (2026-09-05, see qa/summarize.py.ollama_enabled()'s
+    docstring): this stage fails OPEN (falls back to assess_applications()'s
+    unfiltered result) if Ollama isn't available, so defaulting to "on"
+    costs nothing but a timeout when it isn't."""
+    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
