@@ -22,8 +22,13 @@ export function loadForceGraph2D() {
 // and this interface only describes the shared d3-force plumbing underneath
 // react-force-graph, not either consumer's own link type.
 export type ForceGraphInstance = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  d3Force: (name: "link" | "charge" | "center" | string) =>
-    | { strength?: (v: number) => unknown; distance?: (v: number | ((link: any) => number)) => unknown }
-    | undefined;
+  // The getter form reads back a force force-graph already knows by name
+  // (e.g. "link"/"charge"). The two-argument form instead REGISTERS a new
+  // named force (e.g. "collide") on the underlying d3 simulation - method
+  // shorthand for both signatures so TS treats them as real overloads
+  // rather than two incompatible property types.
+  d3Force(
+    name: "link" | "charge" | "center" | string,
+  ): { strength?: (v: number) => unknown; distance?: (v: number | ((link: any) => number)) => unknown } | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+  d3Force(name: string, forceFn: any): void; // eslint-disable-line @typescript-eslint/no-explicit-any
 };

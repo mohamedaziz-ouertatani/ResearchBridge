@@ -1,5 +1,6 @@
 "use client";
 
+import { forceCollide } from "d3-force-3d";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { ComponentType } from "react";
@@ -42,10 +43,26 @@ const CHARGE_STRENGTH = -200;
 const MIN_LINK_DISTANCE = 40;
 const LINK_DISTANCE_SCALE = 300;
 
+// Retrieved papers routinely land within a narrow real distance band (e.g.
+// 0.38-0.45 for one assessment), so their link-distance spokes come out
+// nearly equal - the natural equilibrium of a star graph with equal-length
+// spokes is an even ring, and with 8-10 satellites on that ring, plain
+// charge repulsion isn't reliably enough to keep every pair of node CIRCLES
+// (not just their center points) from touching or overlapping. A collision
+// force enforces a hard minimum center-to-center distance derived from each
+// node's actual rendered radius (`sqrt(nodeVal) * nodeRelSize`, force-graph's
+// own formula; nodeRelSize defaults to 4), with a few px of padding so
+// circles never even kiss.
+const NODE_REL_SIZE = 4;
+const COLLISION_PADDING = 4;
+const collisionRadius = (node: GraphNode) =>
+  Math.sqrt(node.type === "input" ? 8 : 4) * NODE_REL_SIZE + COLLISION_PADDING;
+
 function configureForces(instance: ForceGraphInstance | null) {
   if (!instance) return;
   instance.d3Force("charge")?.strength?.(CHARGE_STRENGTH);
   instance.d3Force("link")?.distance?.((link) => MIN_LINK_DISTANCE + link.distance * LINK_DISTANCE_SCALE);
+  instance.d3Force("collide", forceCollide(collisionRadius));
 }
 
 /** Same "teal near, washed-out far" convention as ProximityGauge - this ramp
