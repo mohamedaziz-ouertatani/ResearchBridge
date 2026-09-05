@@ -86,6 +86,41 @@ fulltext pipeline - Sec 46 - covers more of the corpus, rather than only
 its title+abstract) can be shown to discriminate zkFL-Health from a
 recipe-suggestion fridge paper without this tradeoff, recalibrate then -
 not by picking a new constant against this one healthcare example.
+
+Widened band added (2026-09-05), after a second investigation found a
+deterministic qualifier that DOES discriminate - narrower in shape than
+either fix rejected above: a paper in (NEAR_DISTANCE, WIDENED_DISTANCE]
+(0.35-0.40) counts toward corroboration only if at least one of its
+method/dataset claims has IDF-weighted lexical overlap with the research
+input's own text >= CLAIM_OVERLAP_THRESHOLD (see claim_relevance.py).
+Checked against the real corpus and every real ResearchInput: this
+combination recovered 8 genuinely on-technique papers across 5 inputs
+(STG-GNN/FinFraudBench for a fraud-detection-graph-transformer idea,
+WeSCE/VICBench for an LLM-plus-static-analysis vulnerability idea,
+Coevolutionary-FL-DP for the sepsis federated-learning idea) with ZERO
+confirmed false positives, and left the overall not_assessed/medium/high
+split close to baseline (33/23/44 vs 35/23/42) - nothing like the flat
+widening collapse above. One confirmed near-miss was correctly rejected:
+a smart-home load-monitoring paper (no federated-learning content at all)
+scored 0.169, below the 0.20 bar, for a "federated learning for smart
+home energy prediction" idea - a same-broad-domain-wrong-technique match,
+exactly the failure this bar exists to catch.
+
+This does NOT recover zkFL-Health / Lightweight Privacy-First - both
+score well under even the loosest overlap threshold tested (0.059, 0.068
+vs the 0.20 bar) against the healthcare idea they were meant to ground,
+because their claims use different specific vocabulary (zero-knowledge
+proofs, Trusted Execution Environments, colon histopathology) than the
+query's own phrasing. That is a deep-paraphrase gap: the papers are
+semantically close (which is exactly why the embedder places them at
+0.36-0.38) but lexically almost disjoint from the query, and no lexical
+mechanism - this one included - can bridge that. This is accepted as a
+known, permanent limitation of this specific fix, not a bug: the widened
+band targets mild-paraphrase/shared-vocabulary near-misses, not deep
+paraphrase. A future fix for THAT gap would need a semantic (not lexical)
+qualifier, which is out of scope here - see the two approaches already
+rejected above for why an embedding-based claim-level qualifier was tried
+and found inconsistent.
 """
 
 from __future__ import annotations
@@ -96,6 +131,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from researchbridge.assessment.claim_relevance import CLAIM_OVERLAP_THRESHOLD, WIDENED_DISTANCE, claim_overlap
 from researchbridge.assessment.novelty import NEAR_DISTANCE as RELEVANCE_DISTANCE
 from researchbridge.db.models import Evidence, ExtractedClaim, Paper
 
@@ -110,11 +146,27 @@ class FeasibilityResult:
     evidence_ids: list[uuid.UUID]
 
 
-def assess_technical_feasibility(session: Session, papers_by_distance: list[PaperWithDistance]) -> FeasibilityResult:
+def assess_technical_feasibility(
+    session: Session,
+    papers_by_distance: list[PaperWithDistance],
+    query_text: str,
+    idf: dict[str, float],
+) -> FeasibilityResult:
     """papers_by_distance: every retrieved paper id paired with its cosine
-    distance, nearest-first (the order search_by_text already returns)."""
-    relevant_paper_ids = [paper_id for paper_id, distance in papers_by_distance if distance <= RELEVANCE_DISTANCE]
-    if not relevant_paper_ids:
+    distance, nearest-first (the order search_by_text already returns).
+    query_text/idf: the research input's own text and the corpus-wide IDF
+    table (see claim_relevance.build_corpus_idf), used only to admit
+    widened-band (0.35 < distance <= WIDENED_DISTANCE) papers whose
+    claims share enough specific vocabulary with query_text - see this
+    module's docstring for the calibration behind that bar. Papers within
+    NEAR_DISTANCE (0.35) are entirely unaffected by query_text/idf, exactly
+    as before this widened band existed."""
+    close_ids = [paper_id for paper_id, distance in papers_by_distance if distance <= RELEVANCE_DISTANCE]
+    widened_ids = [
+        paper_id for paper_id, distance in papers_by_distance if RELEVANCE_DISTANCE < distance <= WIDENED_DISTANCE
+    ]
+    candidate_ids = close_ids + widened_ids
+    if not candidate_ids:
         return FeasibilityResult(
             level="not_assessed",
             reasoning=(
@@ -125,11 +177,11 @@ def assess_technical_feasibility(session: Session, papers_by_distance: list[Pape
         )
 
     rows = session.execute(
-        select(ExtractedClaim.paper_id, ExtractedClaim.evidence_id, Paper.title)
+        select(ExtractedClaim.paper_id, ExtractedClaim.evidence_id, Evidence.text, Paper.title)
         .join(Evidence, Evidence.id == ExtractedClaim.evidence_id)
         .join(Paper, Paper.id == ExtractedClaim.paper_id)
         .where(
-            ExtractedClaim.paper_id.in_(relevant_paper_ids),
+            ExtractedClaim.paper_id.in_(candidate_ids),
             ExtractedClaim.claim_type.in_(FEASIBILITY_CLAIM_TYPES),
             Evidence.extraction_method != "stub",
         )
@@ -145,28 +197,75 @@ def assess_technical_feasibility(session: Session, papers_by_distance: list[Pape
             evidence_ids=[],
         )
 
+    claims_by_paper: dict[uuid.UUID, list[tuple[uuid.UUID, str]]] = {}
     titles_by_paper: dict[uuid.UUID, str] = {}
-    evidence_ids: list[uuid.UUID] = []
-    for paper_id, evidence_id, title in rows:
+    for paper_id, evidence_id, text, title in rows:
+        claims_by_paper.setdefault(paper_id, []).append((evidence_id, text))
         titles_by_paper[paper_id] = title
-        evidence_ids.append(evidence_id)
 
-    distinct_papers = len(titles_by_paper)
-    if distinct_papers == 1:
-        (title,) = titles_by_paper.values()
-        level = "medium"
-        reasoning = (
-            f'One relevant retrieved paper, "{title}", documents a method or dataset '
-            f"applicable to this idea - some technical grounding exists in the literature, "
-            f"but from a single source only."
+    evidence_ids: list[uuid.UUID] = []
+    close_titles: list[str] = []
+    widened_titles: list[str] = []
+
+    for paper_id in close_ids:
+        claims = claims_by_paper.get(paper_id)
+        if not claims:
+            continue
+        close_titles.append(titles_by_paper[paper_id])
+        evidence_ids.extend(evidence_id for evidence_id, _text in claims)
+
+    for paper_id in widened_ids:
+        claims = claims_by_paper.get(paper_id)
+        if not claims:
+            continue
+        passing_claims = [
+            (evidence_id, text) for evidence_id, text in claims if claim_overlap(query_text, text, idf) >= CLAIM_OVERLAP_THRESHOLD
+        ]
+        if passing_claims:
+            widened_titles.append(titles_by_paper[paper_id])
+            evidence_ids.extend(evidence_id for evidence_id, _text in passing_claims)
+
+    distinct_count = len(close_titles) + len(widened_titles)
+    if distinct_count == 0:
+        return FeasibilityResult(
+            level="not_assessed",
+            reasoning=(
+                "No relevant retrieved paper had a documented method or dataset to ground "
+                "a feasibility judgment in, so technical feasibility cannot be assessed from "
+                "the literature alone."
+            ),
+            evidence_ids=[],
         )
+
+    if distinct_count == 1:
+        level = "medium"
+        if close_titles:
+            (title,) = close_titles
+            reasoning = (
+                f'One relevant retrieved paper, "{title}", documents a method or dataset '
+                f"applicable to this idea - some technical grounding exists in the literature, "
+                f"but from a single source only."
+            )
+        else:
+            (title,) = widened_titles
+            reasoning = (
+                f'One relevant retrieved paper, "{title}", grounds this via a wider match '
+                f"confirmed by shared technical vocabulary with this idea - some technical "
+                f"grounding exists in the literature, but from a single, less directly-matched "
+                f"source only."
+            )
     else:
         level = "high"
         reasoning = (
-            f"{distinct_papers} relevant retrieved papers document methods or datasets "
+            f"{distinct_count} relevant retrieved papers document methods or datasets "
             f"applicable to this idea, suggesting demonstrated technical grounding from "
             f"multiple independent sources in the literature. This reflects documented "
             f"prior work, not a guarantee of success for this specific idea."
         )
+        if widened_titles:
+            reasoning += (
+                f" Of these, {', '.join(widened_titles)} is a wider match, corroborated by "
+                f"shared technical vocabulary with this idea, rather than a directly close one."
+            )
 
     return FeasibilityResult(level=level, reasoning=reasoning, evidence_ids=evidence_ids)

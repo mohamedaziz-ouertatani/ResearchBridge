@@ -40,6 +40,16 @@ When True:
   deterministic always-NULL default) on unavailability/invalid output,
   matching that module's own reasoning: opportunities IS the entire field
   being generated, so there's no safe partial result to keep.
+
+corpus_idf (2026-09-05): the corpus-wide IDF table feasibility.py's widened
+band (see that module's docstring) uses to admit a 0.35-0.40 paper via
+claim-level lexical overlap. Optional, defaulting to None -> treated as {}
+by assess_technical_feasibility(), meaning the widened band admits nothing
+and behavior is identical to before this existed - same "safe until
+explicitly supplied" shape as enable_llm_stages above. The API route layer
+supplies a real one via api/deps.py's get_corpus_idf() (process-wide
+cached, same pattern as get_embedder()); any other caller (tests, scripts)
+that doesn't pass one simply gets the pre-existing 0.35-only behavior.
 """
 
 from __future__ import annotations
@@ -96,6 +106,7 @@ def build_assessment(
     embedder: Embedder,
     top_k: int = 10,
     enable_llm_stages: bool = False,
+    corpus_idf: dict[str, float] | None = None,
 ) -> ResearchAssessment:
     research_input = session.get(ResearchInput, research_input_id)
     if research_input is None:
@@ -142,7 +153,7 @@ def build_assessment(
         except ApplicationRelevanceUnavailable:
             pass  # fail open - keep the deterministic, unfiltered result
 
-    feasibility = assess_technical_feasibility(session, papers_by_distance)
+    feasibility = assess_technical_feasibility(session, papers_by_distance, query_text, corpus_idf or {})
     opportunities = assess_opportunities(session, papers_by_distance)
 
     opportunities_json: list[dict] | None = None

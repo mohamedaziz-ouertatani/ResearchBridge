@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
-from researchbridge.api.deps import get_embedder, get_session
+from researchbridge.api.deps import get_corpus_idf, get_embedder, get_session
 from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, ResearchAssessment, ResearchInput
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
@@ -71,6 +71,10 @@ def client(session_factory, embedder):
 
     app.dependency_overrides[get_session] = _session_override
     app.dependency_overrides[get_embedder] = lambda: embedder
+    # get_corpus_idf() is @lru_cache'd process-wide - without this override,
+    # whichever test's tiny fixture DB state happens to build it first would
+    # silently determine the value every other test in this run sees.
+    app.dependency_overrides[get_corpus_idf] = lambda: {}
     with TestClient(app) as c:
         yield c
 

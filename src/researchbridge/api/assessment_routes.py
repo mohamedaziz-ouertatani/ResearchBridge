@@ -54,7 +54,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.orm import Session
 
-from researchbridge.api.deps import get_embedder, get_session
+from researchbridge.api.deps import get_corpus_idf, get_embedder, get_session
 from researchbridge.api.schemas import (
     GraphEdgeOut,
     GraphNodeOut,
@@ -211,12 +211,15 @@ def create_assessment(
     payload: ResearchAssessmentCreate,
     session: Session = Depends(get_session),
     embedder: Embedder = Depends(get_embedder),
+    corpus_idf: dict[str, float] = Depends(get_corpus_idf),
 ) -> ResearchAssessmentOut:
     research_input = ResearchInput(input_type="idea", raw_text=payload.raw_text)
     session.add(research_input)
     session.flush()
 
-    assessment = build_assessment(session, research_input.id, embedder, enable_llm_stages=ollama_enabled())
+    assessment = build_assessment(
+        session, research_input.id, embedder, enable_llm_stages=ollama_enabled(), corpus_idf=corpus_idf
+    )
 
     return _to_out(session, assessment, research_input)
 
@@ -246,6 +249,7 @@ async def create_assessment_from_upload(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     embedder: Embedder = Depends(get_embedder),
+    corpus_idf: dict[str, float] = Depends(get_corpus_idf),
 ) -> ResearchAssessmentOut:
     content = await _read_capped(file, MAX_UPLOAD_BYTES)
     if not content:
@@ -271,7 +275,9 @@ async def create_assessment_from_upload(
     session.add(research_input)
     session.flush()
 
-    assessment = build_assessment(session, research_input.id, embedder, enable_llm_stages=ollama_enabled())
+    assessment = build_assessment(
+        session, research_input.id, embedder, enable_llm_stages=ollama_enabled(), corpus_idf=corpus_idf
+    )
 
     return _to_out(session, assessment, research_input)
 
@@ -357,6 +363,7 @@ def rerun_assessment(
     assessment_id: uuid.UUID,
     session: Session = Depends(get_session),
     embedder: Embedder = Depends(get_embedder),
+    corpus_idf: dict[str, float] = Depends(get_corpus_idf),
 ) -> ResearchAssessmentOut:
     """Re-run the pipeline for an existing assessment's research_input.
 
@@ -368,7 +375,9 @@ def rerun_assessment(
     if original is None:
         raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
 
-    assessment = build_assessment(session, original.research_input_id, embedder, enable_llm_stages=ollama_enabled())
+    assessment = build_assessment(
+        session, original.research_input_id, embedder, enable_llm_stages=ollama_enabled(), corpus_idf=corpus_idf
+    )
 
     research_input = session.get(ResearchInput, assessment.research_input_id)
     return _to_out(session, assessment, research_input)
