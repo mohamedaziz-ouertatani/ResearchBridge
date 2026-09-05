@@ -329,6 +329,13 @@ class ResearchAssessmentOut(BaseModel):
 class ResearchAssessmentCreate(BaseModel):
     raw_text: str = Field(min_length=1)
 
+    @field_validator("raw_text")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("raw_text must not be blank")
+        return v
+
 
 class GraphNodeOut(BaseModel):
     id: str
