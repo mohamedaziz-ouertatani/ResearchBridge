@@ -241,6 +241,7 @@ def build_assessment(
             if applications.status == "found"
             else ([] if applications.status == "no_evidence" else None)
         ),
+        potential_applications_status=applications.status,
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),

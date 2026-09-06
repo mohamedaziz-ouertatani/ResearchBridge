@@ -15,6 +15,23 @@ def test_insufficient_evidence_when_nothing_assessed() -> None:
     assert result.confidence == "low"
 
 
+def test_insufficient_evidence_treats_novelty_insufficient_evidence_like_not_assessed() -> None:
+    # "insufficient_evidence" (novelty.py's label for "no dimension-level
+    # evidence existed to check at all") must count the same as
+    # "not_assessed" here, not as a real assessed signal - see
+    # recommendation.py's own docstring update.
+    result = assess_recommendation(
+        novelty_level="insufficient_evidence",
+        research_gap_text=None,
+        research_gap_is_strong=False,
+        technical_feasibility_level="not_assessed",
+    )
+
+    assert result.recommendation == "INSUFFICIENT EVIDENCE"
+    assert result.confidence == "low"
+    assert "not assessed" in result.reasoning.lower()
+
+
 def test_high_priority_when_novel_gap_found_and_feasible() -> None:
     # recommendation CATEGORY only needs feasibility medium/high and any
     # found gap - unchanged by the confidence-strength fix below

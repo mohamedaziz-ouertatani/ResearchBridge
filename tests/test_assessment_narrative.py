@@ -27,6 +27,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         research_gap_source="input_specific",
         candidate_gap_id=None,
         potential_applications=None,
+        potential_applications_status="not_assessed",
         technical_feasibility_level="high",
         technical_feasibility_reasoning="Two relevant papers document applicable methods.",
         potential_opportunities=None,

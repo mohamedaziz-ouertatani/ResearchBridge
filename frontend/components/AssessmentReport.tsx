@@ -256,7 +256,7 @@ export function AssessmentReport({
             ) : (
               <Unassessed
                 reason={
-                  assessment.potential_applications === null
+                  assessment.potential_applications_status === "not_assessed"
                     ? "No relevant paper was retrieved for this input, so applications could not be assessed."
                     : "No retrieved paper stated an application."
                 }

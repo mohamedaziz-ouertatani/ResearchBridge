@@ -37,6 +37,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         potential_applications=[
             {"application": "real-time payment fraud screening", "source_paper": "Paper Title", "paper_id": str(PAPER_ID)}
         ],
+        potential_applications_status="found",
         technical_feasibility_level="medium",
         technical_feasibility_reasoning="A graph attention mechanism was described.",
         potential_opportunities=None,
@@ -67,6 +68,7 @@ def _unassessed_assessment() -> ResearchAssessmentOut:
         research_gap_text=None,
         research_gap_source=None,
         potential_applications=None,
+        potential_applications_status="not_assessed",
         technical_feasibility_reasoning="Nothing close enough to ground a feasibility judgement.",
         risks_and_limitations=None,
         evidence=[],
@@ -188,8 +190,8 @@ def test_export_distinguishes_not_assessed_gap_from_checked_no_gap_found() -> No
 
 
 def test_export_distinguishes_applications_not_assessed_from_no_evidence() -> None:
-    not_assessed = _assessment(potential_applications=None)
-    no_evidence = _assessment(potential_applications=[])
+    not_assessed = _assessment(potential_applications=None, potential_applications_status="not_assessed")
+    no_evidence = _assessment(potential_applications=[], potential_applications_status="no_evidence")
 
     sections_not_assessed = build_report_sections(not_assessed)
     sections_no_evidence = build_report_sections(no_evidence)

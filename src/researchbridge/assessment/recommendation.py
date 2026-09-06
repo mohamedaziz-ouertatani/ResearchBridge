@@ -28,8 +28,13 @@ how likely the recommendation is to be right:
 
 "Strong" is deliberately a stricter bar than "assessed" (which still
 drives the RECOMMENDATION category below, unchanged):
-- novelty: assessed at all (novelty_level != "not_assessed") - no
-  further gradient exists to draw on without inventing one.
+- novelty: assessed at all (novelty_level not in ("not_assessed",
+  "insufficient_evidence")) - no further gradient exists to draw on
+  without inventing one. "insufficient_evidence" (see novelty.py) means no
+  dimension-level evidence existed to check at all, the same absence of
+  signal as "not_assessed" - it is a distinct label for the reasoning
+  text's benefit, not a stronger signal than "not_assessed" for this
+  rule's purposes.
 - research gap: found AND research_gap_is_strong is True (both distance-
   close AND the gap text itself isn't generic boilerplate - see gap.py's
   is_closely_grounded/is_strongly_stated docstrings).
@@ -83,7 +88,7 @@ def assess_recommendation(
     research_gap_is_strong: bool,
     technical_feasibility_level: str,
 ) -> RecommendationResult:
-    novelty_assessed = novelty_level != "not_assessed"
+    novelty_assessed = novelty_level not in ("not_assessed", "insufficient_evidence")
     gap_found = research_gap_text is not None
     feasibility_assessed = technical_feasibility_level != "not_assessed"
     assessed_count = sum([novelty_assessed, gap_found, feasibility_assessed])
@@ -137,7 +142,7 @@ def _build_reasoning(
 ) -> str:
     novelty_line = (
         f"Novelty signal: {novelty_level}"
-        if novelty_level != "not_assessed"
+        if novelty_level not in ("not_assessed", "insufficient_evidence")
         else "Novelty signal: not assessed (insufficient retrieved evidence)"
     )
     if not gap_found:

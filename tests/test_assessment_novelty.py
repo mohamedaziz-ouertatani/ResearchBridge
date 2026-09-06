@@ -52,12 +52,12 @@ def test_medium_novelty_just_above_near_distance_boundary() -> None:
     assert result.level == "medium"
 
 
-def test_high_novelty_at_exact_far_distance_boundary() -> None:
+def test_insufficient_evidence_at_exact_far_distance_boundary() -> None:
     # FAR_DISTANCE=0.65 is compared with >=, so the boundary value itself
-    # must already land "high", not stay "medium"
+    # must already land "insufficient_evidence", not stay "medium"
     result = assess_novelty([("Boundary Paper", 0.65, _claims("a claim"))])
 
-    assert result.level == "high"
+    assert result.level == "insufficient_evidence"
 
 
 def test_medium_novelty_just_below_far_distance_boundary() -> None:
@@ -66,15 +66,15 @@ def test_medium_novelty_just_below_far_distance_boundary() -> None:
     assert result.level == "medium"
 
 
-def test_high_novelty_when_nearest_evidenced_paper_is_distant() -> None:
+def test_insufficient_evidence_when_nearest_evidenced_paper_is_distant() -> None:
     result = assess_novelty([("Distant Paper", 0.9, _claims("a distantly related claim"))])
 
-    assert result.level == "high"
+    assert result.level == "insufficient_evidence"
     assert "Distant Paper" in result.reasoning
     assert "not confirmed" in result.reasoning.lower() or "not confirmed novelty" in result.reasoning.lower()
 
 
-def test_high_novelty_reasoning_never_claims_absolute_novelty() -> None:
+def test_insufficient_evidence_reasoning_never_claims_absolute_novelty() -> None:
     result = assess_novelty([("Distant Paper", 0.9, _claims("a distantly related claim"))])
 
     lowered = result.reasoning.lower()

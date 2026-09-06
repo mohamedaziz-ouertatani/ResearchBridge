@@ -7,6 +7,7 @@ import {
   type AssessmentSort,
   type AssessmentSummary,
   type CategoricalLevel,
+  type NoveltyLevel,
   type ReviewFilter,
 } from "@/lib/assessmentApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -14,7 +15,10 @@ import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
 
 const FILTERS: ReviewFilter[] = ["needs_review", "reviewed", "all"];
-const LEVEL_OPTIONS: CategoricalLevel[] = ["high", "medium", "low", "not_assessed"];
+// feasibility never takes "insufficient_evidence" (see novelty.py) - kept
+// as its own list so that value only ever appears in the novelty dropdown.
+const NOVELTY_LEVEL_OPTIONS: NoveltyLevel[] = ["high", "medium", "low", "insufficient_evidence", "not_assessed"];
+const FEASIBILITY_LEVEL_OPTIONS: CategoricalLevel[] = ["high", "medium", "low", "not_assessed"];
 
 const SELECT_CLASS =
   "eyebrow rounded-[2px] border border-[var(--rule)] bg-transparent px-2 py-1 text-[0.6875rem] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] focus:border-[var(--ink)] focus:outline-none";
@@ -22,7 +26,7 @@ const SELECT_CLASS =
 export default function AssessmentDashboard() {
   const [review, setReview] = useState<ReviewFilter>("needs_review");
   const [sort, setSort] = useState<AssessmentSort>("newest");
-  const [novelty, setNovelty] = useState<CategoricalLevel | "">("");
+  const [novelty, setNovelty] = useState<NoveltyLevel | "">("");
   const [feasibility, setFeasibility] = useState<CategoricalLevel | "">("");
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,11 +100,11 @@ export default function AssessmentDashboard() {
             <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">novelty</span>
             <select
               value={novelty}
-              onChange={(e) => setNovelty(e.target.value as CategoricalLevel | "")}
+              onChange={(e) => setNovelty(e.target.value as NoveltyLevel | "")}
               className={SELECT_CLASS}
             >
               <option value="">any</option>
-              {LEVEL_OPTIONS.map((level) => (
+              {NOVELTY_LEVEL_OPTIONS.map((level) => (
                 <option key={level} value={level}>
                   {level.replace("_", " ")}
                 </option>
@@ -116,7 +120,7 @@ export default function AssessmentDashboard() {
               className={SELECT_CLASS}
             >
               <option value="">any</option>
-              {LEVEL_OPTIONS.map((level) => (
+              {FEASIBILITY_LEVEL_OPTIONS.map((level) => (
                 <option key={level} value={level}>
                   {level.replace("_", " ")}
                 </option>

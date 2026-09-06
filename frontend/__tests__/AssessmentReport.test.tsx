@@ -26,6 +26,7 @@ function baseAssessment(overrides: Partial<ResearchAssessment> = {}): ResearchAs
     research_gap_source: null,
     candidate_gap_id: null,
     potential_applications: null,
+    potential_applications_status: "not_assessed",
     technical_feasibility_level: "not_assessed",
     technical_feasibility_reasoning: null,
     potential_opportunities: null,

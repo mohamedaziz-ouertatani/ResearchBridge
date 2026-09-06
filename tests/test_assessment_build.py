@@ -157,6 +157,15 @@ def test_assessment_defaults_unassessed_fields_rather_than_fabricating(session_f
     assert assessment.novelty_level == "not_assessed"
     assert assessment.technical_feasibility_level == "not_assessed"
     assert assessment.research_gap_text is None
+    # a relevant paper WAS retrieved (near-exact title match) - applications.py
+    # gates relevance on distance alone, not on whether the paper has claims,
+    # so a claim-less paper still yields "no_evidence" ([]), not "not_assessed"
+    # (None) - see test_potential_applications_is_empty_list_not_null_when_
+    # relevant_papers_have_no_application for the same distinction targeted
+    # directly, and novelty.py's assess_novelty for the DIFFERENT, claims-
+    # gated criterion that makes novelty_level "not_assessed" here instead.
+    assert assessment.potential_applications == []
+    assert assessment.potential_applications_status == "no_evidence"
     assert assessment.recommendation == "INSUFFICIENT EVIDENCE"  # honest non-recommendation, not silently None
     assert assessment.confidence == "low"
     assert assessment.completed_at is not None
@@ -179,6 +188,7 @@ def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have
     # was retrieved at all", which stays None (see the pre-existing
     # test_assessment_defaults_unassessed_fields_rather_than_fabricating)
     assert assessment.potential_applications == []
+    assert assessment.potential_applications_status == "no_evidence"
 
 
 def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> None:
@@ -440,6 +450,7 @@ def test_potential_applications_is_set_from_the_neighborhood(session_factory, em
     assert assessment.potential_applications is not None
     assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
     assert assessment.potential_applications[0]["source_paper"] == "graph transformers for fraud detection"
+    assert assessment.potential_applications_status == "found"
 
 
 def test_applications_evidence_is_linked_with_role_application(session_factory, embedder) -> None:
@@ -613,6 +624,11 @@ def test_recommendation_is_insufficient_evidence_with_no_signal_at_all(session_f
     session.close()
     assert assessment.recommendation == "INSUFFICIENT EVIDENCE"
     assert assessment.confidence == "low"
+    # nothing at all was retrieved here (no paper in the corpus is even
+    # distantly related) - the one case where potential_applications is
+    # genuinely None/"not_assessed", not "no_evidence" ([])
+    assert assessment.potential_applications is None
+    assert assessment.potential_applications_status == "not_assessed"
 
 
 def test_no_novelty_evidence_linked_when_nothing_could_be_assessed(session_factory, embedder) -> None:

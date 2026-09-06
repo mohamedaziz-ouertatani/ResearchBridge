@@ -21,7 +21,7 @@ import { YearStrip } from "@/components/YearStrip";
   tab, just not visualized together.
 */
 
-const NOVELTY_ORDER = ["high", "medium", "low", "not_assessed"] as const;
+const NOVELTY_ORDER = ["high", "medium", "low", "insufficient_evidence", "not_assessed"] as const;
 
 const CLAIM_TYPE_ORDER = ["fact", "inference", "hypothesis", "opportunity", "speculation"] as const;
 

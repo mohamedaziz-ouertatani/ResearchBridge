@@ -185,12 +185,29 @@ def test_post_assessment_includes_potential_applications(client, session, embedd
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
 
     assert body["potential_applications"][0]["application"] == "real-time payment fraud screening"
+    assert body["potential_applications_status"] == "found"
 
 
 def test_post_assessment_potential_applications_null_without_evidence(client, session) -> None:
     body = client.post("/api/assessments", json={"raw_text": "an idea with no related papers in the corpus"}).json()
 
     assert body["potential_applications"] is None
+    assert body["potential_applications_status"] == "not_assessed"
+
+
+def test_post_assessment_potential_applications_status_no_evidence_when_relevant_papers_lack_applications(
+    client, session, embedder
+) -> None:
+    # relevant papers were retrieved (so this isn't "not_assessed"), but none
+    # of them have an "applications"-type claim - distinct from the
+    # not-assessed case above, mirroring research_gap_source's pattern.
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
+
+    assert body["potential_applications"] == []
+    assert body["potential_applications_status"] == "no_evidence"
 
 
 def test_post_assessment_includes_technical_feasibility(client, session, embedder) -> None:
@@ -258,6 +275,21 @@ def test_post_assessment_claims_is_empty_list_without_any_grounded_field(client,
 
 def test_post_assessment_requires_raw_text(client) -> None:
     assert client.post("/api/assessments", json={"raw_text": ""}).status_code == 422
+
+
+def test_post_assessment_rejects_raw_text_over_max_length(client) -> None:
+    too_long = "a" * 20_001
+    assert client.post("/api/assessments", json={"raw_text": too_long}).status_code == 422
+
+
+def test_post_assessment_accepts_raw_text_at_max_length(client, session, embedder) -> None:
+    _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    session.commit()
+
+    prefix = "graph transformers for fraud detection "
+    at_limit = prefix + "a" * (20_000 - len(prefix))
+    assert len(at_limit) == 20_000
+    assert client.post("/api/assessments", json={"raw_text": at_limit}).status_code == 200
 
 
 def test_get_assessment_returns_previously_created_one(client, session, embedder) -> None:

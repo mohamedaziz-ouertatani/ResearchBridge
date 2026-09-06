@@ -595,6 +595,14 @@ class ResearchAssessment(Base):
         UUID(as_uuid=True), ForeignKey("candidate_gaps.id"), nullable=True
     )
     potential_applications: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # "not_assessed" | "no_evidence" | "found" - mirrors research_gap_source's
+    # pattern: potential_applications alone can't distinguish "no relevant
+    # papers were retrieved at all" from "relevant papers were retrieved but
+    # none explicitly stated a real-world application" - both currently
+    # render as an empty/null list with no explanation. See
+    # assessment/applications.py's ApplicationsResult.status, which was
+    # already computed but discarded before this column existed.
+    potential_applications_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     technical_feasibility_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     technical_feasibility_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)

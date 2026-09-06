@@ -290,6 +290,13 @@ class ResearchAssessmentOut(BaseModel):
     """Each item: {application, source_paper, paper_id} - an application a
     retrieved paper explicitly states, never a synthesized/invented one
     (see assessment/applications.py)."""
+    potential_applications_status: str
+    """"not_assessed" | "no_evidence" | "found". Mirrors research_gap_source:
+    when potential_applications is empty or null, this distinguishes "no
+    relevant papers were retrieved at all" (not_assessed) from "relevant
+    papers were retrieved but none explicitly stated a real-world
+    application" (no_evidence) - never collapse both into the same
+    unexplained empty list."""
     technical_feasibility_level: str
     technical_feasibility_reasoning: str | None
     potential_opportunities: list[dict] | None
@@ -322,8 +329,18 @@ class ResearchAssessmentOut(BaseModel):
     or one where none of those five fields were populated."""
 
 
+# An idea submission is a paragraph-to-abstract-length pitch, not a document
+# (uploads go through /api/assessments/upload's own 25MB file cap instead).
+# 20,000 chars (~3,000-4,000 words) comfortably covers a long-form abstract
+# with room to spare, while still blocking the failure mode observed in
+# testing: a huge irrelevant filler payload can dominate the embedding and
+# silently bury a short real idea appended after it, producing a garbage
+# assessment with no indication anything went wrong.
+RAW_TEXT_MAX_LENGTH = 20_000
+
+
 class ResearchAssessmentCreate(BaseModel):
-    raw_text: str = Field(min_length=1)
+    raw_text: str = Field(min_length=1, max_length=RAW_TEXT_MAX_LENGTH)
 
     @field_validator("raw_text")
     @classmethod

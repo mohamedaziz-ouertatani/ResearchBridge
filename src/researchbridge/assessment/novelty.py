@@ -10,10 +10,29 @@ aggregate signal over every dimension of the idea instead of just the
 single nearest paper. See "Never claims absolute novelty" below - both
 paths are still a corpus-similarity signal, never proof of originality.
 
-Never claims absolute novelty (Sec 18/34): "high" only ever means "no
-closely matching paper was found in the retrieved literature sample" -
-explicitly hedged in the reasoning text, never "this idea is genuinely
-novel". The corpus is one CS/AI/ML slice, not the full literature.
+Never claims absolute novelty (Sec 18/34): "high" only ever means "some
+real, if weak, dimension-level evidence was checked and still came back
+mostly uncovered" - explicitly hedged in the reasoning text, never "this
+idea is genuinely novel". The corpus is one CS/AI/ML slice, not the full
+literature.
+
+"high" vs "insufficient_evidence" (added after live testing surfaced a
+real confusion): the legacy nearest-distance-only path (no dimension
+coverage available at all) returns "insufficient_evidence", not "high",
+when even the nearest evidenced paper is far away - see
+_from_nearest_distance's own comment. Before this distinction existed, a
+garbage/off-topic input (gibberish text, a cookie recipe, a single
+character) with zero relevant retrieved evidence reported "high" novelty
+- textually identical to a genuinely on-topic idea that checked real
+per-dimension evidence and still came back mostly uncovered
+(_aggregate_from_coverage's "high"). Both are correctly hedged in their
+reasoning text, but "novelty_level" is the field most likely to be
+surfaced as a top-line badge by any consumer that doesn't also read the
+reasoning - conflating "found nothing to compare against" with "compared
+against real evidence and it's still novel" under one value was
+misleading. recommendation.py treats "insufficient_evidence" the same as
+"not_assessed" for that reason: an absence of evidence isn't a signal to
+weigh, whereas the coverage-based "high" is.
 
 Thresholds are corpus-calibrated, not guessed: ProximityGauge.tsx's own
 calibration note observes real/relevant hits land roughly 0.35-0.85
@@ -103,7 +122,7 @@ _COVERED_STATUSES = frozenset({"established", "partially_addressed"})
 
 @dataclass
 class NoveltyResult:
-    level: str  # high | medium | low | not_assessed
+    level: str  # high | medium | low | insufficient_evidence | not_assessed
     reasoning: str
     evidence_ids: list[uuid.UUID]
     dimension_coverage: list[DimensionCoverage] = field(default_factory=list)
@@ -161,13 +180,26 @@ def _from_nearest_distance(nearest_title: str, nearest_distance: float) -> tuple
             f"with existing work already found in the corpus."
         )
     if nearest_distance >= FAR_DISTANCE:
-        return "high", (
+        # Deliberately NOT "high": this branch only runs when there is no
+        # dimension-level evidence to check at all (see assess_novelty's
+        # caller - _from_nearest_distance is only reached when
+        # scored_coverages is empty), so a nearest paper this far away means
+        # literally nothing relevant was found, not "found nothing similar
+        # after a real comparison". "high" is reserved for
+        # _aggregate_from_coverage, where at least one dimension has genuine
+        # (even if weak) evidence to weigh - a real signal, not an absence
+        # of one. Conflating the two under "high" let a garbage/off-topic
+        # input (e.g. gibberish text with no related papers at all) look
+        # identical to a genuinely novel idea backed by real, if distant,
+        # evidence - see recommendation.py's novelty_assessed check, which
+        # correctly treats this value the same as "not_assessed".
+        return "insufficient_evidence", (
             f"No closely matching paper was found in the retrieved literature - the nearest, "
-            f'"{nearest_title}", is comparatively distant (distance {nearest_distance:.3f}). '
-            f"This suggests limited directly related prior work within this corpus, not "
-            f"confirmed novelty against the wider scientific literature: the corpus covers "
-            f"only a specific CS/AI/ML slice, and this reflects the retrieved sample, not an "
-            f"exhaustive search."
+            f'"{nearest_title}", is comparatively distant (distance {nearest_distance:.3f}), and '
+            f"no dimension-level evidence exists to check further. This reflects an absence of "
+            f"related material in this corpus, not confirmed novelty against the wider "
+            f"scientific literature: the corpus covers only a specific CS/AI/ML slice, and this "
+            f"reflects the retrieved sample, not an exhaustive search."
         )
     return "medium", (
         f'The closest retrieved paper, "{nearest_title}", is moderately related '

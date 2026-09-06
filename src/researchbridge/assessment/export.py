@@ -124,13 +124,13 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
         by_role.setdefault(item.role, []).append(item)
 
     applications_body = None
-    applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS["not_assessed"]
+    applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS.get(
+        assessment.potential_applications_status, _APPLICATIONS_UNASSESSED_REASONS["not_assessed"]
+    )
     if assessment.potential_applications:
         applications_body = "\n".join(
             f"- {app['application']} (source: {app['source_paper']})" for app in assessment.potential_applications
         )
-    elif assessment.potential_applications == []:
-        applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS["no_evidence"]
 
     research_gap_body = assessment.research_gap_text
     if research_gap_body and assessment.research_gap_source:

@@ -70,6 +70,11 @@ export type ResearchAssessment = {
   research_gap_source: string | null;
   candidate_gap_id: string | null;
   potential_applications: PotentialApplication[] | null;
+  /** "not_assessed" | "no_evidence" | "found" - mirrors research_gap_source:
+   * distinguishes "no relevant papers were retrieved at all" from "relevant
+   * papers were retrieved but none stated an application" when
+   * potential_applications is empty or null. */
+  potential_applications_status: string;
   technical_feasibility_level: string;
   technical_feasibility_reasoning: string | null;
   potential_opportunities: PotentialOpportunity[] | null;
@@ -136,6 +141,13 @@ export type GraphData = {
 export type ReviewFilter = "all" | "reviewed" | "needs_review";
 export type AssessmentSort = "newest" | "priority";
 export type CategoricalLevel = "high" | "medium" | "low" | "not_assessed";
+// novelty_level can additionally be "insufficient_evidence" (see
+// assessment/novelty.py) - distinct from "not_assessed" (no retrieved
+// paper had usable claims at all) and from the coverage-based "high" (real
+// dimension-level evidence was checked). technical_feasibility_level never
+// takes this value, so it's kept out of CategoricalLevel itself and only
+// used where novelty specifically is filtered/rendered.
+export type NoveltyLevel = CategoricalLevel | "insufficient_evidence";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
@@ -199,7 +211,7 @@ export const assessmentApi = {
 
   list: (
     review: ReviewFilter = "all",
-    options?: { sort?: AssessmentSort; novelty?: CategoricalLevel; feasibility?: CategoricalLevel },
+    options?: { sort?: AssessmentSort; novelty?: NoveltyLevel; feasibility?: CategoricalLevel },
   ) => {
     const params = new URLSearchParams({ review, limit: "50" });
     if (options?.sort) params.set("sort", options.sort);
