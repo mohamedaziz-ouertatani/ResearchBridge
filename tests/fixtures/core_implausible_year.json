@@ -1,0 +1,24 @@
+{
+  "totalHits": 1,
+  "limit": 1,
+  "offset": 0,
+  "results": [
+    {
+      "id": 111222333,
+      "doi": null,
+      "title": "A Paper With A Buddhist-Calendar Year",
+      "abstract": "This record has a yearPublished value that date() accepts but is not a real Gregorian publication year.",
+      "authors": [
+        {"name": "Eve Example"}
+      ],
+      "yearPublished": 2566,
+      "publishedDate": null,
+      "language": {"code": "en", "name": "English"},
+      "downloadUrl": null,
+      "sourceFulltextUrls": [],
+      "publisher": "Example Publisher",
+      "documentType": "research",
+      "subjects": ["Computer Science"]
+    }
+  ]
+}

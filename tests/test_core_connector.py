@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 import responses
@@ -87,6 +88,67 @@ def test_out_of_range_year_published_does_not_crash_the_fetch() -> None:
 
     assert paper.publication_date is None
     assert paper.raw_metadata["yearPublished"] == 10000
+
+
+@responses.activate
+def test_implausible_but_in_range_year_published_is_rejected() -> None:
+    """Live corpus symptom: papers dated 2027-2566 in the corpus, all from
+    CORE. date(2566, 1, 1) doesn't raise - Python accepts any year up to
+    9999 - so the crash-prevention check above let obviously-wrong years
+    (a Buddhist-calendar year off by 543, or years after "now") through
+    as if they were real Gregorian publication dates."""
+    responses.add(responses.GET, CORE_SEARCH_URL, body=_load("core_implausible_year.json"), status=200)
+
+    connector = CoreConnector(query="machine learning", api_key="fake-key")
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[0]
+
+    assert paper.publication_date is None
+    assert paper.raw_metadata["yearPublished"] == 2566
+
+
+@responses.activate
+def test_future_but_well_formed_published_date_is_rejected() -> None:
+    """Live corpus symptom: CORE records with a real, parseable ISO
+    publishedDate that is simply wrong - e.g. "2027-05-31" for supposedly
+    already-published work. _parse_datetime has no reason to reject a
+    well-formed date, so the plausibility check has to catch this after
+    parsing, the same way it catches yearPublished nonsense."""
+    next_year = datetime.now().year + 1
+    responses.add(
+        responses.GET,
+        CORE_SEARCH_URL,
+        json={
+            "totalHits": 1,
+            "limit": 1,
+            "offset": 0,
+            "results": [
+                {
+                    "id": 444555666,
+                    "doi": None,
+                    "title": "A Paper With A Well-Formed But Future publishedDate",
+                    "abstract": "Real ISO publishedDate, wrong year.",
+                    "authors": [{"name": "Eve Example"}],
+                    "yearPublished": next_year,
+                    "publishedDate": f"{next_year}-05-31T00:00:00",
+                    "language": {"code": "en", "name": "English"},
+                    "downloadUrl": None,
+                    "sourceFulltextUrls": [],
+                    "publisher": "Example Publisher",
+                    "documentType": "research",
+                    "subjects": ["Computer Science"],
+                }
+            ],
+        },
+        status=200,
+    )
+
+    connector = CoreConnector(query="machine learning", api_key="fake-key")
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[0]
+
+    assert paper.publication_date is None
+    assert paper.raw_metadata["yearPublished"] == next_year
 
 
 @responses.activate

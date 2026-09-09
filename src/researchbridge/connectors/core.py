@@ -156,6 +156,18 @@ class CoreConnector:
         publication_date = _parse_datetime(record.get("publishedDate"))
         if publication_date is None and year_published:
             publication_date = _year_to_date(year_published, record.get("id"))
+        if publication_date is not None and not _is_plausible_year(publication_date.year):
+            # CORE's publishedDate field carries the same dirty-metadata
+            # problem as yearPublished (see _year_to_date) - live records
+            # with a well-formed ISO publishedDate that is simply wrong,
+            # e.g. "2027-05-31" for an already-published paper. Reject by
+            # the same bound rather than trusting a real-looking date.
+            logger.warning(
+                "CORE record %s has an implausible publication_date %s - leaving it unset",
+                record.get("id"),
+                publication_date,
+            )
+            publication_date = None
 
         url = record.get("downloadUrl")
         if not url:
@@ -197,6 +209,18 @@ def _parse_datetime(value: str | None) -> date | None:
         return None
 
 
+MIN_PLAUSIBLE_YEAR = 1000
+
+
+def _is_plausible_year(year: int) -> bool:
+    """Rejects years date() would happily accept but that can't be a real
+    Gregorian publication year for already-published work: found live in
+    the corpus as CORE records dated up to 2566 (looks like an unconverted
+    Buddhist-calendar year, off by 543) and multiple years past "now"
+    (e.g. 2027-2100) for supposedly already-published papers."""
+    return MIN_PLAUSIBLE_YEAR <= year <= datetime.now().year
+
+
 def _year_to_date(year_published: Any, core_id: Any) -> date | None:
     """date(year, 1, 1), or None if year_published isn't a real, in-range
     year - found live (2026-09-02/09-03): a CORE record with
@@ -205,9 +229,17 @@ def _year_to_date(year_published: Any, core_id: Any) -> date | None:
     ingestion run (pipeline.py's per-run try/except has no per-record
     granularity), discarding that whole in-flight page rather than just
     this one record's publication_date. One bad year from CORE's own
-    metadata should never be able to take down a run."""
+    metadata should never be able to take down a run.
+
+    date()'s own range check only rejects what Python can't represent
+    (e.g. year 10000) - it happily accepts the more common nonsense CORE
+    sends, so _is_plausible_year applies the same real-world bound here.
+    """
     try:
-        return date(int(year_published), 1, 1)
+        year = int(year_published)
     except (TypeError, ValueError):
+        year = None
+    if year is None or not _is_plausible_year(year):
         logger.warning("CORE record %s has an unusable yearPublished %r - leaving publication_date unset", core_id, year_published)
         return None
+    return date(year, 1, 1)
