@@ -262,6 +262,47 @@ def test_md_escape_only_guards_line_starting_markers_not_mid_sentence_punctuatio
     assert _md_escape("1. not a list") == "\\1. not a list"
 
 
+def test_existing_solutions_evidence_excludes_quotes_already_in_body() -> None:
+    """comparison_summary already embeds each claim's text as a short
+    blockquote; the same evidence rows must not also appear in
+    section.evidence, or every quote renders twice."""
+    assessment = _assessment(
+        comparison_summary='Problems already addressed\n- "Paper Title": a graph attention mechanism',
+        evidence=[
+            AssessmentEvidenceOut(
+                role="comparison", evidence_id=uuid.uuid4(), paper_id=PAPER_ID, paper_title="Paper Title",
+                text="a graph attention mechanism", section=None,
+            ),
+        ],
+    )
+    sections = build_report_sections(assessment)
+    existing_solutions = next(s for s in sections if s.label == "Existing solutions")
+    assert existing_solutions.evidence == []
+
+
+def test_role_evidence_dedups_identical_quotes() -> None:
+    """Two distinct evidence rows with identical text (e.g. the same claim
+    cited for two different dimensions) must collapse to one in the
+    rendered list."""
+    duplicate_text = "We introduce PPML-Omics, a federated learning framework."
+    assessment = _assessment(
+        novelty_reasoning="Some overlap exists.",
+        evidence=[
+            AssessmentEvidenceOut(
+                role="novelty", evidence_id=uuid.uuid4(), paper_id=PAPER_ID, paper_title="Paper Title",
+                text=duplicate_text, section=None,
+            ),
+            AssessmentEvidenceOut(
+                role="novelty", evidence_id=uuid.uuid4(), paper_id=PAPER_ID, paper_title="Paper Title",
+                text=duplicate_text, section=None,
+            ),
+        ],
+    )
+    sections = build_report_sections(assessment)
+    novelty = next(s for s in sections if s.label == "Novelty assessment")
+    assert len(novelty.evidence) == 1
+
+
 def test_build_markdown_escapes_body_text_containing_markdown_syntax() -> None:
     text = _md_text(
         build_markdown(_assessment(risks_and_limitations="- Paper Title: *fabricated* claims [dangerous](url)"))

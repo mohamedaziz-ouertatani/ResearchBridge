@@ -109,6 +109,44 @@ GROUP_INFO: dict[str, tuple[str, str, str]] = {
 }
 
 
+def _normalized_quote_key(text: str) -> str:
+    """Whitespace-collapsed, case-folded text, used only to detect two
+    evidence rows (or a body line and an evidence row) that quote the exact
+    same underlying sentence - never used for anything user-visible."""
+    return " ".join(text.split()).lower()
+
+
+def _dedup_evidence(
+    items: list[AssessmentEvidenceOut], *, already_shown: set[str] | None = None
+) -> list[AssessmentEvidenceOut]:
+    """First-seen-wins dedup by normalized text, optionally also excluding
+    text already rendered elsewhere (e.g. a section's own body)."""
+    seen: set[str] = set(already_shown or ())
+    result: list[AssessmentEvidenceOut] = []
+    for item in items:
+        key = _normalized_quote_key(item.text)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
+def _comparison_body_quote_keys(comparison_summary: str | None) -> set[str]:
+    """Every claim-text quote already embedded in comparison_summary's own
+    "- \"paper\": claim" lines, keyed the same way as _dedup_evidence - used
+    to keep the "Existing solutions" evidence list from repeating quotes
+    the body already shows."""
+    if not comparison_summary:
+        return set()
+    keys: set[str] = set()
+    for line in comparison_summary.splitlines():
+        match = _COMPARISON_CLAIM_RE.match(line)
+        if match:
+            keys.add(_normalized_quote_key(match.group(2)))
+    return keys
+
+
 def _claim_for_text(claims: list[AnalysisClaimOut], text: str | None) -> AnalysisClaimOut | None:
     """Same exact-match lookup as the web report's claimForText
     (AssessmentReport.tsx) - claim_text is written verbatim from the field
@@ -122,6 +160,13 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
     by_role: dict[str, list[AssessmentEvidenceOut]] = {}
     for item in assessment.evidence:
         by_role.setdefault(item.role, []).append(item)
+    for role, items in by_role.items():
+        by_role[role] = _dedup_evidence(items)
+
+    comparison_evidence = _dedup_evidence(
+        by_role.get("comparison", []),
+        already_shown=_comparison_body_quote_keys(assessment.comparison_summary),
+    )
 
     applications_body = None
     applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS.get(
@@ -149,7 +194,7 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             label="Existing solutions",
             body=assessment.comparison_summary,
             unassessed_reason="No retrieved paper had extracted claims to compare against.",
-            evidence=by_role.get("comparison", []),
+            evidence=comparison_evidence,
             claim=_claim_for_text(assessment.claims, assessment.comparison_summary),
         ),
         ReportSection(
