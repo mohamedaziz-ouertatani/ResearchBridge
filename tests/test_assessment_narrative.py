@@ -31,6 +31,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         technical_feasibility_level="high",
         technical_feasibility_reasoning="Two relevant papers document applicable methods.",
         potential_opportunities=None,
+        potential_opportunities_status="not_assessed",
         risks_and_limitations=None,
         recommendation="HIGH PRIORITY",
         confidence="high",
