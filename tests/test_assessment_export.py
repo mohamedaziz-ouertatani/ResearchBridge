@@ -47,11 +47,11 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         human_reviewed=False,
         evidence=[
             AssessmentEvidenceOut(
-                role="comparison", paper_id=PAPER_ID, paper_title="Paper Title",
+                role="comparison", evidence_id=uuid.uuid4(), paper_id=PAPER_ID, paper_title="Paper Title",
                 text="a graph attention mechanism", section=None,
             ),
             AssessmentEvidenceOut(
-                role="risk", paper_id=PAPER_ID, paper_title="Paper Title",
+                role="risk", evidence_id=uuid.uuid4(), paper_id=PAPER_ID, paper_title="Paper Title",
                 text="evaluated only on offline datasets", section="Limitations",
             ),
         ],
