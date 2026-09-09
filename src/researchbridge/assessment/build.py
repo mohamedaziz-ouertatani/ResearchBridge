@@ -15,8 +15,9 @@ rather than running any new extraction. Any field a sub-assessment can't
 ground in real evidence stays NULL/"not_assessed" - NULL is preferable to
 fabricated certainty (Sec 22).
 
-enable_llm_stages (2026-09-04): two optional local-LLM stages, both OFF
-by default (only the API route layer passes True, from ollama_enabled() -
+enable_llm_stages (2026-09-04, extended 2026-09-09): three optional
+local-LLM stages, all OFF by default (only the API route layer passes
+True, from ollama_enabled() -
 see api/assessment_routes.py) so this function stays synchronous/
 deterministic/no-external-dependency for every existing and future direct
 caller (tests, scripts, benchmarks) unless they explicitly opt in - the
@@ -43,6 +44,13 @@ When True:
   deterministic always-NULL default) on unavailability/invalid output,
   matching that module's own reasoning: opportunities IS the entire field
   being generated, so there's no safe partial result to keep.
+- dimensions_llm.py's local-LLM call extracts real technical concepts from
+  the idea text for novelty-dimension coverage, replacing dimensions.py's
+  raw RAKE keyword extraction (which could surface junk single-word
+  dimensions like "develop" with no semantic understanding). Fails OPEN:
+  unavailable/invalid output falls back to the existing deterministic RAKE
+  extractor, since - unlike opportunities - a safe non-LLM equivalent
+  already exists and always has.
 
 corpus_idf (2026-09-05): the corpus-wide IDF table feasibility.py's widened
 band (see that module's docstring) uses to admit a 0.35-0.40 paper via
@@ -73,6 +81,7 @@ from researchbridge.assessment.claims import (
 )
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
+from researchbridge.assessment.dimensions_llm import extract_dimensions_with_fallback
 from researchbridge.assessment.existing_solutions import build_existing_solutions
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
@@ -129,7 +138,13 @@ def build_assessment(
     results = search_by_text(session, query_text, embedder, top_k)
     papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
 
-    dimensions = extract_dimensions(query_text)
+    # Gated behind enable_llm_stages like the other two optional local-LLM
+    # stages (application relevance filtering, opportunity synthesis) - see
+    # this function's own docstring on why an unconditional call here would
+    # break the "no external dependency unless explicitly opted in"
+    # invariant every existing/future direct caller (tests, scripts,
+    # benchmarks) relies on.
+    dimensions = extract_dimensions_with_fallback(query_text) if enable_llm_stages else extract_dimensions(query_text)
     dimension_coverages = compute_dimension_coverage(
         dimensions,
         [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
