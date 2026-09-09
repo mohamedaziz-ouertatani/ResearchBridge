@@ -42,6 +42,7 @@ import re
 import requests
 
 from researchbridge.assessment.applications import ApplicationRecord
+from researchbridge.config import ollama_enabled, ollama_host, ollama_model, ollama_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -104,20 +105,11 @@ class ApplicationRelevanceUnavailable(Exception):
     unfiltered application list) - see module docstring."""
 
 
-def ollama_enabled() -> bool:
-    """Same flag as qa/summarize.py.ollama_enabled() / opportunity_synthesis
-    .py.ollama_enabled() - deliberately reused, not a new setting.
-
-    Default TRUE (2026-09-05, see qa/summarize.py.ollama_enabled()'s
-    docstring): this stage fails OPEN (falls back to assess_applications()'s
-    unfiltered result) if Ollama isn't available, so defaulting to "on"
-    costs nothing but a timeout when it isn't."""
-    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "phi3:mini")
+    host = ollama_host()
+    model = ollama_model("phi3:mini")
 
     response = requests.post(
         f"{host}/api/chat",
@@ -156,7 +148,7 @@ def filter_relevant_applications(idea_text: str, applications: list[ApplicationR
     # visible latency. Kept in sync with that module's default rather than
     # tuned separately - relevance judgment is a shorter task than
     # synthesis, so 20s is if anything more generous here, not tighter.
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
+    timeout = ollama_timeout_seconds()
 
     for attempt in range(2):
         try:

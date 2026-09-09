@@ -60,6 +60,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 import requests
+from researchbridge.config import ollama_enabled, ollama_host, ollama_model, ollama_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -340,22 +341,11 @@ class OpportunitySynthesisUnavailable(Exception):
     validated result persisted to potential_opportunities."""
 
 
-def ollama_enabled() -> bool:
-    """Same flag as qa/summarize.py.ollama_enabled() - deliberately reused,
-    not a new setting: wherever an operator already turned on the Q&A
-    summary layer, this becomes available too.
-
-    Default TRUE (2026-09-05, see qa/summarize.py.ollama_enabled()'s
-    docstring for the full reasoning): fails safe to a deterministic NULL
-    potential_opportunities if Ollama isn't actually available, so "off by
-    default" bought nothing but every fresh deployment silently never
-    generating product opportunities at all."""
-    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "phi3:mini")
+    host = ollama_host()
+    model = ollama_model("phi3:mini")
 
     response = requests.post(
         f"{host}/api/chat",
@@ -397,7 +387,7 @@ def synthesize_opportunities(idea_text: str, applications: list[SourceApplicatio
     # "Default model changed" note above) so it doesn't turn slow-but-
     # working calls into spurious failures, while still failing meaningfully
     # faster than 30 when Ollama really is unreachable/overloaded.
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
+    timeout = ollama_timeout_seconds()
 
     for attempt in range(2):
         try:
