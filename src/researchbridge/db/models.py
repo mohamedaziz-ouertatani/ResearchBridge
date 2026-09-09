@@ -200,6 +200,28 @@ class Evidence(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class EvidenceReview(Base):
+    """Human feedback on one evidence passage in one product context."""
+
+    __tablename__ = "evidence_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "surface_type", "surface_id", "evidence_id", "role",
+            name="uq_evidence_review_surface_evidence_role",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    surface_type: Mapped[str] = mapped_column(String, nullable=False)
+    surface_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="")
+    verdict: Mapped[str] = mapped_column(String, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
 class ExtractedClaim(Base):
     """A system-generated claim about a paper, grounded by one Evidence row.
 
@@ -564,6 +586,34 @@ class ResearchInput(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class ResearchProject(Base):
+    """A local workspace grouping related research inputs and assessments."""
+
+    __tablename__ = "research_projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class ResearchProjectInput(Base):
+    """Idempotent membership between a workspace and a stable research input."""
+
+    __tablename__ = "research_project_inputs"
+    __table_args__ = (UniqueConstraint("project_id", "research_input_id", name="uq_research_project_input"),)
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("research_projects.id", ondelete="CASCADE"), primary_key=True
+    )
+    research_input_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("research_inputs.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ResearchAssessment(Base):
     """One analysis session over one ResearchInput (blueprint Sec 2A).
 
@@ -635,4 +685,35 @@ class ResearchAssessmentEvidence(Base):
     )
     evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class QaCollection(Base):
+    """A named, local collection of saved grounded corpus questions."""
+
+    __tablename__ = "qa_collections"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(120), nullable=False, default="Untitled collection")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class QaQuestion(Base):
+    """One immutable retrieval snapshot saved inside a Q&A collection.
+
+    Hits are copied rather than reloaded from current claims so a saved answer
+    remains the answer the user actually reviewed after later re-extraction.
+    """
+
+    __tablename__ = "qa_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    collection_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("qa_collections.id", ondelete="CASCADE"), nullable=False
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    hits: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_citations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

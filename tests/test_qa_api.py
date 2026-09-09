@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper
+from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, QaQuestion
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
 
@@ -254,3 +254,79 @@ def test_summarize_rejects_empty_hits(client) -> None:
     response = client.post("/api/ask/summarize", json={"question": "a question", "hits": []})
 
     assert response.status_code == 422
+
+
+def test_collection_lifecycle_and_question_count(client) -> None:
+    created = client.post("/api/qa/collections", json={"title": "Fraud reading"})
+    assert created.status_code == 201
+    collection_id = created.json()["id"]
+    assert created.json()["question_count"] == 0
+
+    listed = client.get("/api/qa/collections")
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == collection_id
+    assert listed.json()[0]["question_count"] == 0
+
+    renamed = client.patch(f"/api/qa/collections/{collection_id}", json={"title": "Fraud notes"})
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "Fraud notes"
+
+
+def test_saved_question_preserves_grounded_hit_snapshot(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    collection_id = client.post("/api/qa/collections", json={"title": "Reading list"}).json()["id"]
+    response = client.post(
+        f"/api/qa/collections/{collection_id}/questions",
+        json={"question": "graph transformers for fraud detection"},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["collection_id"] == collection_id
+    assert body["hits"][0]["text"] == "evaluated only on offline datasets"
+    assert body["summary"] is None
+
+    detail = client.get(f"/api/qa/collections/{collection_id}")
+    assert detail.status_code == 200
+    assert len(detail.json()["questions"]) == 1
+    assert detail.json()["questions"][0]["hits"] == body["hits"]
+
+
+def test_saved_question_summary_uses_persisted_hits(client, session, embedder, monkeypatch) -> None:
+    paper = _add_paper(session, embedder, "p1", "a question paper")
+    _add_claim(session, paper, "method", "a grounded quote")
+    session.commit()
+    collection_id = client.post("/api/qa/collections", json={"title": "Summaries"}).json()["id"]
+    question = client.post(
+        f"/api/qa/collections/{collection_id}/questions", json={"question": "a question paper"}
+    ).json()
+
+    def fake_summary(question_text, hits):
+        assert question_text == "a question paper"
+        assert len(hits) == 1
+        assert hits[0].text == "a grounded quote"
+        from researchbridge.qa.summarize import SummaryResult
+
+        return SummaryResult(summary="Saved summary [1].", citations=[1])
+
+    monkeypatch.setattr("researchbridge.api.qa_routes.summarize_quotes", fake_summary)
+    response = client.post(f"/api/qa/questions/{question['id']}/summarize")
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "Saved summary [1]."
+    assert response.json()["summary_citations"] == [1]
+
+
+def test_deleting_collection_cascades_questions(client, session) -> None:
+    collection_id = client.post("/api/qa/collections", json={"title": "To delete"}).json()["id"]
+    question = client.post(
+        f"/api/qa/collections/{collection_id}/questions", json={"question": "a question"}
+    ).json()
+
+    response = client.delete(f"/api/qa/collections/{collection_id}")
+    assert response.status_code == 204
+    assert client.get(f"/api/qa/collections/{collection_id}").status_code == 404
+    assert session.get(QaQuestion, question["id"]) is None

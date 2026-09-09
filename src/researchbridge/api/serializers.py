@@ -35,6 +35,7 @@ from researchbridge.db.models import (
     CandidateGapEvidence,
     ClaimEvidence,
     Evidence,
+    EvidenceReview,
     ExtractedClaim,
     Paper,
     PaperAuthor,
@@ -163,6 +164,15 @@ def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[A
     paper, which exact passage, backing which part of the report (Sec 15/17).
     Ordered by role so the report can group without re-sorting.
     """
+    reviews = {
+        (review.evidence_id, review.role): review
+        for review in session.execute(
+            select(EvidenceReview).where(
+                EvidenceReview.surface_type == "assessment",
+                EvidenceReview.surface_id == assessment_id,
+            )
+        ).scalars()
+    }
     rows = session.execute(
         select(ResearchAssessmentEvidence.role, Evidence, Paper.title, Paper.url, Paper.doi)
         .join(Evidence, Evidence.id == ResearchAssessmentEvidence.evidence_id)
@@ -174,12 +184,14 @@ def to_assessment_evidence(session: Session, assessment_id: uuid.UUID) -> list[A
     return [
         AssessmentEvidenceOut(
             role=role,
+            evidence_id=evidence.id,
             paper_id=evidence.paper_id,
             paper_title=title,
             text=evidence.text,
             section=evidence.section,
             paper_url=url,
             paper_doi=doi,
+            review=reviews.get((evidence.id, role)),
         )
         for role, evidence, title, url, doi in rows
     ]

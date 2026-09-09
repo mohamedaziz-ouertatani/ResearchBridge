@@ -88,17 +88,33 @@ def main() -> None:
         embedder = SentenceTransformerEmbedder()
         names = EXTRACTORS if args.extractor == "all" else (args.extractor,)
         scores_by_extractor: dict[str, dict[str, FieldScore]] = {}
+        domain_scores: dict[str, dict[str, dict[str, FieldScore]]] = {}
+        annotations_by_domain: dict[str, list[Any]] = {}
+        for annotation in usable:
+            domain = str(annotation.identity.get("domain") or "Unspecified")
+            annotations_by_domain.setdefault(domain, []).append(annotation)
         for name in names:
             extractor = _make_extractor(name, embedder)
             scores = _evaluate_one(session, extractor, usable, papers_by_source_id, embedder, args.threshold)
             scores_by_extractor[extractor.extraction_method] = scores
+            for domain, domain_annotations in annotations_by_domain.items():
+                domain_scores.setdefault(domain, {})[extractor.extraction_method] = _evaluate_one(
+                    session, extractor, domain_annotations, papers_by_source_id, embedder, args.threshold
+                )
             print(f"\n=== {extractor.extraction_method} ({len(usable)} papers, threshold={args.threshold}) ===")
             _print_table(scores)
 
         print(f"\n=== claim-type validation ({len(usable)} papers, ground-truth only) ===")
         _print_type_validation_table(evaluate_claim_type_validation(usable))
 
-        write_results_json(args.output_file, scores_by_extractor, threshold=args.threshold, paper_count=len(usable))
+        write_results_json(
+            args.output_file,
+            scores_by_extractor,
+            threshold=args.threshold,
+            paper_count=len(usable),
+            domain_scores=domain_scores,
+            domain_counts={domain: len(items) for domain, items in annotations_by_domain.items()},
+        )
         print(f"\nWrote results to {args.output_file}")
     finally:
         session.close()
@@ -144,13 +160,17 @@ def _print_table(scores: dict[str, FieldScore]) -> None:
 
 
 def _build_results_json(
-    scores_by_extractor: dict[str, dict[str, FieldScore]], threshold: float, paper_count: int
+    scores_by_extractor: dict[str, dict[str, FieldScore]],
+    threshold: float,
+    paper_count: int,
+    domain_scores: dict[str, dict[str, dict[str, FieldScore]]] | None = None,
+    domain_counts: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Shapes per-extractor field scores into the JSON the admin dashboard
     reads (GET /api/admin/extraction-eval) - a flat file, not a DB table,
     same "one-off diagnostic, not a repeating pipeline stage" choice as
     retrieval/cli_evaluate.py's write_results_json."""
-    return {
+    result = {
         "generated_at": datetime.now(UTC).isoformat(),
         "threshold": threshold,
         "paper_count": paper_count,
@@ -162,13 +182,40 @@ def _build_results_json(
             for extractor_name, field_scores in scores_by_extractor.items()
         },
     }
+    if domain_scores is not None:
+        result["domains"] = {
+            domain: {
+                "paper_count": (domain_counts or {}).get(domain, 0),
+                "extractors": {
+                    extractor_name: {
+                        field: {"precision": score.precision, "recall": score.recall, "f1": score.f1}
+                        for field, score in field_scores.items()
+                    }
+                    for extractor_name, field_scores in extractor_scores.items()
+                },
+            }
+            for domain, extractor_scores in domain_scores.items()
+        }
+    return result
 
 
 def write_results_json(
-    path: Path, scores_by_extractor: dict[str, dict[str, FieldScore]], threshold: float, paper_count: int
+    path: Path,
+    scores_by_extractor: dict[str, dict[str, FieldScore]],
+    threshold: float,
+    paper_count: int,
+    domain_scores: dict[str, dict[str, dict[str, FieldScore]]] | None = None,
+    domain_counts: dict[str, int] | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_build_results_json(scores_by_extractor, threshold, paper_count), indent=2))
+    path.write_text(
+        json.dumps(
+            _build_results_json(
+                scores_by_extractor, threshold, paper_count, domain_scores=domain_scores, domain_counts=domain_counts
+            ),
+            indent=2,
+        )
+    )
 
 
 def _print_type_validation_table(scores: dict[str, TypeValidationScore]) -> None:

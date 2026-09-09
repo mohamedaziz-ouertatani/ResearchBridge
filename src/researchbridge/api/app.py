@@ -16,6 +16,8 @@ from researchbridge.api.benchmark_routes import router as benchmark_router
 from researchbridge.api.claims_routes import router as claims_router
 from researchbridge.api.gaps_routes import router as gaps_router
 from researchbridge.api.qa_routes import router as qa_router
+from researchbridge.api.project_routes import router as project_router
+from researchbridge.api.evidence_routes import router as evidence_router
 from researchbridge.api.routes import router
 from researchbridge.config import load_config
 
@@ -40,7 +42,7 @@ def create_app() -> FastAPI:
         allow_origins=DEV_FRONTEND_ORIGINS,
         # PUT: annotation/gap review saves, excluding a paper; POST: creating a ResearchAssessment (also pipeline
         # triggers/stop); DELETE: removing an assessment.
-        allow_methods=["GET", "PUT", "POST", "DELETE"],
+        allow_methods=["GET", "PUT", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
     app.include_router(router)
@@ -50,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(claims_router)
     app.include_router(admin_router)
     app.include_router(qa_router)
+    app.include_router(project_router)
+    app.include_router(evidence_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -1,4 +1,5 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export type PaperSummary = {
   id: string;
@@ -68,9 +69,11 @@ export type CorpusStats = {
   total_authors: number;
   embedded_papers: number;
   papers_with_claims: number;
+  papers_with_fulltext: number;
   papers_by_year: Record<string, number>;
   papers_by_category: Record<string, number>;
   papers_by_source: Record<string, number>;
+  papers_by_language: Record<string, number>;
 };
 
 export type TrendsData = {
@@ -88,16 +91,23 @@ class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
+async function get<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+    if (value !== undefined && value !== "")
+      url.searchParams.set(key, String(value));
   }
 
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
-    throw new ApiError(detail?.detail ?? `Request failed (${response.status})`, response.status);
+    throw new ApiError(
+      detail?.detail ?? `Request failed (${response.status})`,
+      response.status,
+    );
   }
   return response.json();
 }
@@ -120,13 +130,16 @@ export const api = {
 
   paper: (id: string) => get<PaperSummary>(`/api/papers/${id}`),
 
-  similar: (id: string, topK = 8) => get<SearchHit[]>(`/api/papers/${id}/similar`, { top_k: topK }),
+  similar: (id: string, topK = 8) =>
+    get<SearchHit[]>(`/api/papers/${id}/similar`, { top_k: topK }),
 
-  citations: (id: string) => get<CitationGraphData>(`/api/papers/${id}/citations`),
+  citations: (id: string) =>
+    get<CitationGraphData>(`/api/papers/${id}/citations`),
 
   claims: (id: string) => get<ExtractedClaim[]>(`/api/papers/${id}/claims`),
 
-  search: (q: string, topK = 12) => get<SearchHit[]>("/api/search", { q, top_k: topK }),
+  search: (q: string, topK = 12) =>
+    get<SearchHit[]>("/api/search", { q, top_k: topK }),
 };
 
 export { ApiError };

@@ -68,6 +68,27 @@ def test_build_results_json_handles_zero_denominator_scores() -> None:
     }
 
 
+def test_build_results_json_includes_domain_packs_without_changing_aggregate() -> None:
+    scores = {"hybrid": {"method": FieldScore("method", true_positives=3, false_negatives=1)}}
+    domain_scores = {
+        "NLP": {"hybrid": {"method": FieldScore("method", true_positives=2, false_negatives=1)}},
+        "Systems": {"hybrid": {"method": FieldScore("method", true_positives=1)}},
+    }
+
+    result = _build_results_json(
+        scores,
+        threshold=0.5,
+        paper_count=4,
+        domain_scores=domain_scores,
+        domain_counts={"NLP": 2, "Systems": 2},
+    )
+
+    assert result["extractors"]["hybrid"]["method"]["recall"] == 0.75
+    assert result["domains"]["NLP"]["paper_count"] == 2
+    assert result["domains"]["NLP"]["extractors"]["hybrid"]["method"]["f1"] == 0.8
+    assert result["domains"]["Systems"]["extractors"]["hybrid"]["method"]["precision"] == 1.0
+
+
 def test_write_results_json_creates_parent_dir_and_writes_valid_json(tmp_path) -> None:
     output_path = tmp_path / "nested" / "extraction_eval_results.json"
     scores_by_extractor = {"heuristic": {"problem": FieldScore("problem", true_positives=1)}}

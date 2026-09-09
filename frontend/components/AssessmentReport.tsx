@@ -12,6 +12,8 @@ import {
   type ResearchAssessment,
 } from "@/lib/assessmentApi";
 import { api, API_BASE } from "@/lib/api";
+import { ResearchActionPlan } from "@/components/ResearchActionPlan";
+import { EvidenceReviewControl } from "@/components/EvidenceReviewControl";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -56,7 +58,10 @@ export function groupByRole(evidence: AssessmentEvidence[]) {
  * assessment/claims.py - claim_text is written verbatim from the field, so
  * exact match is reliable, not a fuzzy heuristic). Undefined for a NULL
  * field or an assessment predating the claims layer. */
-function claimForText(claims: AnalysisClaim[], text: string | null): AnalysisClaim | undefined {
+function claimForText(
+  claims: AnalysisClaim[],
+  text: string | null,
+): AnalysisClaim | undefined {
   if (!text) return undefined;
   return claims.find((c) => c.claim_text === text);
 }
@@ -67,7 +72,8 @@ const REPORT_GROUPS = [
   {
     index: "01",
     title: "context",
-    description: "What was submitted, and what literature it's being read against.",
+    description:
+      "What was submitted, and what literature it's being read against.",
     items: [
       { id: "input", label: "input" },
       { id: "related-research", label: "related research" },
@@ -77,7 +83,8 @@ const REPORT_GROUPS = [
   {
     index: "02",
     title: "assessment",
-    description: "Grounded judgements - each one counted by how many real passages support it.",
+    description:
+      "Grounded judgements - each one counted by how many real passages support it.",
     items: [
       { id: "existing-solutions", label: "existing solutions" },
       { id: "novelty", label: "corpus similarity / novelty signal" },
@@ -90,8 +97,16 @@ const REPORT_GROUPS = [
   },
   {
     index: "03",
+    title: "action",
+    description:
+      "What to test next, and which parts of that sequence the evidence can actually support.",
+    items: [{ id: "action-plan", label: "research-to-action plan" }],
+  },
+  {
+    index: "04",
     title: "notes",
-    description: "What this reading doesn't settle, and how the recommendation was reached.",
+    description:
+      "What this reading doesn't settle, and how the recommendation was reached.",
     items: [{ id: "reasoning", label: "recommendation reasoning" }],
   },
 ];
@@ -111,17 +126,24 @@ export function AssessmentReport({
   onAssessmentUpdated?: (updated: ResearchAssessment) => void;
 }) {
   const byRole = groupByRole(assessment.evidence);
-  const groundedCount = GRADEABLE_ROLES.filter((role) => (byRole.get(role)?.length ?? 0) > 0).length;
+  const groundedCount = GRADEABLE_ROLES.filter(
+    (role) => (byRole.get(role)?.length ?? 0) > 0,
+  ).length;
 
   const contributingPapers = new Map<string, string>();
-  for (const item of assessment.evidence) contributingPapers.set(item.paper_id, item.paper_title);
+  for (const item of assessment.evidence)
+    contributingPapers.set(item.paper_id, item.paper_title);
 
   return (
     <article className="resolve lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-12">
       <ReportNav />
 
       <div className="min-w-0">
-        <Verdict assessment={assessment} grounded={groundedCount} total={GRADEABLE_ROLES.length} />
+        <Verdict
+          assessment={assessment}
+          grounded={groundedCount}
+          total={GRADEABLE_ROLES.length}
+        />
 
         <AssessmentHistory assessmentId={assessment.id} />
 
@@ -135,7 +157,9 @@ export function AssessmentReport({
                 : assessment.research_input.raw_text}
             </p>
             <p className="eyebrow mt-3">
-              {assessment.research_input.input_type === "document" ? "uploaded document" : "research idea"}
+              {assessment.research_input.input_type === "document"
+                ? "uploaded document"
+                : "research idea"}
             </p>
             {assessment.research_input.matched_paper_id && (
               <p className="mt-2 text-[0.8125rem] text-[var(--ink-soft)]">
@@ -150,7 +174,11 @@ export function AssessmentReport({
             )}
           </Field>
 
-          <Field id="related-research" label="related research" gradeable={false}>
+          <Field
+            id="related-research"
+            label="related research"
+            gradeable={false}
+          >
             {contributingPapers.size === 0 ? (
               <Unassessed reason="No retrieved paper contributed usable extracted claims." />
             ) : (
@@ -168,13 +196,18 @@ export function AssessmentReport({
                   ))}
                 </ul>
                 <p className="readout mt-3 text-[0.6875rem] text-[var(--ink-faint)]">
-                  {assessment.retrieved_paper_ids.length} retrieved · {contributingPapers.size} contributed evidence
+                  {assessment.retrieved_paper_ids.length} retrieved ·{" "}
+                  {contributingPapers.size} contributed evidence
                 </p>
               </>
             )}
           </Field>
 
-          <Field id="when-discussed" label="when this idea was discussed" gradeable={false}>
+          <Field
+            id="when-discussed"
+            label="when this idea was discussed"
+            gradeable={false}
+          >
             <IdeaYearTrend evidence={assessment.evidence} />
           </Field>
         </Group>
@@ -183,8 +216,12 @@ export function AssessmentReport({
           <Field
             id="existing-solutions"
             label="existing solutions"
+            surfaceId={assessment.id}
             evidence={byRole.get("comparison")}
-            claim={claimForText(assessment.claims, assessment.comparison_summary)}
+            claim={claimForText(
+              assessment.claims,
+              assessment.comparison_summary,
+            )}
           >
             {assessment.comparison_summary ? (
               <ComparisonSummary text={assessment.comparison_summary} />
@@ -196,9 +233,13 @@ export function AssessmentReport({
           <Field
             id="novelty"
             label="corpus similarity / novelty signal"
+            surfaceId={assessment.id}
             evidence={byRole.get("novelty")}
             level={assessment.novelty_level}
-            claim={claimForText(assessment.claims, assessment.novelty_reasoning)}
+            claim={claimForText(
+              assessment.claims,
+              assessment.novelty_reasoning,
+            )}
           >
             {assessment.novelty_reasoning ? (
               <Prose text={assessment.novelty_reasoning} />
@@ -206,16 +247,21 @@ export function AssessmentReport({
               <Unassessed reason="Not enough evidence to judge corpus similarity." />
             )}
             <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-              This reflects similarity to the papers retrieved from this corpus, not proof of global
-              originality - the corpus is one CS/AI/ML slice, not the full scientific literature.
+              This reflects similarity to the papers retrieved from this corpus,
+              not proof of global originality - the corpus is one CS/AI/ML
+              slice, not the full scientific literature.
             </p>
           </Field>
 
           <Field
             id="research-gap"
             label="research gap"
+            surfaceId={assessment.id}
             evidence={byRole.get("research_gap")}
-            claim={claimForText(assessment.claims, assessment.research_gap_text)}
+            claim={claimForText(
+              assessment.claims,
+              assessment.research_gap_text,
+            )}
           >
             {assessment.research_gap_text ? (
               <>
@@ -239,7 +285,12 @@ export function AssessmentReport({
             )}
           </Field>
 
-          <Field id="applications" label="potential applications" evidence={byRole.get("application")}>
+          <Field
+            id="applications"
+            label="potential applications"
+            surfaceId={assessment.id}
+            evidence={byRole.get("application")}
+          >
             {assessment.potential_applications?.length ? (
               <ul className="space-y-3">
                 {assessment.potential_applications.map((app, i) => (
@@ -247,7 +298,10 @@ export function AssessmentReport({
                     <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed">
                       {app.application}
                     </p>
-                    <Link href={`/papers/${app.paper_id}`} className="eyebrow mt-1 inline-block hover:text-[var(--ink)]">
+                    <Link
+                      href={`/papers/${app.paper_id}`}
+                      className="eyebrow mt-1 inline-block hover:text-[var(--ink)]"
+                    >
                       {app.source_paper}
                     </Link>
                   </li>
@@ -264,7 +318,12 @@ export function AssessmentReport({
             )}
           </Field>
 
-          <Field id="opportunities" label="product / technology opportunities" evidence={byRole.get("opportunity")}>
+          <Field
+            id="opportunities"
+            label="product / technology opportunities"
+            surfaceId={assessment.id}
+            evidence={byRole.get("opportunity")}
+          >
             <Opportunities
               assessmentId={assessment.id}
               applications={assessment.potential_applications}
@@ -276,9 +335,13 @@ export function AssessmentReport({
           <Field
             id="feasibility"
             label="technical feasibility"
+            surfaceId={assessment.id}
             evidence={byRole.get("feasibility")}
             level={assessment.technical_feasibility_level}
-            claim={claimForText(assessment.claims, assessment.technical_feasibility_reasoning)}
+            claim={claimForText(
+              assessment.claims,
+              assessment.technical_feasibility_reasoning,
+            )}
           >
             {assessment.technical_feasibility_reasoning ? (
               <Prose text={assessment.technical_feasibility_reasoning} />
@@ -286,17 +349,21 @@ export function AssessmentReport({
               <Unassessed reason="Nothing close enough to ground a feasibility judgement." />
             )}
             <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-              This means documented technical grounding in the retrieved literature - a related method
-              or dataset already exists on paper - not a prediction of whether this specific idea will
-              succeed.
+              This means documented technical grounding in the retrieved
+              literature - a related method or dataset already exists on paper -
+              not a prediction of whether this specific idea will succeed.
             </p>
           </Field>
 
           <Field
             id="risks"
             label="risks / limitations"
+            surfaceId={assessment.id}
             evidence={byRole.get("risk")}
-            claim={claimForText(assessment.claims, assessment.risks_and_limitations)}
+            claim={claimForText(
+              assessment.claims,
+              assessment.risks_and_limitations,
+            )}
           >
             {assessment.risks_and_limitations ? (
               <Preformatted text={assessment.risks_and_limitations} />
@@ -307,7 +374,21 @@ export function AssessmentReport({
         </Group>
 
         <Group {...REPORT_GROUPS[2]}>
-          <Field id="reasoning" label="recommendation reasoning" gradeable={false}>
+          <Field
+            id="action-plan"
+            label="research-to-action plan"
+            gradeable={false}
+          >
+            <ResearchActionPlan assessment={assessment} />
+          </Field>
+        </Group>
+
+        <Group {...REPORT_GROUPS[3]}>
+          <Field
+            id="reasoning"
+            label="recommendation reasoning"
+            gradeable={false}
+          >
             <Preformatted
               text={[
                 `Novelty signal: ${assessment.novelty_level}`,
@@ -341,7 +422,10 @@ export function AssessmentReport({
     list drives MobileReportNav's horizontal chip strip below lg. */
 function ReportNav() {
   return (
-    <nav aria-label="Report sections" className="hidden lg:sticky lg:top-8 lg:block lg:self-start">
+    <nav
+      aria-label="Report sections"
+      className="hidden lg:sticky lg:top-8 lg:block lg:self-start"
+    >
       <ul className="space-y-6">
         {REPORT_GROUPS.map((group) => (
           <li key={group.title}>
@@ -402,10 +486,14 @@ function Group({
   return (
     <section className="mt-14 first:mt-10">
       <div className="flex items-baseline gap-3 border-b border-[var(--rule)] pb-3">
-        <span className="readout text-[0.8125rem] text-[var(--ink-faint)]">{index}</span>
+        <span className="readout text-[0.8125rem] text-[var(--ink-faint)]">
+          {index}
+        </span>
         <h2 className="display text-[1.1875rem]">{title}</h2>
       </div>
-      <p className="mt-2 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">{description}</p>
+      <p className="mt-2 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+        {description}
+      </p>
       <div className="[&>section:last-child]:border-b-0">{children}</div>
     </section>
   );
@@ -482,18 +570,32 @@ function Verdict({
                 : "border-[var(--rule)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
             }`}
           >
-            {busy ? "saving…" : reviewed ? "✓ reviewed · un-mark" : "mark reviewed"}
+            {busy
+              ? "saving…"
+              : reviewed
+                ? "✓ reviewed · un-mark"
+                : "mark reviewed"}
           </button>
         </div>
       </div>
 
-      {failed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">save failed — try again</p>}
-      {rerunFailed && <p className="mt-2 text-[0.75rem] text-[var(--live)]">re-run failed — try again</p>}
+      {failed && (
+        <p className="mt-2 text-[0.75rem] text-[var(--live)]">
+          save failed — try again
+        </p>
+      )}
+      {rerunFailed && (
+        <p className="mt-2 text-[0.75rem] text-[var(--live)]">
+          re-run failed — try again
+        </p>
+      )}
 
       <dl className="mt-6 flex flex-wrap gap-3">
         <div className="rounded-[2px] border border-[var(--rule-soft)] px-4 py-2.5">
           <dt className="eyebrow">confidence</dt>
-          <dd className="readout mt-1 text-[0.9375rem]">{assessment.confidence ?? "—"}</dd>
+          <dd className="readout mt-1 text-[0.9375rem]">
+            {assessment.confidence ?? "—"}
+          </dd>
         </div>
         <div className="rounded-[2px] border border-[var(--rule-soft)] px-4 py-2.5">
           <dt className="eyebrow">grounded fields</dt>
@@ -504,8 +606,9 @@ function Verdict({
       </dl>
 
       <p className="mt-5 max-w-[58ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">
-        Confidence counts how many signals could be assessed, not how likely this reading is to be
-        right. Fields with no supporting passage are left unassessed rather than filled in.
+        Confidence counts how many signals could be assessed, not how likely
+        this reading is to be right. Fields with no supporting passage are left
+        unassessed rather than filled in.
       </p>
     </header>
   );
@@ -527,7 +630,10 @@ function ExportMenu({ assessmentId }: { assessmentId: string }) {
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -544,7 +650,10 @@ function ExportMenu({ assessmentId }: { assessmentId: string }) {
         className="eyebrow flex items-center gap-1.5 rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)]"
       >
         export
-        <span aria-hidden className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}>
+        <span
+          aria-hidden
+          className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </button>
@@ -586,7 +695,10 @@ function AssessmentHistory({ assessmentId }: { assessmentId: string }) {
       <span className="eyebrow">assessment history</span>
       <ul className="mt-3 space-y-2">
         {history.map((item) => (
-          <li key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <li
+            key={item.id}
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+          >
             {item.id === assessmentId ? (
               <span className="readout text-[0.8125rem]">viewing this one</span>
             ) : (
@@ -598,7 +710,8 @@ function AssessmentHistory({ assessmentId }: { assessmentId: string }) {
               </Link>
             )}
             <span className="text-[0.8125rem] text-[var(--ink-soft)]">
-              {new Date(item.created_at).toLocaleString()} · {item.novelty_level.replace("_", " ")}
+              {new Date(item.created_at).toLocaleString()} ·{" "}
+              {item.novelty_level.replace("_", " ")}
               {item.human_reviewed ? " · reviewed" : ""}
             </span>
           </li>
@@ -641,7 +754,12 @@ function IdeaYearTrend({ evidence }: { evidence: AssessmentEvidence[] }) {
       ),
     ).then((pairs) => {
       if (cancelled) return;
-      const yearByPaper = new Map(pairs.map(([id, date]) => [id, date ? new Date(date).getFullYear() : null]));
+      const yearByPaper = new Map(
+        pairs.map(([id, date]) => [
+          id,
+          date ? new Date(date).getFullYear() : null,
+        ]),
+      );
       const counts: Record<string, number> = {};
       for (const item of evidence) {
         const year = yearByPaper.get(item.paper_id);
@@ -661,15 +779,18 @@ function IdeaYearTrend({ evidence }: { evidence: AssessmentEvidence[] }) {
   }
 
   if (Object.keys(byYear).length === 0) {
-    return <Unassessed reason="No supporting passage traces back to a paper with a known publication year." />;
+    return (
+      <Unassessed reason="No supporting passage traces back to a paper with a known publication year." />
+    );
   }
 
   return (
     <div>
       <IdeaYearLineChart byYear={byYear} />
       <p className="mt-3 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-        Supporting passages grouped by the publication year of the paper they came from - a proxy for when the
-        retrieved literature was mostly discussing this idea, not a count of all papers ever written on it.
+        Supporting passages grouped by the publication year of the paper they
+        came from - a proxy for when the retrieved literature was mostly
+        discussing this idea, not a count of all papers ever written on it.
       </p>
     </div>
   );
@@ -700,10 +821,15 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
   const plotWidth = CHART_WIDTH - CHART_PAD_X * 2;
   const plotHeight = CHART_HEIGHT - CHART_PAD_TOP - CHART_PAD_BOTTOM;
 
-  const xFor = (i: number) => CHART_PAD_X + (years.length === 1 ? plotWidth / 2 : (i / (years.length - 1)) * plotWidth);
-  const yFor = (count: number) => CHART_PAD_TOP + plotHeight - (count / peak) * plotHeight;
+  const xFor = (i: number) =>
+    CHART_PAD_X +
+    (years.length === 1 ? plotWidth / 2 : (i / (years.length - 1)) * plotWidth);
+  const yFor = (count: number) =>
+    CHART_PAD_TOP + plotHeight - (count / peak) * plotHeight;
 
-  const linePath = counts.map((count, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(count)}`).join(" ");
+  const linePath = counts
+    .map((count, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(count)}`)
+    .join(" ");
   const baselineY = CHART_PAD_TOP + plotHeight;
 
   return (
@@ -725,7 +851,14 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
           strokeWidth={1}
         />
 
-        <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="var(--ink)"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
 
         {years.map((year, i) => (
           <g key={year}>
@@ -749,7 +882,10 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
               y={CHART_HEIGHT - 8}
               textAnchor="middle"
               className="readout"
-              style={{ fontSize: "9px", fill: hoverIndex === i ? "var(--near)" : "var(--ink-faint)" }}
+              style={{
+                fontSize: "9px",
+                fill: hoverIndex === i ? "var(--near)" : "var(--ink-faint)",
+              }}
             >
               {String(year).slice(2)}
             </text>
@@ -778,7 +914,8 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
           }}
         >
           <p className="readout text-[0.6875rem] text-[var(--ink)] tabular-nums">
-            {years[hoverIndex]} · {counts[hoverIndex]} passage{counts[hoverIndex] === 1 ? "" : "s"}
+            {years[hoverIndex]} · {counts[hoverIndex]} passage
+            {counts[hoverIndex] === 1 ? "" : "s"}
           </p>
         </div>
       )}
@@ -789,6 +926,7 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
 function Field({
   id,
   label,
+  surfaceId,
   level,
   evidence,
   claim,
@@ -798,6 +936,7 @@ function Field({
   /** Anchor target for ReportNav / MobileReportNav's jump links. */
   id?: string;
   label: string;
+  surfaceId?: string;
   level?: string;
   evidence?: AssessmentEvidence[];
   /** The Sec 16 structured-reasoning claim mirroring this field's text, if
@@ -823,7 +962,11 @@ function Field({
         {gradeable && (
           <span
             className="readout text-[0.8125rem] text-[var(--ink-faint)] tabular-nums"
-            title={count > 0 ? `${count} supporting passage${count === 1 ? "" : "s"}` : "no supporting passage"}
+            title={
+              count > 0
+                ? `${count} supporting passage${count === 1 ? "" : "s"}`
+                : "no supporting passage"
+            }
           >
             {count > 0 ? count : "—"}
           </span>
@@ -863,7 +1006,19 @@ function Field({
                   <p className="max-w-[64ch] font-[family-name:var(--type-text)] text-[0.875rem] leading-relaxed text-[var(--ink-soft)]">
                     “{item.text}”
                   </p>
-                  <Link href={`/papers/${item.paper_id}`} className="eyebrow mt-1 inline-block hover:text-[var(--ink)]">
+                  {item.evidence_id && surfaceId && (
+                    <EvidenceReviewControl
+                      evidenceId={item.evidence_id}
+                      surfaceType="assessment"
+                      surfaceId={surfaceId}
+                      role={item.role}
+                      initialReview={item.review}
+                    />
+                  )}
+                  <Link
+                    href={`/papers/${item.paper_id}`}
+                    className="eyebrow mt-1 inline-block hover:text-[var(--ink)]"
+                  >
                     {item.paper_title}
                     {item.section ? ` · ${item.section}` : ""}
                   </Link>
@@ -879,7 +1034,9 @@ function Field({
 
 function Prose({ text }: { text: string }) {
   return (
-    <p className="max-w-[64ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.7]">{text}</p>
+    <p className="max-w-[64ch] font-[family-name:var(--type-text)] text-[0.9375rem] leading-[1.7]">
+      {text}
+    </p>
   );
 }
 
@@ -920,7 +1077,9 @@ function ComparisonSummary({ text }: { text: string }) {
                     <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
                       {claimText}
                     </p>
-                    <span className="eyebrow mt-0.5 inline-block">{paperTitle}</span>
+                    <span className="eyebrow mt-0.5 inline-block">
+                      {paperTitle}
+                    </span>
                   </li>
                 );
               })}
@@ -936,17 +1095,27 @@ function ComparisonSummary({ text }: { text: string }) {
 function Preformatted({ text }: { text: string }) {
   return (
     <div className="max-w-[64ch] space-y-2">
-      {text.split("\n").filter(Boolean).map((line, i) => (
-        <p key={i} className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed">
-          {line}
-        </p>
-      ))}
+      {text
+        .split("\n")
+        .filter(Boolean)
+        .map((line, i) => (
+          <p
+            key={i}
+            className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed"
+          >
+            {line}
+          </p>
+        ))}
     </div>
   );
 }
 
 function Unassessed({ reason }: { reason: string }) {
-  return <p className="max-w-[58ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">{reason}</p>;
+  return (
+    <p className="max-w-[58ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">
+      {reason}
+    </p>
+  );
 }
 
 const TIER_LABEL: Record<PotentialOpportunity["tier"], string> = {
@@ -1013,7 +1182,8 @@ function Opportunities({
         </button>
         {failed && (
           <p className="mt-2 text-[0.75rem] text-[var(--live)]">
-            local LLM unavailable — this section requires an operator to enable it
+            local LLM unavailable — this section requires an operator to enable
+            it
           </p>
         )}
       </div>

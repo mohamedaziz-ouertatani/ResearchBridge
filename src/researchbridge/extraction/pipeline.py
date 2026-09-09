@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbridge.db.models import (
     CandidateGapEvidence,
+    ClaimEvidence,
     Evidence,
     ExtractedClaim,
     ExtractionError,
@@ -52,12 +53,13 @@ def reset_extraction_data(session: Session) -> int:
     """Delete every prior extraction result so the next run reprocesses the
     whole corpus from scratch (the "force re-extract" path).
 
-    Evidence rows can be referenced by CandidateGapEvidence and
-    ResearchAssessmentEvidence (gap detection and assessments both cite
-    specific evidence quotes) - those referencing rows have to go first or
-    the Evidence delete below violates their foreign key. This does mean a
-    force re-extract quietly drops support for any candidate gap or
-    assessment that cited the old evidence; there's no cheap way to
+    Evidence rows can be referenced by CandidateGapEvidence,
+    ResearchAssessmentEvidence, and ClaimEvidence (gap detection,
+    assessments, and the claims/inference layer all cite specific evidence
+    quotes) - those referencing rows have to go first or the Evidence
+    delete below violates their foreign key. This does mean a force
+    re-extract quietly drops support for any candidate gap, assessment, or
+    analysis claim that cited the old evidence; there's no cheap way to
     recompute those from the new extraction, so this is a deliberate
     "start over" operation, not a safe background refresh.
 
@@ -72,6 +74,7 @@ def reset_extraction_data(session: Session) -> int:
             ResearchAssessmentEvidence.evidence_id.in_(select(Evidence.id))
         )
     )
+    session.execute(delete(ClaimEvidence).where(ClaimEvidence.evidence_id.in_(select(Evidence.id))))
     session.execute(delete(ExtractedClaim))
     result = session.execute(delete(Evidence))
     session.execute(delete(ExtractionError))

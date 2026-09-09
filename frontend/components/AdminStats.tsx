@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { api, type CorpusStats } from "@/lib/api";
 import { assessmentApi, type AssessmentSummary } from "@/lib/assessmentApi";
-import type { GapReviewStats, PipelineRun, PipelineStatus } from "@/lib/adminApi";
+import type {
+  GapReviewStats,
+  PipelineRun,
+  PipelineStatus,
+} from "@/lib/adminApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { YearStrip } from "@/components/YearStrip";
 
@@ -21,11 +25,26 @@ import { YearStrip } from "@/components/YearStrip";
   tab, just not visualized together.
 */
 
-const NOVELTY_ORDER = ["high", "medium", "low", "insufficient_evidence", "not_assessed"] as const;
+const NOVELTY_ORDER = [
+  "high",
+  "medium",
+  "low",
+  "insufficient_evidence",
+  "not_assessed",
+] as const;
 
-const CLAIM_TYPE_ORDER = ["fact", "inference", "hypothesis", "opportunity", "speculation"] as const;
+const CLAIM_TYPE_ORDER = [
+  "fact",
+  "inference",
+  "hypothesis",
+  "opportunity",
+  "speculation",
+] as const;
 
-const GAP_RATING_DIMENSIONS: { key: keyof GapReviewStats & `mean_${string}`; label: string }[] = [
+const GAP_RATING_DIMENSIONS: {
+  key: keyof GapReviewStats & `mean_${string}`;
+  label: string;
+}[] = [
   { key: "mean_correctness", label: "correctness" },
   { key: "mean_relevance", label: "relevance" },
   { key: "mean_novelty", label: "novelty" },
@@ -35,7 +54,9 @@ const GAP_RATING_DIMENSIONS: { key: keyof GapReviewStats & `mean_${string}`; lab
 
 export function AdminStats({ status }: { status: PipelineStatus }) {
   const [corpusStats, setCorpusStats] = useState<CorpusStats | null>(null);
-  const [assessments, setAssessments] = useState<AssessmentSummary[] | null>(null);
+  const [assessments, setAssessments] = useState<AssessmentSummary[] | null>(
+    null,
+  );
   const [activeYear, setActiveYear] = useState<number | null>(null);
 
   useEffect(() => {
@@ -61,14 +82,20 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
       <StatGroup title="corpus shape">
         {corpusStats && Object.keys(corpusStats.papers_by_year).length > 0 && (
           <div>
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">papers by year</span>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+              papers by year
+            </span>
             <div className="mt-2">
-              <YearStrip byYear={corpusStats.papers_by_year} activeYear={activeYear} onSelectYear={setActiveYear} />
+              <YearStrip
+                byYear={corpusStats.papers_by_year}
+                activeYear={activeYear}
+                onSelectYear={setActiveYear}
+              />
             </div>
             {activeYear !== null && (
               <p className="mt-2 text-[0.75rem] text-[var(--near)]">
-                Scoped to {activeYear} — categories, source breakdown, and coverage below all reflect this year
-                only.{" "}
+                Scoped to {activeYear} — categories, source breakdown, and
+                coverage below all reflect this year only.{" "}
                 <button
                   type="button"
                   onClick={() => setActiveYear(null)}
@@ -82,10 +109,20 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
         )}
         {corpusStats && (
           <div className="mt-6">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">top categories</span>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+              top categories
+            </span>
             <div className="mt-2">
               <BarList counts={corpusStats.papers_by_category} limit={10} />
             </div>
+            <details className="mt-6">
+              <summary className="eyebrow cursor-pointer text-[0.625rem] text-[var(--ink-faint)] hover:text-[var(--ink)]">
+                papers by language
+              </summary>
+              <div className="mt-2">
+                <BarList counts={corpusStats.papers_by_language} />
+              </div>
+            </details>
           </div>
         )}
       </StatGroup>
@@ -93,7 +130,9 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
       <StatGroup title="source & coverage">
         {corpusStats && (
           <>
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">papers by source</span>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+              papers by source
+            </span>
             <div className="mt-2">
               <SourceDonut counts={corpusStats.papers_by_source} />
             </div>
@@ -111,7 +150,7 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
               />
               <ProportionBar
                 label="with full text"
-                value={status.papers_with_fulltext}
+                value={corpusStats.papers_with_fulltext}
                 total={corpusStats.total_papers}
               />
             </div>
@@ -121,8 +160,9 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
 
       <StatGroup title="corpus health">
         <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-          Papers stuck mid-pipeline or unreachable by a citation source - not necessarily broken, just
-          worth knowing about before trusting a downstream count.
+          Papers stuck mid-pipeline or unreachable by a citation source - not
+          necessarily broken, just worth knowing about before trusting a
+          downstream count.
         </p>
         <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
           <HealthStat
@@ -160,21 +200,30 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
 
       <StatGroup title="ingestion volume over time">
         <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-          Records inserted per run, oldest to newest - limited to the run history already loaded above
-          (not a full historical query). Not scoped by the year filter above: a run&apos;s timing has no fixed
+          Records inserted per run, oldest to newest - limited to the run
+          history already loaded above (not a full historical query). Not scoped
+          by the year filter above: a run&apos;s timing has no fixed
           relationship to the publication year of the papers it fetched.
         </p>
         <div className="space-y-6">
-          <IngestionVolume title="arXiv" runs={status.ingestion_runs.filter((r) => r.source === "arxiv")} />
+          <IngestionVolume
+            title="arXiv"
+            runs={status.ingestion_runs.filter((r) => r.source === "arxiv")}
+          />
           <IngestionVolume
             title="Springer Nature"
             runs={status.ingestion_runs.filter((r) => r.source === "springer")}
           />
           <IngestionVolume
             title="Semantic Scholar"
-            runs={status.ingestion_runs.filter((r) => r.source === "semantic_scholar")}
+            runs={status.ingestion_runs.filter(
+              (r) => r.source === "semantic_scholar",
+            )}
           />
-          <IngestionVolume title="CORE" runs={status.ingestion_runs.filter((r) => r.source === "core")} />
+          <IngestionVolume
+            title="CORE"
+            runs={status.ingestion_runs.filter((r) => r.source === "core")}
+          />
         </div>
 
         {Object.keys(status.ingestion_errors_by_type).length > 0 && (
@@ -188,6 +237,18 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             </div>
           </div>
         )}
+        {Object.keys(status.extraction_errors_by_type).length > 0 && (
+          <ErrorBreakdown
+            label="recent extraction errors by type"
+            counts={status.extraction_errors_by_type}
+          />
+        )}
+        {Object.keys(status.fulltext_errors_by_type).length > 0 && (
+          <ErrorBreakdown
+            label="recent full-text errors by type"
+            counts={status.fulltext_errors_by_type}
+          />
+        )}
       </StatGroup>
 
       <StatGroup title="gap review">
@@ -199,7 +260,9 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
           <Stat label="rejected" value={status.gap_stats.rejected} />
         </dl>
 
-        {GAP_RATING_DIMENSIONS.some(({ key }) => status.gap_stats[key] !== null) && (
+        {GAP_RATING_DIMENSIONS.some(
+          ({ key }) => status.gap_stats[key] !== null,
+        ) && (
           <div className="mt-6">
             <span className="eyebrow inline-flex items-center gap-1.5 text-[0.625rem] text-[var(--ink-faint)]">
               mean rating (0–3), rated gaps only
@@ -208,9 +271,13 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-5">
               {GAP_RATING_DIMENSIONS.map(({ key, label }) => (
                 <div key={key}>
-                  <dt className="text-[0.75rem] text-[var(--ink-soft)]">{label}</dt>
+                  <dt className="text-[0.75rem] text-[var(--ink-soft)]">
+                    {label}
+                  </dt>
                   <dd className="readout mt-1 text-[1.125rem] tabular-nums">
-                    {status.gap_stats[key] !== null ? status.gap_stats[key]!.toFixed(2) : "—"}
+                    {status.gap_stats[key] !== null
+                      ? status.gap_stats[key]!.toFixed(2)
+                      : "—"}
                   </dd>
                 </div>
               ))}
@@ -222,19 +289,24 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
       <StatGroup title="assessment activity">
         {assessments && assessments.length > 0 ? (
           <>
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">created per day (most recent 50)</span>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+              created per day (most recent 50)
+            </span>
             <div className="mt-2">
               <ActivitySparkline assessments={assessments} />
             </div>
 
             <div className="mt-6">
-              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">novelty level</span>
+              <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+                novelty level
+              </span>
               <div className="mt-2">
                 <BarList
                   counts={Object.fromEntries(
                     NOVELTY_ORDER.map((level) => [
                       level.replace("_", " "),
-                      assessments.filter((a) => a.novelty_level === level).length,
+                      assessments.filter((a) => a.novelty_level === level)
+                        .length,
                     ]),
                   )}
                   preserveOrder
@@ -243,18 +315,24 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             </div>
           </>
         ) : (
-          <p className="text-[0.875rem] text-[var(--ink-faint)]">No assessments yet.</p>
+          <p className="text-[0.875rem] text-[var(--ink-faint)]">
+            No assessments yet.
+          </p>
         )}
       </StatGroup>
 
       <StatGroup title="structured claims">
         <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
-          The Sec 16 reasoning layer (see the claims tab): every candidate gap and every gradeable
-          assessment field, mirrored as a typed claim - counted here across both producers, all-time.
+          The Sec 16 reasoning layer (see the claims tab): every candidate gap
+          and every gradeable assessment field, mirrored as a typed claim -
+          counted here across both producers, all-time.
         </p>
         <BarList
           counts={Object.fromEntries(
-            CLAIM_TYPE_ORDER.map((type) => [type, status.analysis_claims_by_type[type] ?? 0]),
+            CLAIM_TYPE_ORDER.map((type) => [
+              type,
+              status.analysis_claims_by_type[type] ?? 0,
+            ]),
           )}
           preserveOrder
         />
@@ -263,12 +341,49 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
   );
 }
 
-function StatGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function StatGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="border-b border-[var(--rule-soft)] pb-10 last:border-b-0">
-      <span className="eyebrow">{title}</span>
+    <details
+      open
+      className="group border-b border-[var(--rule-soft)] pb-10 last:border-b-0"
+    >
+      <summary className="eyebrow cursor-pointer list-none marker:hidden hover:text-[var(--ink)]">
+        <span
+          aria-hidden
+          className="mr-2 inline-block text-[0.625rem] transition-transform group-open:rotate-90"
+        >
+          ▸
+        </span>
+        {title}
+      </summary>
       <div className="mt-4">{children}</div>
-    </section>
+    </details>
+  );
+}
+
+function ErrorBreakdown({
+  label,
+  counts,
+}: {
+  label: string;
+  counts: Record<string, number>;
+}) {
+  return (
+    <div className="mt-8">
+      <span className="eyebrow inline-flex items-center gap-1.5 text-[0.625rem] text-[var(--ink-faint)]">
+        {label}
+        <InfoTooltip text="Grouped from a recent sample of pipeline error rows - useful for spotting current failure patterns, not an all-time count." />
+      </span>
+      <div className="mt-2">
+        <BarList counts={counts} />
+      </div>
+    </div>
   );
 }
 
@@ -293,7 +408,8 @@ function SourceDonut({ counts }: { counts: Record<string, number> }) {
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
   const [hovered, setHovered] = useState<string | null>(null);
 
-  if (total === 0) return <p className="text-[0.875rem] text-[var(--ink-faint)]">No data.</p>;
+  if (total === 0)
+    return <p className="text-[0.875rem] text-[var(--ink-faint)]">No data.</p>;
 
   const size = 220;
   const strokeWidth = 34;
@@ -304,7 +420,13 @@ function SourceDonut({ counts }: { counts: Record<string, number> }) {
   let offset = 0;
   const arcs = entries.map(([label, count]) => {
     const length = Math.max((count / total) * circumference - gap, 0);
-    const arc = { label, count, color: SOURCE_COLORS[label] ?? "var(--ink-faint)", length, offset };
+    const arc = {
+      label,
+      count,
+      color: SOURCE_COLORS[label] ?? "var(--ink-faint)",
+      length,
+      offset,
+    };
     offset += (count / total) * circumference;
     return arc;
   });
@@ -341,7 +463,11 @@ function SourceDonut({ counts }: { counts: Record<string, number> }) {
           textAnchor="middle"
           dominantBaseline="central"
           className="rotate-90 fill-[var(--ink)]"
-          style={{ transformOrigin: "center", fontSize: "2rem", fontWeight: 600 }}
+          style={{
+            transformOrigin: "center",
+            fontSize: "2rem",
+            fontWeight: 600,
+          }}
         >
           {total.toLocaleString()}
         </text>
@@ -367,11 +493,17 @@ function SourceDonut({ counts }: { counts: Record<string, number> }) {
           >
             <span
               className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: arc.color, opacity: hovered === null || hovered === arc.label ? 1 : 0.35 }}
+              style={{
+                background: arc.color,
+                opacity: hovered === null || hovered === arc.label ? 1 : 0.35,
+              }}
             />
-            <span className="text-[var(--ink-soft)]">{arc.label.replace(/_/g, " ")}</span>
+            <span className="text-[var(--ink-soft)]">
+              {arc.label.replace(/_/g, " ")}
+            </span>
             <span className="readout text-[var(--ink-faint)] tabular-nums">
-              {arc.count.toLocaleString()} ({((arc.count / total) * 100).toFixed(0)}%)
+              {arc.count.toLocaleString()} (
+              {((arc.count / total) * 100).toFixed(0)}%)
             </span>
           </li>
         ))}
@@ -396,13 +528,20 @@ function BarList({
 
   const peak = Math.max(...entries.map(([, count]) => count), 1);
 
-  if (entries.length === 0) return <p className="text-[0.875rem] text-[var(--ink-faint)]">No data.</p>;
+  if (entries.length === 0)
+    return <p className="text-[0.875rem] text-[var(--ink-faint)]">No data.</p>;
 
   return (
     <ul className="space-y-1.5">
       {entries.map(([label, count]) => (
-        <li key={label} className="grid grid-cols-[9rem_1fr_3.5rem] items-center gap-3">
-          <span className="truncate text-[0.8125rem] text-[var(--ink-soft)]" title={label}>
+        <li
+          key={label}
+          className="grid grid-cols-[9rem_1fr_3.5rem] items-center gap-3"
+        >
+          <span
+            className="truncate text-[0.8125rem] text-[var(--ink-soft)]"
+            title={label}
+          >
             {label}
           </span>
           <span className="h-2 rounded-[1px] bg-[var(--rule-soft)]">
@@ -426,8 +565,12 @@ function BarList({
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <dt className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{label}</dt>
-      <dd className="readout mt-1 text-[1.25rem] tabular-nums">{value.toLocaleString()}</dd>
+      <dt className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+        {label}
+      </dt>
+      <dd className="readout mt-1 text-[1.25rem] tabular-nums">
+        {value.toLocaleString()}
+      </dd>
     </div>
   );
 }
@@ -454,13 +597,23 @@ function HealthStat({
       </dt>
       <dd className="readout mt-1 text-[1.125rem] tabular-nums">
         {value.toLocaleString()}
-        <span className="ml-1 text-[0.75rem] text-[var(--ink-faint)]">/ {total.toLocaleString()}</span>
+        <span className="ml-1 text-[0.75rem] text-[var(--ink-faint)]">
+          / {total.toLocaleString()}
+        </span>
       </dd>
     </div>
   );
 }
 
-function ProportionBar({ label, value, total }: { label: string; value: number; total: number }) {
+function ProportionBar({
+  label,
+  value,
+  total,
+}: {
+  label: string;
+  value: number;
+  total: number;
+}) {
   const pct = total > 0 ? (value / total) * 100 : 0;
   return (
     <div>
@@ -471,7 +624,10 @@ function ProportionBar({ label, value, total }: { label: string; value: number; 
         </span>
       </div>
       <span className="mt-1 block h-2 rounded-[1px] bg-[var(--rule-soft)]">
-        <span className="block h-full rounded-[1px] bg-[var(--ink-faint)]" style={{ width: `${pct}%` }} />
+        <span
+          className="block h-full rounded-[1px] bg-[var(--ink-faint)]"
+          style={{ width: `${pct}%` }}
+        />
       </span>
     </div>
   );
@@ -485,36 +641,67 @@ function ProportionBar({ label, value, total }: { label: string; value: number; 
 function GapDetectionLastRun({ runs }: { runs: PipelineRun[] }) {
   const last = runs[0];
   if (!last) {
-    return <p className="text-[0.8125rem] text-[var(--ink-faint)]">Gap detection has never been run.</p>;
+    return (
+      <p className="text-[0.8125rem] text-[var(--ink-faint)]">
+        Gap detection has never been run.
+      </p>
+    );
   }
 
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.8125rem]">
-      <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">last detection run</span>
+      <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+        last detection run
+      </span>
       <span className="readout">{last.status}</span>
-      <span className="text-[var(--ink-faint)]">{new Date(last.started_at).toLocaleString()}</span>
+      <span className="text-[var(--ink-faint)]">
+        {new Date(last.started_at).toLocaleString()}
+      </span>
       <span className="text-[var(--ink-soft)]">
         {Object.entries(last.counts)
-          .map(([key, value]) => `${key.replace(/_/g, " ")}: ${value.toLocaleString()}`)
+          .map(
+            ([key, value]) =>
+              `${key.replace(/_/g, " ")}: ${value.toLocaleString()}`,
+          )
           .join(" · ")}
       </span>
-      {last.error_summary && <span className="text-[var(--live)]">{last.error_summary}</span>}
+      {last.error_summary && (
+        <span className="text-[var(--live)]">{last.error_summary}</span>
+      )}
     </div>
   );
 }
 
 /** Bar-per-run strip, oldest to newest, reusing the .tickstrip pattern. */
-function IngestionVolume({ title, runs }: { title: string; runs: PipelineRun[] }) {
-  const ordered = [...runs].sort((a, b) => a.started_at.localeCompare(b.started_at));
-  const peak = Math.max(...ordered.map((r) => r.counts.records_inserted ?? 0), 1);
+function IngestionVolume({
+  title,
+  runs,
+}: {
+  title: string;
+  runs: PipelineRun[];
+}) {
+  const ordered = [...runs].sort((a, b) =>
+    a.started_at.localeCompare(b.started_at),
+  );
+  const peak = Math.max(
+    ...ordered.map((r) => r.counts.records_inserted ?? 0),
+    1,
+  );
 
   return (
     <div>
-      <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{title}</span>
+      <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+        {title}
+      </span>
       {ordered.length === 0 ? (
-        <p className="mt-2 text-[0.8125rem] text-[var(--ink-faint)]">No runs recorded yet.</p>
+        <p className="mt-2 text-[0.8125rem] text-[var(--ink-faint)]">
+          No runs recorded yet.
+        </p>
       ) : (
-        <div className="tickstrip mt-2 h-10" style={{ ["--cols" as string]: ordered.length }}>
+        <div
+          className="tickstrip mt-2 h-10"
+          style={{ ["--cols" as string]: ordered.length }}
+        >
           {ordered.map((run) => {
             const inserted = run.counts.records_inserted ?? 0;
             return (
@@ -525,7 +712,9 @@ function IngestionVolume({ title, runs }: { title: string; runs: PipelineRun[] }
               >
                 <span
                   className="tick-bar"
-                  style={{ height: `${Math.max((inserted / peak) * 100, inserted > 0 ? 4 : 0)}%` }}
+                  style={{
+                    height: `${Math.max((inserted / peak) * 100, inserted > 0 ? 4 : 0)}%`,
+                  }}
                 />
               </div>
             );
@@ -537,22 +726,38 @@ function IngestionVolume({ title, runs }: { title: string; runs: PipelineRun[] }
 }
 
 /** Day-bucketed count of assessment creation, oldest to newest. */
-function ActivitySparkline({ assessments }: { assessments: AssessmentSummary[] }) {
+function ActivitySparkline({
+  assessments,
+}: {
+  assessments: AssessmentSummary[];
+}) {
   const byDay = new Map<string, number>();
   for (const a of assessments) {
     const day = new Date(a.created_at).toDateString();
     byDay.set(day, (byDay.get(day) ?? 0) + 1);
   }
-  const days = [...byDay.keys()].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const days = [...byDay.keys()].sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime(),
+  );
   const peak = Math.max(...byDay.values(), 1);
 
   return (
-    <div className="tickstrip h-10" style={{ ["--cols" as string]: days.length }}>
+    <div
+      className="tickstrip h-10"
+      style={{ ["--cols" as string]: days.length }}
+    >
       {days.map((day) => {
         const count = byDay.get(day) ?? 0;
         return (
-          <div key={day} className="tick" title={`${day} — ${count} assessment${count === 1 ? "" : "s"}`}>
-            <span className="tick-bar" style={{ height: `${Math.max((count / peak) * 100, 4)}%` }} />
+          <div
+            key={day}
+            className="tick"
+            title={`${day} — ${count} assessment${count === 1 ? "" : "s"}`}
+          >
+            <span
+              className="tick-bar"
+              style={{ height: `${Math.max((count / peak) * 100, 4)}%` }}
+            />
           </div>
         );
       })}

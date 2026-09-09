@@ -88,7 +88,14 @@ feasibility, applications, opportunity synthesis, and a recommendation
 with confidence — populating `research_assessments` end to end, not just
 the thin vertical slice §45 describes as the starting point. Reviewers can
 re-run an assessment, mark it human-reviewed, inspect a similarity graph,
-and export the report as PDF or DOCX (none of which §2A/§49 describe).
+export the report as PDF, DOCX, or Markdown, and review individual evidence
+passages as supported, unclear, or not supported with an optional note.
+Assessment comparison is implemented at `/assessments/compare`: users can
+select up to four completed assessments and compare categorical outcomes,
+retrieved-paper overlap, evidence coverage, gaps, applications, and risks.
+A grounded research-to-action plan is also shown inside each report, with
+baseline, gap, feasibility, application, and risk checkpoints blocked when
+the corresponding evidence is missing.
 
 **Corpus Q&A (not in this blueprint's original scope).** `POST /api/ask`
 answers free-text questions by retrieving candidate papers, then
@@ -98,9 +105,14 @@ re-ranking their already-extracted claims/evidence against the question
 off-by-default layer (`OLLAMA_ENABLED`, `POST /api/ask/summarize`) adds a
 local Ollama model that synthesizes a short summary strictly over the
 quotes already returned, with citation markers validated against the real
-hit list before being shown — raw quotes stay visible either way. This
-extends, rather than violates, the "no Grounding Illusion" principle in
-§15: generation is additive and citation-checked, never a replacement for
+hit list before being shown — raw quotes stay visible either way. Persistent
+Q&A collections are implemented through `qa_collections` and `qa_questions`:
+users can create named collections, save exact grounded hit snapshots,
+reopen prior questions, rename/delete collections, and persist validated
+summaries. Saved Q&A evidence can receive context-scoped human review.
+Stateless `/api/ask` remains available for compatibility. This extends,
+rather than violates, the "no Grounding Illusion" principle in §15:
+generation is additive and citation-checked, never a replacement for
 evidence.
 
 **Corpus Trends (a real version of §32's "Temporal Patterns" step).**
@@ -133,27 +145,57 @@ gap-derived claim is hardcoded "medium"; every assessment-derived claim
 reuses the assessment's own overall confidence), not yet a calibrated
 value, since there isn't enough reviewed data yet for that comparison to
 mean anything. `hypothesis`/`speculation` remain schema-only — nothing
-currently produces those two claim types.
+currently produces those two claim types. Evidence review feedback is
+implemented separately in `evidence_reviews` (§15/§35): it is scoped to a
+product surface and role, so reviewing an assessment passage or a saved Q&A
+quote does not incorrectly change the parent claim's status.
 
-**Full-text PDF ingestion (a narrow version of §46, ahead of "future or
-secondary").** `fulltext/` fetches each open-access paper's PDF (arXiv via
-a derived URL, CORE/Semantic Scholar via their own already-fetchable `url`,
-Springer attempted best-effort against its HTML landing page), extracts
-text via PyMuPDF (reusing `benchmark/fulltext.py`'s already-proven
-extractor rather than GROBID — see §46's own "GROBID only when justified"),
-and splits it into heuristic sections (`paper_fulltext`), with the same
-run-history/error-tracking shape as every other pipeline
-(`fulltext_fetch_runs`/`fulltext_fetch_errors`, `rb-fulltext-fetch`, one
-admin trigger route). Deliberately narrow: nothing in `extraction/pipeline.py`
-or any `Extractor` implementation consumes this table yet — every extractor
-is still abstract-only, so full text has no reader today. Extending
-extraction to draw claims from full-text sections (not just verify
-grounding against them) remains a separate, unstarted piece of work.
+**Full-text PDF ingestion and extraction (§28–29, §46).** `fulltext/`
+fetches each open-access paper's PDF (arXiv via a derived URL,
+CORE/Semantic Scholar via their own already-fetchable `url`, Springer
+best-effort against its HTML landing page), extracts text via PyMuPDF, and
+splits it into heuristic sections stored in `paper_fulltext`. The heuristic,
+semantic, and hybrid extractors consume those sections when available,
+select field-appropriate sections such as methods, results, discussion, and
+conclusion, and persist section-level evidence. The grounding gate validates
+a full-text quote against its claimed section. Papers without a full-text
+row continue to fall back to abstract extraction. Run history and errors
+remain tracked through `fulltext_fetch_runs` and `fulltext_fetch_errors`;
+GROBID and OCR are still not required.
 
-**Not yet built:** the Phase 3+ split entity tables (§14),
-`opportunity_assessments` (§41), PubMed Central ingestion, any paid-API
-extractor, full-text-aware extraction (see above), and all of Phase 5
-(§48, external market data/patents/companies).
+**Assessment comparison and workspaces.** The assessment dashboard supports
+selecting up to four completed assessments for side-by-side comparison.
+Research project workspaces are persisted in `research_projects` and
+`research_project_inputs`; they contain editable notes and normalized tags
+and attach stable `ResearchInput` identities rather than individual rerun
+rows, so a rerun automatically becomes the current assessment shown in the
+workspace. Project deletion removes membership only, not research inputs or
+assessments. These workspaces are currently local and shared because
+authentication and ownership do not yet exist.
+
+**Corpus quality dashboard.** The admin stats surface reports active-corpus
+coverage by source, category, language, claims, embeddings, and full-text
+availability. It also shows recent ingestion, extraction, and full-text
+errors by type, with year- and exclusion-aware denominators. Major admin
+stat groups and the language breakdown are collapsible. These are coverage
+and operational indicators, not fabricated quality scores.
+
+**Domain-specific evaluation packs.** The extraction benchmark's declared
+domains now produce per-domain paper counts and field-level
+Precision/Recall/F1 for each extractor, while preserving aggregate results.
+The admin evaluation panel displays these packs with a warning about small
+sample sizes. Retrieval domain packs are not yet implemented because the
+current topical retrieval queries lack explicit domain ground truth.
+
+**Not yet built:** authentication, user ownership, and project/collection
+sharing; assessment version diffing; corpus snapshots and complete
+assessment provenance/version manifests; contradiction or conflict detection
+across papers; editable persisted experiment tasks beyond the generated
+research-to-action plan; retrieval evaluation packs with explicitly labeled
+domain queries; independent reviewer/panel workflows; the Phase 3+ split
+entity tables (§14); `opportunity_assessments` (§41); PubMed Central
+ingestion; any paid-API extractor; and all of Phase 5 (§48, external market
+data, patents, companies, products, regulations, and funding sources).
 
 ---
 
@@ -2577,7 +2619,7 @@ The fundamental architecture is:
 
 This is being built by one person. Every phase beyond Phase 1 is directional, not committed — re-plan Phase 2's weekly milestones only once Phase 1 has shipped and the benchmark evaluation is in hand. Vision documents don't need to match execution timelines; roadmaps do.
 
-**As of this revision, Phases 1–4 have shipped** (see "Current Implementation Status" near the top of this document), including two capabilities — Corpus Q&A and Corpus Trends — that weren't originally planned in this blueprint at all. Phase 5 has not started. Keep this closing note current as the single fastest way to check whether the rest of the document still describes a plan or now describes history.
+**As of this revision, Phases 1–4 have shipped** (see "Current Implementation Status" near the top of this document), including capabilities that were not originally planned in this blueprint: persistent Q&A collections, assessment comparison, research-to-action plans, research project workspaces, corpus quality monitoring, domain-specific extraction evaluation packs, and context-scoped evidence review feedback. Phase 5 has not started. Authentication/ownership, assessment version diffing, corpus snapshots, contradiction detection, domain-labeled retrieval packs, and editable experiment-task workflows remain future enhancements. Keep this closing note current as the single fastest way to check whether the rest of the document still describes a plan or now describes history.
 
 Use this revised blueprint as the **current source of truth** for future technical decisions about ResearchBridge.
 

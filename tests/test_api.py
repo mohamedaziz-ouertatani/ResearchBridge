@@ -20,6 +20,7 @@ from researchbridge.db.models import (
     PaperAuthor,
     PaperCategory,
     PaperCitation,
+    PaperFullText,
 )
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
@@ -523,9 +524,13 @@ def test_paper_citations_404s_for_unknown_paper(client) -> None:
 
 
 def test_stats_reports_corpus_shape(client, session, embedder) -> None:
-    _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder, source="arxiv", claim=True)
-    _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), source="springer")
-    _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), source="arxiv")
+    p1 = _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder, source="arxiv", claim=True)
+    p2 = _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), source="springer")
+    p3 = _add_paper(session, "p3", year=2024, categories=("cs.CL",), authors=("Alice",), source="arxiv")
+    p1.language = "en"
+    p3.language = "fr"
+    session.add(PaperFullText(paper_id=p1.id, sections={"abstract": "text"}, source_url="https://example.test/p1.pdf"))
+    session.commit()
 
     body = client.get("/api/stats").json()
 
@@ -533,9 +538,11 @@ def test_stats_reports_corpus_shape(client, session, embedder) -> None:
     assert body["total_authors"] == 2  # Alice deduped across two papers
     assert body["embedded_papers"] == 1
     assert body["papers_with_claims"] == 1
+    assert body["papers_with_fulltext"] == 1
     assert body["papers_by_year"] == {"2019": 2, "2024": 1}
     assert body["papers_by_category"]["cs.LG"] == 2
     assert body["papers_by_source"] == {"arxiv": 2, "springer": 1}
+    assert body["papers_by_language"] == {"unknown": 1, "en": 1, "fr": 1}
 
 
 def test_stats_year_param_scopes_every_field_but_papers_by_year(client, session, embedder) -> None:
@@ -549,6 +556,8 @@ def test_stats_year_param_scopes_every_field_but_papers_by_year(client, session,
     assert body["total_authors"] == 2
     assert body["embedded_papers"] == 1
     assert body["papers_with_claims"] == 1
+    assert body["papers_with_fulltext"] == 0
+    assert body["papers_by_language"] == {"unknown": 2}
     assert body["papers_by_category"] == {"cs.LG": 2}
     assert body["papers_by_source"] == {"arxiv": 1, "springer": 1}
     # papers_by_year stays unfiltered - it's what drives navigating to a
@@ -560,6 +569,7 @@ def test_stats_excludes_excluded_papers_by_default(client, session, embedder) ->
     _add_paper(session, "p1", year=2019, categories=("cs.LG",), authors=("Alice",), embed=embedder)
     excluded = _add_paper(session, "p2", year=2019, categories=("cs.LG",), authors=("Bob",), embed=embedder)
     excluded.excluded_at = datetime.now(timezone.utc)
+    session.add(PaperFullText(paper_id=excluded.id, sections={"abstract": "text"}, source_url="https://example.test/p2.pdf"))
     session.commit()
 
     body = client.get("/api/stats").json()
@@ -567,6 +577,7 @@ def test_stats_excludes_excluded_papers_by_default(client, session, embedder) ->
     assert body["total_papers"] == 1
     assert body["total_authors"] == 1
     assert body["embedded_papers"] == 1
+    assert body["papers_with_fulltext"] == 0
     assert body["papers_by_year"] == {"2019": 1}
     assert body["papers_by_category"]["cs.LG"] == 1
 

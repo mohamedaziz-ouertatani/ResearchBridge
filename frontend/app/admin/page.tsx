@@ -69,7 +69,12 @@ const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   fulltext: "full text",
 };
 
-const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", "core"];
+const INGESTION_TABS: PipelineTab[] = [
+  "arxiv",
+  "springer",
+  "semantic_scholar",
+  "core",
+];
 
 // The four ingestion sources and the two one-off evaluation diagnostics
 // each fold behind their own disclosure - same pattern as Nav's
@@ -80,9 +85,18 @@ const INGESTION_TABS: PipelineTab[] = ["arxiv", "springer", "semantic_scholar", 
 // direct tabs plus two labeled dropdowns fit in one row and read as what
 // they are: one pipeline, with sources feeding in and diagnostics off to
 // the side.
-const DIRECT_TABS: PipelineTab[] = ["extraction", "embedding", "fulltext", "citations_fetch", "gap_detection"];
+const DIRECT_TABS: PipelineTab[] = [
+  "extraction",
+  "embedding",
+  "fulltext",
+  "citations_fetch",
+  "gap_detection",
+];
 const TAB_DROPDOWNS: { label: string; tabs: PipelineTab[] }[] = [
-  { label: "ingestion", tabs: ["arxiv", "springer", "semantic_scholar", "core"] },
+  {
+    label: "ingestion",
+    tabs: ["arxiv", "springer", "semantic_scholar", "core"],
+  },
   { label: "evaluation", tabs: ["retrieval_eval", "extraction_eval"] },
 ];
 
@@ -105,7 +119,11 @@ const ARXIV_QUERY_OPTIONS = [
   { label: "Machine Learning", value: "cat:cs.LG OR cat:stat.ML" },
   { label: "NLP", value: "cat:cs.CL" },
   { label: "Computer Vision", value: "cat:cs.CV OR cat:eess.IV" },
-  { label: "Systems", value: "cat:cs.DC OR cat:cs.OS OR cat:cs.NI OR cat:cs.DB OR cat:cs.SE OR cat:cs.AR OR cat:cs.PF OR cat:cs.DS" },
+  {
+    label: "Systems",
+    value:
+      "cat:cs.DC OR cat:cs.OS OR cat:cs.NI OR cat:cs.DB OR cat:cs.SE OR cat:cs.AR OR cat:cs.PF OR cat:cs.DS",
+  },
   { label: "General AI", value: "cat:cs.AI" },
 ];
 
@@ -160,8 +178,10 @@ const CITATION_SOURCE_OPTIONS = [
 
 export default function AdminPipeline() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
-  const [retrievalEval, setRetrievalEval] = useState<RetrievalEvalResult | null>(null);
-  const [extractionEval, setExtractionEval] = useState<ExtractionEvalResult | null>(null);
+  const [retrievalEval, setRetrievalEval] =
+    useState<RetrievalEvalResult | null>(null);
+  const [extractionEval, setExtractionEval] =
+    useState<ExtractionEvalResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("stats");
 
@@ -172,9 +192,17 @@ export default function AdminPipeline() {
         setStatus(next);
         setError(null);
       })
-      .catch(() => setError("Can't reach the API. Is it running on port 8000?"));
-    adminApi.retrievalEval().then(setRetrievalEval).catch(() => {});
-    adminApi.extractionEval().then(setExtractionEval).catch(() => {});
+      .catch(() =>
+        setError("Can't reach the API. Is it running on port 8000?"),
+      );
+    adminApi
+      .retrievalEval()
+      .then(setRetrievalEval)
+      .catch(() => {});
+    adminApi
+      .extractionEval()
+      .then(setExtractionEval)
+      .catch(() => {});
   }
 
   // Auto-refresh so run history, "running now" dots, and the stats tab stay
@@ -184,7 +212,9 @@ export default function AdminPipeline() {
   // shows up promptly without polling harder than an idle page needs.
   useEffect(() => {
     reload();
-    const isRunning = status ? Object.values(status.running).some(Boolean) : false;
+    const isRunning = status
+      ? Object.values(status.running).some(Boolean)
+      : false;
     const interval = setInterval(reload, isRunning ? 4000 : 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,23 +227,31 @@ export default function AdminPipeline() {
       <div className="pt-12">
         <span className="eyebrow">pipeline status</span>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
-          Run history for ingestion, extraction, embedding, citation fetching, and gap detection,
-          plus a way to start a new run of each. Gap detection can also be triggered from the{" "}
+          Run history for ingestion, extraction, embedding, citation fetching,
+          and gap detection, plus a way to start a new run of each. Gap
+          detection can also be triggered from the{" "}
           <Link href="/gaps" className="underline hover:text-[var(--ink)]">
             candidate gaps
           </Link>{" "}
-          page — both trigger the same background job, so either one shows the other&apos;s progress.
+          page — both trigger the same background job, so either one shows the
+          other&apos;s progress.
         </p>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
-          The corpus is built by a chain of stages: ingestion pulls raw papers in from an external
-          source (arXiv, Springer Nature, Semantic Scholar, or CORE), extraction pulls structured claims
-          and evidence out of each paper&apos;s text, embedding turns that text into the vectors search
-          relies on, and gap detection compares each paper&apos;s neighborhood for recurring
-          limitation patterns. Each tab below runs and monitors one stage; a paper generally needs
-          to pass through extraction and embedding before it&apos;s eligible for gap detection.
+          The corpus is built by a chain of stages: ingestion pulls raw papers
+          in from an external source (arXiv, Springer Nature, Semantic Scholar,
+          or CORE), extraction pulls structured claims and evidence out of each
+          paper&apos;s text, embedding turns that text into the vectors search
+          relies on, and gap detection compares each paper&apos;s neighborhood
+          for recurring limitation patterns. Each tab below runs and monitors
+          one stage; a paper generally needs to pass through extraction and
+          embedding before it&apos;s eligible for gap detection.
         </p>
 
-        {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
+        {error && (
+          <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">
+            {error}
+          </p>
+        )}
         {!status && !error && <SkeletonStats count={5} />}
 
         {status && (
@@ -238,14 +276,27 @@ export default function AdminPipeline() {
               </dl>
 
               <dl className="flex flex-wrap gap-x-6 gap-y-3">
-                {Object.entries(status.papers_by_source).map(([source, count]) => (
-                  <Stat key={source} label={source.replace(/_/g, " ")} value={count} small />
-                ))}
+                {Object.entries(status.papers_by_source).map(
+                  ([source, count]) => (
+                    <Stat
+                      key={source}
+                      label={source.replace(/_/g, " ")}
+                      value={count}
+                      small
+                    />
+                  ),
+                )}
               </dl>
 
               <dl className="flex flex-wrap gap-x-10 gap-y-3">
-                <Stat label="assessments" value={status.assessment_stats.total} />
-                <Stat label="need review" value={status.assessment_stats.needs_review} />
+                <Stat
+                  label="assessments"
+                  value={status.assessment_stats.total}
+                />
+                <Stat
+                  label="need review"
+                  value={status.assessment_stats.needs_review}
+                />
               </dl>
             </div>
 
@@ -270,7 +321,13 @@ export default function AdminPipeline() {
               />
 
               {DIRECT_TABS.map((t) => (
-                <TabButton key={t} tab={t} active={tab === t} running={status.running[runningKeyForTab(t)]} onSelect={setTab} />
+                <TabButton
+                  key={t}
+                  tab={t}
+                  active={tab === t}
+                  running={status.running[runningKeyForTab(t)]}
+                  onSelect={setTab}
+                />
               ))}
 
               <TabDropdown
@@ -287,7 +344,9 @@ export default function AdminPipeline() {
                 <RunSection
                   title="arXiv ingestion"
                   pipelineKey="ingestion_arxiv"
-                  runs={status.ingestion_runs.filter((run) => run.source === "arxiv")}
+                  runs={status.ingestion_runs.filter(
+                    (run) => run.source === "arxiv",
+                  )}
                   running={status.running.ingestion_arxiv}
                   fields={[
                     {
@@ -309,7 +368,9 @@ export default function AdminPipeline() {
                 <RunSection
                   title="Springer Nature ingestion"
                   pipelineKey="ingestion_springer"
-                  runs={status.ingestion_runs.filter((run) => run.source === "springer")}
+                  runs={status.ingestion_runs.filter(
+                    (run) => run.source === "springer",
+                  )}
                   running={status.running.ingestion_springer}
                   fields={[
                     {
@@ -317,7 +378,8 @@ export default function AdminPipeline() {
                       label: "query",
                       type: "select",
                       options: SPRINGER_QUERY_OPTIONS,
-                      placeholder: '"machine learning" OR "artificial intelligence"',
+                      placeholder:
+                        '"machine learning" OR "artificial intelligence"',
                     },
                     { name: "page_size", label: "page size", type: "number" },
                     { name: "max_pages", label: "max pages", type: "number" },
@@ -331,7 +393,9 @@ export default function AdminPipeline() {
                 <RunSection
                   title="Semantic Scholar ingestion"
                   pipelineKey="ingestion_semantic_scholar"
-                  runs={status.ingestion_runs.filter((run) => run.source === "semantic_scholar")}
+                  runs={status.ingestion_runs.filter(
+                    (run) => run.source === "semantic_scholar",
+                  )}
                   running={status.running.ingestion_semantic_scholar}
                   fields={[
                     {
@@ -339,11 +403,14 @@ export default function AdminPipeline() {
                       label: "query",
                       type: "select",
                       options: SEMANTIC_SCHOLAR_QUERY_OPTIONS,
-                      placeholder: '"machine learning" | "artificial intelligence"',
+                      placeholder:
+                        '"machine learning" | "artificial intelligence"',
                     },
                     { name: "max_pages", label: "max pages", type: "number" },
                   ]}
-                  onRun={(values) => adminApi.triggerSemanticScholarIngestion(values)}
+                  onRun={(values) =>
+                    adminApi.triggerSemanticScholarIngestion(values)
+                  }
                   onStarted={reload}
                 />
               )}
@@ -352,7 +419,9 @@ export default function AdminPipeline() {
                 <RunSection
                   title="CORE ingestion"
                   pipelineKey="ingestion_core"
-                  runs={status.ingestion_runs.filter((run) => run.source === "core")}
+                  runs={status.ingestion_runs.filter(
+                    (run) => run.source === "core",
+                  )}
                   running={status.running.ingestion_core}
                   fields={[
                     {
@@ -360,7 +429,8 @@ export default function AdminPipeline() {
                       label: "query",
                       type: "select",
                       options: CORE_QUERY_OPTIONS,
-                      placeholder: "machine learning OR artificial intelligence",
+                      placeholder:
+                        "machine learning OR artificial intelligence",
                     },
                     { name: "page_size", label: "page size", type: "number" },
                     { name: "max_pages", label: "max pages", type: "number" },
@@ -414,7 +484,14 @@ export default function AdminPipeline() {
                     pipelineKey="retrieval_eval"
                     runs={[]}
                     running={status.running.retrieval_eval}
-                    fields={[{ name: "k", label: "k", type: "number", placeholder: "10" }]}
+                    fields={[
+                      {
+                        name: "k",
+                        label: "k",
+                        type: "number",
+                        placeholder: "10",
+                      },
+                    ]}
                     onRun={(values) => adminApi.triggerRetrievalEval(values)}
                     onStarted={reload}
                   />
@@ -430,7 +507,12 @@ export default function AdminPipeline() {
                     runs={[]}
                     running={status.running.extraction_eval}
                     fields={[
-                      { name: "threshold", label: "similarity threshold", type: "number", placeholder: "0.5" },
+                      {
+                        name: "threshold",
+                        label: "similarity threshold",
+                        type: "number",
+                        placeholder: "0.5",
+                      },
                       {
                         name: "extractor",
                         label: "extractor",
@@ -485,12 +567,14 @@ export default function AdminPipeline() {
               {tab === "fulltext" && (
                 <>
                   <p className="mb-4 max-w-[60ch] text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">
-                    Fetches and parses each open-access paper&apos;s full text (arXiv, Semantic Scholar,
-                    Springer via PDF; CORE via its own API, since its PDF downloads are Cloudflare-blocked).
-                    Extraction (on its next run for a given paper) prefers full-text sections here over
-                    the abstract when they&apos;re available. arXiv fetches are throttled to one every 3
-                    seconds, so a full run against the whole corpus can take hours; use limit to try a
-                    small batch first.
+                    Fetches and parses each open-access paper&apos;s full text
+                    (arXiv, Semantic Scholar, Springer via PDF; CORE via its own
+                    API, since its PDF downloads are Cloudflare-blocked).
+                    Extraction (on its next run for a given paper) prefers
+                    full-text sections here over the abstract when they&apos;re
+                    available. arXiv fetches are throttled to one every 3
+                    seconds, so a full run against the whole corpus can take
+                    hours; use limit to try a small batch first.
                   </p>
                   <RunSection
                     title="full-text fetch runs"
@@ -542,7 +626,10 @@ function TabDropdown({
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -562,9 +649,17 @@ function TabDropdown({
             : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
         }`}
       >
-        {anyRunning && <span className="h-1.5 w-1.5 rounded-full bg-[var(--live)]" title="running now" />}
+        {anyRunning && (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-[var(--live)]"
+            title="running now"
+          />
+        )}
         {label}
-        <span aria-hidden className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}>
+        <span
+          aria-hidden
+          className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </button>
@@ -580,11 +675,16 @@ function TabDropdown({
                 setOpen(false);
               }}
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[0.8125rem] ${
-                tab === t ? "bg-[var(--field)] text-[var(--ink)]" : "text-[var(--ink-soft)] hover:bg-[var(--field)]"
+                tab === t
+                  ? "bg-[var(--field)] text-[var(--ink)]"
+                  : "text-[var(--ink-soft)] hover:bg-[var(--field)]"
               }`}
             >
               {runningByTab[runningKeyForTab(t)] && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--live)]" title="running now" />
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--live)]"
+                  title="running now"
+                />
               )}
               {PIPELINE_TAB_LABELS[t]}
             </button>
@@ -615,7 +715,12 @@ function TabButton({
           : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
       }`}
     >
-      {running && <span className="h-1.5 w-1.5 rounded-full bg-[var(--live)]" title="running now" />}
+      {running && (
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-[var(--live)]"
+          title="running now"
+        />
+      )}
       {PIPELINE_TAB_LABELS[tab]}
     </button>
   );
@@ -638,7 +743,9 @@ function Stat({
         {label}
         {info && <InfoTooltip text={info} />}
       </dt>
-      <dd className={`readout mt-1 tabular-nums ${small ? "text-[1rem]" : "text-[1.25rem]"}`}>
+      <dd
+        className={`readout mt-1 tabular-nums ${small ? "text-[1rem]" : "text-[1.25rem]"}`}
+      >
         {value.toLocaleString()}
       </dd>
     </div>
@@ -678,7 +785,9 @@ function RunSection({
   runs: PipelineRun[];
   running: boolean;
   fields: Field[];
-  onRun: (values: Record<string, string | number | boolean>) => Promise<unknown>;
+  onRun: (
+    values: Record<string, string | number | boolean>,
+  ) => Promise<unknown>;
   onStarted: () => void;
   /** When set, renders a second "force re-run" button that wipes prior
    * results before re-running - gated behind an inline confirmation step
@@ -701,7 +810,8 @@ function RunSection({
   useEffect(() => {
     if (!running) return;
     let cancelled = false;
-    const fetchLog = () => adminApi.log(pipelineKey).then((text) => !cancelled && setLog(text));
+    const fetchLog = () =>
+      adminApi.log(pipelineKey).then((text) => !cancelled && setLog(text));
     fetchLog();
     const interval = setInterval(fetchLog, 3000);
     return () => {
@@ -773,15 +883,24 @@ function RunSection({
       <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-3">
         {fields.map((field) => (
           <label key={field.name} className="flex flex-1 flex-col gap-1">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">{field.label}</span>
+            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+              {field.label}
+            </span>
             {field.type === "select" ? (
               <>
                 <select
-                  value={otherMode[field.name] ? OTHER_VALUE : (values[field.name] ?? "")}
+                  value={
+                    otherMode[field.name]
+                      ? OTHER_VALUE
+                      : (values[field.name] ?? "")
+                  }
                   onChange={(e) => {
                     const picked = e.target.value === OTHER_VALUE;
                     setOtherMode((m) => ({ ...m, [field.name]: picked }));
-                    setValues((v) => ({ ...v, [field.name]: picked ? "" : e.target.value }));
+                    setValues((v) => ({
+                      ...v,
+                      [field.name]: picked ? "" : e.target.value,
+                    }));
                   }}
                   disabled={busy || running}
                   className={FIELD_INPUT_CLASS}
@@ -801,7 +920,9 @@ function RunSection({
                     type="text"
                     placeholder={field.placeholder}
                     value={values[field.name] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, [field.name]: e.target.value }))
+                    }
                     disabled={busy || running}
                     className={`mt-1 ${FIELD_INPUT_CLASS}`}
                   />
@@ -812,7 +933,9 @@ function RunSection({
                 type={field.type ?? "text"}
                 placeholder={field.placeholder}
                 value={values[field.name] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                onChange={(e) =>
+                  setValues((v) => ({ ...v, [field.name]: e.target.value }))
+                }
                 disabled={busy || running}
                 className={FIELD_INPUT_CLASS}
               />
@@ -855,11 +978,15 @@ function RunSection({
           </>
         )}
       </form>
-      {error && <p className="mt-2 text-[0.75rem] text-[var(--live)]">{error}</p>}
+      {error && (
+        <p className="mt-2 text-[0.75rem] text-[var(--live)]">{error}</p>
+      )}
 
       {forceLabel && confirmingForce && (
         <div className="mt-3 border border-[var(--live)] bg-[var(--panel)] px-4 py-3">
-          <p className="text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">{forceWarning}</p>
+          <p className="text-[0.8125rem] leading-relaxed text-[var(--ink-soft)]">
+            {forceWarning}
+          </p>
           <div className="mt-3 flex gap-2">
             <button
               type="button"
@@ -883,7 +1010,9 @@ function RunSection({
 
       {running && (
         <div className="mt-4">
-          <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">live log</span>
+          <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">
+            live log
+          </span>
           <pre className="mt-1 max-h-[16rem] overflow-y-auto whitespace-pre-wrap rounded-[2px] border border-[var(--rule-soft)] bg-[var(--panel)] p-3 font-[family-name:var(--type-mono)] text-[0.75rem] leading-relaxed text-[var(--ink-soft)]">
             {log ?? "waiting for output…"}
           </pre>
@@ -891,11 +1020,16 @@ function RunSection({
       )}
 
       {runs.length === 0 ? (
-        <p className="mt-6 text-[0.875rem] text-[var(--ink-faint)]">No runs recorded yet.</p>
+        <p className="mt-6 text-[0.875rem] text-[var(--ink-faint)]">
+          No runs recorded yet.
+        </p>
       ) : (
         <ul className="mt-6 space-y-4">
           {runs.map((run) => (
-            <li key={run.id} className="border-t border-[var(--rule-soft)] pt-4 first:border-t-0 first:pt-0">
+            <li
+              key={run.id}
+              className="border-t border-[var(--rule-soft)] pt-4 first:border-t-0 first:pt-0"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="readout inline-flex items-center gap-2 text-[0.875rem]">
                   {run.status}
@@ -925,7 +1059,10 @@ function RunSection({
 
               <p className="mt-2 text-[0.8125rem] text-[var(--ink-soft)]">
                 {Object.entries(run.counts)
-                  .map(([key, value]) => `${key.replace(/_/g, " ")}: ${value.toLocaleString()}`)
+                  .map(
+                    ([key, value]) =>
+                      `${key.replace(/_/g, " ")}: ${value.toLocaleString()}`,
+                  )
                   .join(" · ")}
               </p>
 
@@ -948,13 +1085,18 @@ function RunSection({
 /** The last rb-retrieval-evaluate run's persisted metrics - never computed
     live here, just read (see adminApi.retrievalEval). One table per query
     set (self/topical), one row per baseline (tfidf/bm25/embedding/hybrid). */
-function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }) {
+function RetrievalEvalResults({
+  result,
+}: {
+  result: RetrievalEvalResult | null;
+}) {
   if (!result) return null;
 
   if (!result.available) {
     return (
       <p className="mt-8 text-[0.9375rem] text-[var(--ink-soft)]">
-        Never run yet - click run to evaluate retrieval quality against the benchmark.
+        Never run yet - click run to evaluate retrieval quality against the
+        benchmark.
       </p>
     );
   }
@@ -962,16 +1104,23 @@ function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }
   return (
     <div className="mt-8 space-y-8">
       <p className="text-[0.8125rem] text-[var(--ink-faint)]">
-        Last run {result.generated_at ? new Date(result.generated_at).toLocaleString() : "—"}, k={result.k}
+        Last run{" "}
+        {result.generated_at
+          ? new Date(result.generated_at).toLocaleString()
+          : "—"}
+        , k={result.k}
       </p>
       {Object.entries(result.query_sets ?? {}).map(([name, querySet]) => (
         <div key={name}>
           <span className="eyebrow">
-            {name} query set — {querySet.queries} quer{querySet.queries === 1 ? "y" : "ies"}
+            {name} query set — {querySet.queries} quer
+            {querySet.queries === 1 ? "y" : "ies"}
             {querySet.skipped > 0 ? `, ${querySet.skipped} skipped` : ""}
           </span>
           {querySet.results.length === 0 ? (
-            <p className="mt-2 text-[0.8125rem] text-[var(--ink-faint)]">No usable queries for this set.</p>
+            <p className="mt-2 text-[0.8125rem] text-[var(--ink-faint)]">
+              No usable queries for this set.
+            </p>
           ) : (
             <table className="mt-3 w-full text-[0.8125rem]">
               <thead>
@@ -985,12 +1134,23 @@ function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }
               </thead>
               <tbody>
                 {querySet.results.map((row) => (
-                  <tr key={row.method} className="border-b border-[var(--rule-soft)]">
+                  <tr
+                    key={row.method}
+                    className="border-b border-[var(--rule-soft)]"
+                  >
                     <td className="py-1.5 pr-4 readout">{row.method}</td>
-                    <td className="py-1.5 pr-4 tabular-nums">{row.precision.toFixed(3)}</td>
-                    <td className="py-1.5 pr-4 tabular-nums">{row.recall.toFixed(3)}</td>
-                    <td className="py-1.5 pr-4 tabular-nums">{row.ndcg.toFixed(3)}</td>
-                    <td className="py-1.5 tabular-nums">{row.mrr.toFixed(3)}</td>
+                    <td className="py-1.5 pr-4 tabular-nums">
+                      {row.precision.toFixed(3)}
+                    </td>
+                    <td className="py-1.5 pr-4 tabular-nums">
+                      {row.recall.toFixed(3)}
+                    </td>
+                    <td className="py-1.5 pr-4 tabular-nums">
+                      {row.ndcg.toFixed(3)}
+                    </td>
+                    <td className="py-1.5 tabular-nums">
+                      {row.mrr.toFixed(3)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1005,13 +1165,18 @@ function RetrievalEvalResults({ result }: { result: RetrievalEvalResult | null }
 /** The last rb-extract-evaluate run's persisted per-field scores - never
     computed live here, just read (see adminApi.extractionEval). One table
     per extractor (heuristic/semantic/hybrid), one row per field. */
-function ExtractionEvalResults({ result }: { result: ExtractionEvalResult | null }) {
+function ExtractionEvalResults({
+  result,
+}: {
+  result: ExtractionEvalResult | null;
+}) {
   if (!result) return null;
 
   if (!result.available) {
     return (
       <p className="mt-8 text-[0.9375rem] text-[var(--ink-soft)]">
-        Never run yet - click run to evaluate extraction quality against the benchmark.
+        Never run yet - click run to evaluate extraction quality against the
+        benchmark.
       </p>
     );
   }
@@ -1019,35 +1184,123 @@ function ExtractionEvalResults({ result }: { result: ExtractionEvalResult | null
   return (
     <div className="mt-8 space-y-8">
       <p className="text-[0.8125rem] text-[var(--ink-faint)]">
-        Last run {result.generated_at ? new Date(result.generated_at).toLocaleString() : "—"}, threshold=
-        {result.threshold}, {result.paper_count} paper{result.paper_count === 1 ? "" : "s"}
+        Last run{" "}
+        {result.generated_at
+          ? new Date(result.generated_at).toLocaleString()
+          : "—"}
+        , threshold=
+        {result.threshold}, {result.paper_count} paper
+        {result.paper_count === 1 ? "" : "s"}
       </p>
-      {Object.entries(result.extractors ?? {}).map(([extractorName, fieldScores]) => (
-        <div key={extractorName}>
-          <span className="eyebrow">{extractorName}</span>
-          <table className="mt-3 w-full text-[0.8125rem]">
-            <thead>
-              <tr className="border-b border-[var(--rule)] text-left text-[var(--ink-faint)]">
-                <th className="py-1 pr-4 font-normal">field</th>
-                <th className="py-1 pr-4 font-normal">precision</th>
-                <th className="py-1 pr-4 font-normal">recall</th>
-                <th className="py-1 font-normal">f1</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(fieldScores).map(([field, score]) => (
-                <tr key={field} className="border-b border-[var(--rule-soft)]">
-                  <td className="py-1.5 pr-4 readout">{field.replace(/_/g, " ")}</td>
-                  <td className="py-1.5 pr-4 tabular-nums">{score.precision.toFixed(3)}</td>
-                  <td className="py-1.5 pr-4 tabular-nums">{score.recall.toFixed(3)}</td>
-                  <td className="py-1.5 tabular-nums">{score.f1.toFixed(3)}</td>
+      {Object.entries(result.extractors ?? {}).map(
+        ([extractorName, fieldScores]) => (
+          <div key={extractorName}>
+            <span className="eyebrow">{extractorName}</span>
+            <table className="mt-3 w-full text-[0.8125rem]">
+              <thead>
+                <tr className="border-b border-[var(--rule)] text-left text-[var(--ink-faint)]">
+                  <th className="py-1 pr-4 font-normal">field</th>
+                  <th className="py-1 pr-4 font-normal">precision</th>
+                  <th className="py-1 pr-4 font-normal">recall</th>
+                  <th className="py-1 font-normal">f1</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+              </thead>
+              <tbody>
+                {Object.entries(fieldScores).map(([field, score]) => (
+                  <tr
+                    key={field}
+                    className="border-b border-[var(--rule-soft)]"
+                  >
+                    <td className="py-1.5 pr-4 readout">
+                      {field.replace(/_/g, " ")}
+                    </td>
+                    <td className="py-1.5 pr-4 tabular-nums">
+                      {score.precision.toFixed(3)}
+                    </td>
+                    <td className="py-1.5 pr-4 tabular-nums">
+                      {score.recall.toFixed(3)}
+                    </td>
+                    <td className="py-1.5 tabular-nums">
+                      {score.f1.toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ),
+      )}
+      {result.domains && Object.keys(result.domains).length > 0 && (
+        <details className="border-t border-[var(--rule-soft)] pt-6">
+          <summary className="eyebrow cursor-pointer list-none marker:hidden hover:text-[var(--ink)]">
+            domain evaluation packs
+          </summary>
+          <div className="mt-5 space-y-6">
+            <p className="max-w-[62ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+              The same hand-annotated extraction benchmark, split by its
+              declared domain. Small packs are shown with their paper count so
+              these numbers are not mistaken for broad domain claims.
+            </p>
+            {Object.entries(result.domains).map(([domain, pack]) => (
+              <details
+                key={domain}
+                className="border-t border-[var(--rule-soft)] pt-4"
+              >
+                <summary className="eyebrow cursor-pointer list-none marker:hidden hover:text-[var(--ink)]">
+                  {domain} · {pack.paper_count} paper
+                  {pack.paper_count === 1 ? "" : "s"}
+                </summary>
+                <div className="mt-3 space-y-6">
+                  {Object.entries(pack.extractors).map(
+                    ([extractorName, fieldScores]) => (
+                      <div key={extractorName}>
+                        <span className="eyebrow">{extractorName}</span>
+                        <MetricTable fieldScores={fieldScores} />
+                      </div>
+                    ),
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
 
+function MetricTable({
+  fieldScores,
+}: {
+  fieldScores: Record<
+    string,
+    { precision: number; recall: number; f1: number }
+  >;
+}) {
+  return (
+    <table className="mt-3 w-full text-[0.8125rem]">
+      <thead>
+        <tr className="border-b border-[var(--rule)] text-left text-[var(--ink-faint)]">
+          <th className="py-1 pr-4 font-normal">field</th>
+          <th className="py-1 pr-4 font-normal">precision</th>
+          <th className="py-1 pr-4 font-normal">recall</th>
+          <th className="py-1 font-normal">f1</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.entries(fieldScores).map(([field, score]) => (
+          <tr key={field} className="border-b border-[var(--rule-soft)]">
+            <td className="py-1.5 pr-4 readout">{field.replace(/_/g, " ")}</td>
+            <td className="py-1.5 pr-4 tabular-nums">
+              {score.precision.toFixed(3)}
+            </td>
+            <td className="py-1.5 pr-4 tabular-nums">
+              {score.recall.toFixed(3)}
+            </td>
+            <td className="py-1.5 tabular-nums">{score.f1.toFixed(3)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}

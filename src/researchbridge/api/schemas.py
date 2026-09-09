@@ -84,6 +84,7 @@ class AskRequest(BaseModel):
 
 
 class QuoteHitOut(BaseModel):
+    evidence_id: uuid.UUID | None = None
     paper_id: uuid.UUID
     paper_title: str
     paper_source: str
@@ -114,6 +115,77 @@ class SummarizeRequest(BaseModel):
 class SummarizeResponse(BaseModel):
     summary: str
     citations: list[int]
+
+
+class EvidenceReviewCreate(BaseModel):
+    evidence_id: uuid.UUID
+    surface_type: Literal["assessment", "qa_question"]
+    surface_id: uuid.UUID
+    role: str = Field(default="", max_length=80)
+    verdict: Literal["supported", "unclear", "not_supported"]
+    note: str | None = Field(default=None, max_length=2_000)
+
+
+class EvidenceReviewOut(BaseModel):
+    id: uuid.UUID
+    evidence_id: uuid.UUID
+    surface_type: str
+    surface_id: uuid.UUID
+    role: str
+    verdict: str
+    note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class QaCollectionCreate(BaseModel):
+    title: str = Field(default="Untitled collection", min_length=1, max_length=120)
+
+    @field_validator("title")
+    @classmethod
+    def _title_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("title must not be blank")
+        return v.strip()
+
+
+class QaCollectionSummaryOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    question_count: int
+
+
+class QaQuestionCreate(BaseModel):
+    question: str = Field(min_length=1, max_length=20_000)
+
+    @field_validator("question")
+    @classmethod
+    def _question_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question must not be blank")
+        return v.strip()
+
+
+class QaQuestionOut(BaseModel):
+    id: uuid.UUID
+    collection_id: uuid.UUID
+    question: str
+    hits: list[QuoteHitOut]
+    summary: str | None
+    summary_citations: list[int] | None
+    created_at: datetime
+
+
+class QaCollectionOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    questions: list[QaQuestionOut]
 
 
 class PaperPage(BaseModel):
@@ -254,6 +326,7 @@ class ResearchInputOut(BaseModel):
 
 class AssessmentEvidenceOut(BaseModel):
     role: str
+    evidence_id: uuid.UUID
     """Which report field this passage backs: comparison | novelty |
     research_gap | application | feasibility | risk | opportunity."""
     paper_id: uuid.UUID
@@ -262,6 +335,7 @@ class AssessmentEvidenceOut(BaseModel):
     section: str | None
     paper_url: str | None = None
     paper_doi: str | None = None
+    review: EvidenceReviewOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -425,9 +499,11 @@ class CorpusStats(BaseModel):
     total_authors: int
     embedded_papers: int
     papers_with_claims: int
+    papers_with_fulltext: int
     papers_by_year: dict[int, int]
     papers_by_category: dict[str, int]
     papers_by_source: dict[str, int]
+    papers_by_language: dict[str, int]
 
 
 class TrendsOut(BaseModel):
@@ -516,6 +592,10 @@ class PipelineStatus(BaseModel):
     """Grouped counts of the most recent ingestion errors (see
     _ingestion_errors_by_type's ERROR_SAMPLE_LIMIT) - a sample for spotting
     what's failing and why, not an exhaustive historical count."""
+    extraction_errors_by_type: dict[str, int]
+    """Grouped counts from a recent sample of extraction errors."""
+    fulltext_errors_by_type: dict[str, int]
+    """Grouped counts from a recent sample of full-text fetch errors."""
     analysis_claims_by_type: dict[str, int]
     """All-time count of every analysis_claims row by claim_type (fact/
     inference/hypothesis/opportunity/speculation), across both producers
@@ -665,6 +745,12 @@ class ExtractionEvalOut(BaseModel):
     extractors: dict[str, dict[str, ExtractionEvalFieldScore]] | None
     """extractor name -> field name -> score, e.g.
     {"hybrid": {"problem": {"precision": 0.8, ...}}}."""
+    domains: dict[str, "ExtractionEvalDomainOut"] | None = None
+
+
+class ExtractionEvalDomainOut(BaseModel):
+    paper_count: int
+    extractors: dict[str, dict[str, ExtractionEvalFieldScore]]
 
 
 class CitationsFetchTrigger(BaseModel):
@@ -708,3 +794,67 @@ class ResearchAssessmentSummaryPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ResearchProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    notes: str | None = Field(default=None, max_length=20_000)
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name must not be blank")
+        return v.strip()
+
+    @field_validator("tags")
+    @classmethod
+    def _normalize_tags(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip().lower() for value in values if value.strip()]
+        if any(len(value) > 40 for value in normalized):
+            raise ValueError("each tag must be at most 40 characters")
+        return list(dict.fromkeys(normalized))
+
+
+class ResearchProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    notes: str | None = Field(default=None, max_length=20_000)
+    tags: list[str] | None = Field(default=None, max_length=20)
+
+    @field_validator("name")
+    @classmethod
+    def _optional_name_not_blank(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("name must not be blank")
+        return v.strip() if v is not None else None
+
+    @field_validator("tags")
+    @classmethod
+    def _normalize_optional_tags(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        normalized = [value.strip().lower() for value in values if value.strip()]
+        if any(len(value) > 40 for value in normalized):
+            raise ValueError("each tag must be at most 40 characters")
+        return list(dict.fromkeys(normalized))
+
+
+class ResearchProjectSummaryOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    notes: str | None
+    tags: list[str]
+    created_at: datetime
+    updated_at: datetime
+    assessment_count: int
+
+
+class ResearchProjectOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    notes: str | None
+    tags: list[str]
+    created_at: datetime
+    updated_at: datetime
+    assessments: list[ResearchAssessmentSummaryOut]

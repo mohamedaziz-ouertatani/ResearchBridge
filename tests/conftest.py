@@ -56,6 +56,9 @@ def _truncate_all(engine) -> None:
         conn.execute(
             text(
                 "TRUNCATE TABLE embedding_runs, embeddings, gap_detection_runs, "
+                "research_project_inputs, research_projects, "
+                "evidence_reviews, "
+                "qa_questions, qa_collections, "
                 "fulltext_fetch_errors, fulltext_fetch_runs, paper_fulltext, "
                 "extraction_errors, extraction_runs, extracted_claims, evidence, "
                 "ingestion_errors, ingestion_runs, paper_citations, "

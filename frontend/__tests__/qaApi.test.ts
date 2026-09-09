@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { qaApi } from "@/lib/qaApi";
 
-function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = {}) {
+function mockFetchOnce(
+  body: unknown,
+  init: { ok?: boolean; status?: number } = {},
+) {
   const { ok = true, status = 200 } = init;
   const response = {
     ok,
@@ -61,6 +64,59 @@ describe("qaApi", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: "how well does it perform?", hits }),
       }),
+    );
+  });
+
+  it("creates a collection and saves a question in it", async () => {
+    mockFetchOnce({ id: "c1", title: "Reading notes", question_count: 0 });
+    await qaApi.createCollection("Reading notes");
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/qa/collections`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ title: "Reading notes" }),
+      }),
+    );
+
+    mockFetchOnce({
+      id: "q1",
+      collection_id: "c1",
+      question: "what changed?",
+      hits: [],
+    });
+    await qaApi.askInCollection("c1", "what changed?");
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/qa/collections/c1/questions`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ question: "what changed?" }),
+      }),
+    );
+  });
+
+  it("renames, deletes, and summarizes persisted Q&A records", async () => {
+    mockFetchOnce({ id: "c1", title: "Renamed", question_count: 1 });
+    await qaApi.renameCollection("c1", "Renamed");
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/qa/collections/c1`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ title: "Renamed" }),
+      }),
+    );
+
+    mockFetchOnce(null, { status: 204 });
+    await qaApi.deleteCollection("c1");
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/qa/collections/c1`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+
+    mockFetchOnce({ id: "q1", summary: "saved [1]", summary_citations: [1] });
+    await qaApi.summarizeQuestion("q1");
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE}/api/qa/questions/q1/summarize`,
+      expect.objectContaining({ method: "POST" }),
     );
   });
 

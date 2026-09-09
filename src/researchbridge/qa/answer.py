@@ -25,6 +25,7 @@ from researchbridge.embedding.search import search_by_text
 
 @dataclass
 class QuoteHit:
+    evidence_id: uuid.UUID
     paper_id: uuid.UUID
     paper_title: str
     paper_source: str
@@ -73,6 +74,7 @@ def answer_question(
 
     return [
         QuoteHit(
+            evidence_id=evidence.id,
             paper_id=claim.paper_id,
             paper_title=papers_by_id[claim.paper_id].title,
             paper_source=papers_by_id[claim.paper_id].source,

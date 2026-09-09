@@ -26,6 +26,7 @@ from researchbridge.db.models import (
     Embedding,
     Evidence,
     ExtractedClaim,
+    PaperFullText,
     Paper,
     PaperAuthor,
     PaperCategory,
@@ -262,6 +263,11 @@ def corpus_stats(
         .join(Paper, Paper.id == ExtractedClaim.paper_id)
         .where(not_excluded, year_scope)
     ).scalar_one()
+    with_fulltext = session.execute(
+        select(func.count(func.distinct(PaperFullText.paper_id)))
+        .join(Paper, Paper.id == PaperFullText.paper_id)
+        .where(not_excluded, year_scope)
+    ).scalar_one()
 
     year_rows = session.execute(
         select(func.extract("year", Paper.publication_date), func.count(Paper.id))
@@ -282,14 +288,24 @@ def corpus_stats(
         select(Paper.source, func.count(Paper.id)).where(not_excluded, year_scope).group_by(Paper.source)
     ).all()
 
+    language_expr = func.coalesce(Paper.language, "unknown").label("language")
+    language_rows = session.execute(
+        select(language_expr, func.count(Paper.id))
+        .where(not_excluded, year_scope)
+        .group_by(language_expr)
+        .order_by(func.count(Paper.id).desc())
+    ).all()
+
     return CorpusStats(
         total_papers=total_papers,
         total_authors=total_authors,
         embedded_papers=embedded,
         papers_with_claims=with_claims,
+        papers_with_fulltext=with_fulltext,
         papers_by_year={int(year): count for year, count in year_rows},
         papers_by_category={category: count for category, count in category_rows},
         papers_by_source=dict(source_rows),
+        papers_by_language=dict(language_rows),
     )
 
 

@@ -61,6 +61,8 @@ export type PipelineStatus = {
   assessment_stats: AssessmentStats;
   gap_stats: GapReviewStats;
   ingestion_errors_by_type: Record<string, number>;
+  extraction_errors_by_type: Record<string, number>;
+  fulltext_errors_by_type: Record<string, number>;
   analysis_claims_by_type: Record<string, number>;
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
@@ -123,9 +125,19 @@ export type ExtractionEvalResult = {
   threshold: number | null;
   paper_count: number | null;
   extractors: Record<string, Record<string, ExtractionEvalFieldScore>> | null;
+  domains: Record<
+    string,
+    {
+      paper_count: number;
+      extractors: Record<string, Record<string, ExtractionEvalFieldScore>>;
+    }
+  > | null;
 };
 
-async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+async function post<T>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -141,10 +153,13 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T> 
 
 export const adminApi = {
   pipelineStatus: () =>
-    fetch(`${API_BASE}/api/admin/pipeline`, { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return response.json() as Promise<PipelineStatus>;
-    }),
+    fetch(`${API_BASE}/api/admin/pipeline`, { cache: "no-store" }).then(
+      (response) => {
+        if (!response.ok)
+          throw new Error(`Request failed (${response.status})`);
+        return response.json() as Promise<PipelineStatus>;
+      },
+    ),
 
   excludePaper: (id: string, excluded: boolean) =>
     fetch(`${API_BASE}/api/admin/papers/${id}/exclude`, {
@@ -158,26 +173,47 @@ export const adminApi = {
     }),
 
   getPaperFulltext: (id: string) =>
-    fetch(`${API_BASE}/api/admin/papers/${id}/fulltext`, { cache: "no-store" }).then((response) => {
+    fetch(`${API_BASE}/api/admin/papers/${id}/fulltext`, {
+      cache: "no-store",
+    }).then((response) => {
       if (response.status === 404) return null; // no full text stored - not an error condition
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<PaperFullText>;
     }),
 
-  triggerArxivIngestion: (params: { search_query?: string; page_size?: number; max_pages?: number }) =>
-    post<PipelineTriggerResult>("/api/admin/ingestion/arxiv/run", params),
+  triggerArxivIngestion: (params: {
+    search_query?: string;
+    page_size?: number;
+    max_pages?: number;
+  }) => post<PipelineTriggerResult>("/api/admin/ingestion/arxiv/run", params),
 
-  triggerSpringerIngestion: (params: { query?: string; page_size?: number; max_pages?: number }) =>
+  triggerSpringerIngestion: (params: {
+    query?: string;
+    page_size?: number;
+    max_pages?: number;
+  }) =>
     post<PipelineTriggerResult>("/api/admin/ingestion/springer/run", params),
 
-  triggerSemanticScholarIngestion: (params: { query?: string; max_pages?: number }) =>
-    post<PipelineTriggerResult>("/api/admin/ingestion/semantic-scholar/run", params),
+  triggerSemanticScholarIngestion: (params: {
+    query?: string;
+    max_pages?: number;
+  }) =>
+    post<PipelineTriggerResult>(
+      "/api/admin/ingestion/semantic-scholar/run",
+      params,
+    ),
 
-  triggerCoreIngestion: (params: { query?: string; page_size?: number; max_pages?: number }) =>
-    post<PipelineTriggerResult>("/api/admin/ingestion/core/run", params),
+  triggerCoreIngestion: (params: {
+    query?: string;
+    page_size?: number;
+    max_pages?: number;
+  }) => post<PipelineTriggerResult>("/api/admin/ingestion/core/run", params),
 
-  triggerExtraction: (params: { limit?: number; extractor?: string; force?: boolean }) =>
-    post<PipelineTriggerResult>("/api/admin/extraction/run", params),
+  triggerExtraction: (params: {
+    limit?: number;
+    extractor?: string;
+    force?: boolean;
+  }) => post<PipelineTriggerResult>("/api/admin/extraction/run", params),
 
   triggerEmbedding: (params: { limit?: number; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/embedding/run", params),
@@ -186,19 +222,25 @@ export const adminApi = {
     post<PipelineTriggerResult>("/api/admin/retrieval-eval/run", params),
 
   retrievalEval: () =>
-    fetch(`${API_BASE}/api/admin/retrieval-eval`, { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return response.json() as Promise<RetrievalEvalResult>;
-    }),
+    fetch(`${API_BASE}/api/admin/retrieval-eval`, { cache: "no-store" }).then(
+      (response) => {
+        if (!response.ok)
+          throw new Error(`Request failed (${response.status})`);
+        return response.json() as Promise<RetrievalEvalResult>;
+      },
+    ),
 
   triggerExtractionEval: (params: { threshold?: number; extractor?: string }) =>
     post<PipelineTriggerResult>("/api/admin/extraction-eval/run", params),
 
   extractionEval: () =>
-    fetch(`${API_BASE}/api/admin/extraction-eval`, { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return response.json() as Promise<ExtractionEvalResult>;
-    }),
+    fetch(`${API_BASE}/api/admin/extraction-eval`, { cache: "no-store" }).then(
+      (response) => {
+        if (!response.ok)
+          throw new Error(`Request failed (${response.status})`);
+        return response.json() as Promise<ExtractionEvalResult>;
+      },
+    ),
 
   triggerCitationsFetch: (params: { source?: string; force?: boolean }) =>
     post<PipelineTriggerResult>("/api/admin/citations-fetch/run", params),
@@ -207,19 +249,29 @@ export const adminApi = {
     post<PipelineTriggerResult>("/api/admin/fulltext/run", params),
 
   log: (key: PipelineKey, lines = 200) =>
-    fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, { cache: "no-store" }).then((response) => {
+    fetch(`${API_BASE}/api/admin/${key}/log?lines=${lines}`, {
+      cache: "no-store",
+    }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return (response.json() as Promise<{ log: string }>).then((body) => body.log);
+      return (response.json() as Promise<{ log: string }>).then(
+        (body) => body.log,
+      );
     }),
 
   notifications: () =>
-    fetch(`${API_BASE}/api/admin/notifications`, { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      return response.json() as Promise<Notification[]>;
-    }),
+    fetch(`${API_BASE}/api/admin/notifications`, { cache: "no-store" }).then(
+      (response) => {
+        if (!response.ok)
+          throw new Error(`Request failed (${response.status})`);
+        return response.json() as Promise<Notification[]>;
+      },
+    ),
 
   stopPipeline: (key: PipelineKey) =>
-    fetch(`${API_BASE}/api/admin/${key}/stop`, { method: "POST", cache: "no-store" }).then((response) => {
+    fetch(`${API_BASE}/api/admin/${key}/stop`, {
+      method: "POST",
+      cache: "no-store",
+    }).then((response) => {
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
       return response.json() as Promise<{ stopped: boolean; pipeline: string }>;
     }),

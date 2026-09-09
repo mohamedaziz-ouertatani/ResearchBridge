@@ -6,8 +6,10 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 
 from researchbridge.db.models import (
+    AnalysisClaim,
     CandidateGap,
     CandidateGapEvidence,
+    ClaimEvidence,
     Evidence,
     ExtractedClaim,
     ExtractionError,
@@ -322,6 +324,43 @@ def test_force_reset_cascades_through_candidate_gap_evidence(session_factory) ->
         assert session.execute(select(CandidateGapEvidence)).scalars().all() == []
         # The candidate gap itself survives - only its evidence link is severed.
         assert session.get(CandidateGap, gap.id) is not None
+    finally:
+        session.close()
+
+
+def test_force_reset_cascades_through_claim_evidence(session_factory) -> None:
+    # An analysis claim (gaps/claims.py's inference layer) can cite evidence
+    # from a paper being re-extracted; reset_extraction_data must clear that
+    # reference first or the Evidence delete violates claim_evidence's
+    # foreign key.
+    session = session_factory()
+    paper = _make_paper(session, "P1", abstract="We propose a new method for X.")
+    session.close()
+
+    pipeline = ExtractionPipeline(extractor=StubExtractor(), session_factory=session_factory)
+    pipeline.run()
+
+    session = session_factory()
+    try:
+        evidence = session.execute(select(Evidence)).scalar_one()
+        claim = AnalysisClaim(
+            claim_type="inference",
+            claim_text="A recurring pattern.",
+            confidence="medium",
+            status="pending",
+            source_table="candidate_gaps",
+            source_id=uuid.uuid4(),
+        )
+        session.add(claim)
+        session.flush()
+        session.add(ClaimEvidence(claim_id=claim.id, evidence_id=evidence.id, relationship="supports"))
+        session.commit()
+
+        deleted = reset_extraction_data(session)
+        assert deleted == 1
+        assert session.execute(select(ClaimEvidence)).scalars().all() == []
+        # The analysis claim itself survives - only its evidence link is severed.
+        assert session.get(AnalysisClaim, claim.id) is not None
     finally:
         session.close()
 

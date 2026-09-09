@@ -22,7 +22,9 @@ from researchbridge.db.models import (
     EmbeddingRun,
     Evidence,
     ExtractedClaim,
+    ExtractionError,
     ExtractionRun,
+    FullTextFetchError,
     FullTextFetchRun,
     GapDetectionRun,
     IngestionError,
@@ -289,6 +291,37 @@ def test_pipeline_status_ingestion_errors_by_type_empty_when_none(client) -> Non
     body = client.get("/api/admin/pipeline").json()
 
     assert body["ingestion_errors_by_type"] == {}
+
+
+def test_pipeline_status_reports_extraction_and_fulltext_errors_by_type(client, session) -> None:
+    paper = Paper(
+        id=uuid.uuid4(), source="arxiv", source_id="errors", title="Error paper", abstract="",
+        raw_metadata={}, ingestion_metadata={},
+    )
+    extraction_run = ExtractionRun(extractor_name="hybrid", status="completed")
+    fulltext_run = FullTextFetchRun(status="completed")
+    session.add_all([paper, extraction_run, fulltext_run])
+    session.flush()
+    session.add_all([
+        ExtractionError(
+            extraction_run_id=extraction_run.id, paper_id=paper.id,
+            error_type="extractor_error", error_detail="bad",
+        ),
+        ExtractionError(
+            extraction_run_id=extraction_run.id, paper_id=paper.id,
+            error_type="extractor_error", error_detail="bad again",
+        ),
+        FullTextFetchError(
+            fulltext_fetch_run_id=fulltext_run.id, paper_id=paper.id,
+            error_type="pdf_parse", error_detail="bad pdf",
+        ),
+    ])
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["extraction_errors_by_type"] == {"extractor_error": 2}
+    assert body["fulltext_errors_by_type"] == {"pdf_parse": 1}
 
 
 def test_pipeline_status_reports_analysis_claims_by_type(client, session) -> None:
@@ -1091,7 +1124,14 @@ def test_get_extraction_eval_returns_unavailable_when_no_results_file(client, mo
 
     body = client.get("/api/admin/extraction-eval").json()
 
-    assert body == {"available": False, "generated_at": None, "threshold": None, "paper_count": None, "extractors": None}
+    assert body == {
+        "available": False,
+        "generated_at": None,
+        "threshold": None,
+        "paper_count": None,
+        "extractors": None,
+        "domains": None,
+    }
 
 
 def test_get_extraction_eval_returns_persisted_results_when_file_exists(client, monkeypatch, tmp_path) -> None:

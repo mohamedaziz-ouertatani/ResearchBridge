@@ -55,7 +55,9 @@ from researchbridge.db.models import (
     EmbeddingRun,
     ExtractedClaim,
     ExtractionRun,
+    ExtractionError,
     FullTextFetchRun,
+    FullTextFetchError,
     GapDetectionRun,
     IngestionError,
     IngestionRun,
@@ -143,6 +145,8 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         assessment_stats=_assessment_stats(session),
         gap_stats=_gap_stats(session),
         ingestion_errors_by_type=_ingestion_errors_by_type(session),
+        extraction_errors_by_type=_extraction_errors_by_type(session),
+        fulltext_errors_by_type=_fulltext_errors_by_type(session),
         analysis_claims_by_type=_analysis_claims_by_type(session),
         ingestion_runs=[
             _to_run(run, ("records_fetched", "records_inserted", "records_duplicate", "records_failed"))
@@ -494,11 +498,23 @@ all-time count, so this stays cheap regardless of corpus age."""
 
 
 def _ingestion_errors_by_type(session: Session) -> dict[str, int]:
-    recent_ids = select(IngestionError.id).order_by(IngestionError.occurred_at.desc()).limit(ERROR_SAMPLE_LIMIT)
+    return _recent_errors_by_type(session, IngestionError)
+
+
+def _extraction_errors_by_type(session: Session) -> dict[str, int]:
+    return _recent_errors_by_type(session, ExtractionError)
+
+
+def _fulltext_errors_by_type(session: Session) -> dict[str, int]:
+    return _recent_errors_by_type(session, FullTextFetchError)
+
+
+def _recent_errors_by_type(session: Session, error_model: type) -> dict[str, int]:
+    recent_ids = select(error_model.id).order_by(error_model.occurred_at.desc()).limit(ERROR_SAMPLE_LIMIT)
     rows = session.execute(
-        select(IngestionError.error_type, func.count())
-        .where(IngestionError.id.in_(recent_ids))
-        .group_by(IngestionError.error_type)
+        select(error_model.error_type, func.count())
+        .where(error_model.id.in_(recent_ids))
+        .group_by(error_model.error_type)
     ).all()
     return dict(rows)
 
@@ -804,6 +820,7 @@ def get_extraction_eval() -> ExtractionEvalOut:
         threshold=data["threshold"],
         paper_count=data["paper_count"],
         extractors=data["extractors"],
+        domains=data.get("domains"),
     )
 
 

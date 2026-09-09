@@ -13,7 +13,7 @@ In scope:
 Out of scope (deliberately deferred):
 - Any generative LLM call. No new dependency, no API key, no free-text synthesis — the "answer" is a set of real quotes, not prose written about them. This is the load-bearing decision from brainstorming; revisiting it is a separate, later decision if ever made.
 - Full-text search over each paper's whole body. The general corpus stores only title+abstract (`Paper` has no fulltext column — see `benchmark/fulltext.py`'s docstring, which caches full text only for the ~40 benchmark papers, deliberately not wired into the main pipeline). This feature searches the same ground truth every other corpus feature does: abstracts plus whatever `ExtractedClaim`/`Evidence` the extraction pipeline already pulled out.
-- Persisting questions or answers anywhere. Stateless request/response, like `GET /api/search` — no new table, no history page.
+- The original extractive endpoint remains stateless, but persistent Q&A is now available through named local collections. Saved questions store the exact grounded hit snapshot and optional validated summary so later corpus changes do not rewrite the answer a reader reviewed.
 - A new per-claim embedding column/pipeline job. Candidate quotes are embedded on the fly, at query time, over the small set surfaced by the paper-level search (bounded — see Performance below).
 - Multi-turn conversation / follow-up context. One question in, one ranked result set out, same as a search box.
 

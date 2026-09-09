@@ -1,103 +1,9 @@
 {
-  "generated_at": "2026-09-03T22:12:26.319676+00:00",
+  "generated_at": "2026-09-06T12:59:51.101992+00:00",
   "threshold": 0.1,
   "paper_count": 40,
   "extractors": {
     "heuristic": {
-      "problem": {
-        "precision": 1.0,
-        "recall": 0.85,
-        "f1": 0.9189189189189189
-      },
-      "research_question": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0
-      },
-      "method": {
-        "precision": 1.0,
-        "recall": 0.55,
-        "f1": 0.7096774193548387
-      },
-      "dataset": {
-        "precision": 1.0,
-        "recall": 0.1111111111111111,
-        "f1": 0.19999999999999998
-      },
-      "main_contribution": {
-        "precision": 1.0,
-        "recall": 0.05,
-        "f1": 0.09523809523809523
-      },
-      "results": {
-        "precision": 1.0,
-        "recall": 0.175,
-        "f1": 0.2978723404255319
-      },
-      "limitations": {
-        "precision": 0.7,
-        "recall": 0.25925925925925924,
-        "f1": 0.37837837837837834
-      },
-      "applications": {
-        "precision": 1.0,
-        "recall": 0.030303030303030304,
-        "f1": 0.05882352941176471
-      },
-      "research_gap": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0
-      }
-    },
-    "semantic": {
-      "problem": {
-        "precision": 1.0,
-        "recall": 0.425,
-        "f1": 0.5964912280701754
-      },
-      "research_question": {
-        "precision": 1.0,
-        "recall": 0.2,
-        "f1": 0.33333333333333337
-      },
-      "method": {
-        "precision": 1.0,
-        "recall": 0.325,
-        "f1": 0.4905660377358491
-      },
-      "dataset": {
-        "precision": 0.9629629629629629,
-        "recall": 0.7222222222222222,
-        "f1": 0.8253968253968254
-      },
-      "main_contribution": {
-        "precision": 1.0,
-        "recall": 0.025,
-        "f1": 0.04878048780487806
-      },
-      "results": {
-        "precision": 1.0,
-        "recall": 0.175,
-        "f1": 0.2978723404255319
-      },
-      "limitations": {
-        "precision": 0.6666666666666666,
-        "recall": 0.5925925925925926,
-        "f1": 0.627450980392157
-      },
-      "applications": {
-        "precision": 0.8695652173913043,
-        "recall": 0.6060606060606061,
-        "f1": 0.7142857142857143
-      },
-      "research_gap": {
-        "precision": 1.0,
-        "recall": 0.14285714285714285,
-        "f1": 0.25
-      }
-    },
-    "hybrid": {
       "problem": {
         "precision": 1.0,
         "recall": 0.9,
@@ -105,43 +11,869 @@
       },
       "research_question": {
         "precision": 1.0,
-        "recall": 0.2,
-        "f1": 0.33333333333333337
+        "recall": 0.05,
+        "f1": 0.09523809523809523
       },
       "method": {
         "precision": 1.0,
-        "recall": 0.65,
-        "f1": 0.787878787878788
+        "recall": 0.575,
+        "f1": 0.7301587301587301
       },
       "dataset": {
-        "precision": 0.9629629629629629,
-        "recall": 0.7222222222222222,
-        "f1": 0.8253968253968254
+        "precision": 1.0,
+        "recall": 0.2777777777777778,
+        "f1": 0.4347826086956522
       },
       "main_contribution": {
-        "precision": 1.0,
-        "recall": 0.075,
-        "f1": 0.13953488372093023
+        "precision": 0.8333333333333334,
+        "recall": 0.25,
+        "f1": 0.3846153846153846
       },
       "results": {
         "precision": 1.0,
-        "recall": 0.3,
-        "f1": 0.4615384615384615
+        "recall": 0.225,
+        "f1": 0.36734693877551017
       },
       "limitations": {
-        "precision": 0.6666666666666666,
-        "recall": 0.6666666666666666,
-        "f1": 0.6666666666666666
+        "precision": 0.8,
+        "recall": 0.4444444444444444,
+        "f1": 0.5714285714285714
       },
       "applications": {
-        "precision": 0.875,
-        "recall": 0.6363636363636364,
-        "f1": 0.7368421052631579
+        "precision": 0.75,
+        "recall": 0.09090909090909091,
+        "f1": 0.16216216216216214
       },
       "research_gap": {
         "precision": 1.0,
-        "recall": 0.14285714285714285,
-        "f1": 0.25
+        "recall": 0.21428571428571427,
+        "f1": 0.35294117647058826
+      }
+    },
+    "semantic": {
+      "problem": {
+        "precision": 0.9230769230769231,
+        "recall": 0.6,
+        "f1": 0.7272727272727274
+      },
+      "research_question": {
+        "precision": 0.5135135135135135,
+        "recall": 0.475,
+        "f1": 0.4935064935064935
+      },
+      "method": {
+        "precision": 0.8620689655172413,
+        "recall": 0.625,
+        "f1": 0.7246376811594203
+      },
+      "dataset": {
+        "precision": 0.8888888888888888,
+        "recall": 0.8888888888888888,
+        "f1": 0.8888888888888888
+      },
+      "main_contribution": {
+        "precision": 0.5833333333333334,
+        "recall": 0.525,
+        "f1": 0.5526315789473685
+      },
+      "results": {
+        "precision": 1.0,
+        "recall": 0.375,
+        "f1": 0.5454545454545454
+      },
+      "limitations": {
+        "precision": 0.6666666666666666,
+        "recall": 0.7407407407407407,
+        "f1": 0.7017543859649122
+      },
+      "applications": {
+        "precision": 0.7647058823529411,
+        "recall": 0.7878787878787878,
+        "f1": 0.7761194029850745
+      },
+      "research_gap": {
+        "precision": 0.6111111111111112,
+        "recall": 0.39285714285714285,
+        "f1": 0.4782608695652174
+      }
+    },
+    "hybrid": {
+      "problem": {
+        "precision": 1.0,
+        "recall": 0.925,
+        "f1": 0.961038961038961
+      },
+      "research_question": {
+        "precision": 0.5675675675675675,
+        "recall": 0.525,
+        "f1": 0.5454545454545455
+      },
+      "method": {
+        "precision": 1.0,
+        "recall": 0.825,
+        "f1": 0.9041095890410958
+      },
+      "dataset": {
+        "precision": 0.8888888888888888,
+        "recall": 0.8888888888888888,
+        "f1": 0.8888888888888888
+      },
+      "main_contribution": {
+        "precision": 0.6756756756756757,
+        "recall": 0.625,
+        "f1": 0.6493506493506493
+      },
+      "results": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6666666666666666
+      },
+      "limitations": {
+        "precision": 0.6470588235294118,
+        "recall": 0.8148148148148148,
+        "f1": 0.7213114754098361
+      },
+      "applications": {
+        "precision": 0.7352941176470589,
+        "recall": 0.7575757575757576,
+        "f1": 0.746268656716418
+      },
+      "research_gap": {
+        "precision": 0.6666666666666666,
+        "recall": 0.42857142857142855,
+        "f1": 0.5217391304347826
+      }
+    }
+  },
+  "domains": {
+    "Machine Learning": {
+      "paper_count": 10,
+      "extractors": {
+        "heuristic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.9,
+            "f1": 0.9473684210526316
+          },
+          "research_question": {
+            "precision": 1.0,
+            "recall": 0.1,
+            "f1": 0.18181818181818182
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.3,
+            "f1": 0.4615384615384615
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.2222222222222222,
+            "f1": 0.3636363636363636
+          },
+          "main_contribution": {
+            "precision": 0.75,
+            "recall": 0.3,
+            "f1": 0.4285714285714285
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.2,
+            "f1": 0.33333333333333337
+          },
+          "limitations": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          },
+          "applications": {
+            "precision": 0.5,
+            "recall": 0.14285714285714285,
+            "f1": 0.22222222222222224
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.2857142857142857,
+            "f1": 0.4444444444444445
+          }
+        },
+        "semantic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.4,
+            "f1": 0.5714285714285715
+          },
+          "research_question": {
+            "precision": 0.4444444444444444,
+            "recall": 0.4,
+            "f1": 0.4210526315789474
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.7,
+            "f1": 0.8235294117647058
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 0.7777777777777778,
+            "f1": 0.823529411764706
+          },
+          "main_contribution": {
+            "precision": 0.75,
+            "recall": 0.6,
+            "f1": 0.6666666666666665
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.3,
+            "f1": 0.4615384615384615
+          },
+          "limitations": {
+            "precision": 0.625,
+            "recall": 0.8333333333333334,
+            "f1": 0.7142857142857143
+          },
+          "applications": {
+            "precision": 0.75,
+            "recall": 0.8571428571428571,
+            "f1": 0.7999999999999999
+          },
+          "research_gap": {
+            "precision": 0.25,
+            "recall": 0.14285714285714285,
+            "f1": 0.18181818181818182
+          }
+        },
+        "hybrid": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.9,
+            "f1": 0.9473684210526316
+          },
+          "research_question": {
+            "precision": 0.5555555555555556,
+            "recall": 0.5,
+            "f1": 0.5263157894736842
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.8,
+            "f1": 0.888888888888889
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 0.7777777777777778,
+            "f1": 0.823529411764706
+          },
+          "main_contribution": {
+            "precision": 0.7777777777777778,
+            "recall": 0.7,
+            "f1": 0.7368421052631577
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.4,
+            "f1": 0.5714285714285715
+          },
+          "limitations": {
+            "precision": 0.625,
+            "recall": 0.8333333333333334,
+            "f1": 0.7142857142857143
+          },
+          "applications": {
+            "precision": 0.625,
+            "recall": 0.7142857142857143,
+            "f1": 0.6666666666666666
+          },
+          "research_gap": {
+            "precision": 0.5,
+            "recall": 0.2857142857142857,
+            "f1": 0.36363636363636365
+          }
+        }
+      }
+    },
+    "Systems": {
+      "paper_count": 7,
+      "extractors": {
+        "heuristic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "research_question": {
+            "precision": 1.0,
+            "recall": 0.14285714285714285,
+            "f1": 0.25
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "dataset": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "main_contribution": {
+            "precision": 0.5,
+            "recall": 0.14285714285714285,
+            "f1": 0.22222222222222224
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "limitations": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          },
+          "applications": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.16666666666666666,
+            "f1": 0.2857142857142857
+          }
+        },
+        "semantic": {
+          "problem": {
+            "precision": 0.75,
+            "recall": 0.42857142857142855,
+            "f1": 0.5454545454545454
+          },
+          "research_question": {
+            "precision": 0.6666666666666666,
+            "recall": 0.5714285714285714,
+            "f1": 0.6153846153846153
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "dataset": {
+            "precision": 0.8571428571428571,
+            "recall": 1.0,
+            "f1": 0.923076923076923
+          },
+          "main_contribution": {
+            "precision": 0.6666666666666666,
+            "recall": 0.5714285714285714,
+            "f1": 0.6153846153846153
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.14285714285714285,
+            "f1": 0.25
+          },
+          "limitations": {
+            "precision": 0.6666666666666666,
+            "recall": 0.6666666666666666,
+            "f1": 0.6666666666666666
+          },
+          "applications": {
+            "precision": 0.6666666666666666,
+            "recall": 0.6666666666666666,
+            "f1": 0.6666666666666666
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          }
+        },
+        "hybrid": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "research_question": {
+            "precision": 0.8333333333333334,
+            "recall": 0.7142857142857143,
+            "f1": 0.7692307692307692
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "dataset": {
+            "precision": 0.8571428571428571,
+            "recall": 1.0,
+            "f1": 0.923076923076923
+          },
+          "main_contribution": {
+            "precision": 0.5,
+            "recall": 0.42857142857142855,
+            "f1": 0.4615384615384615
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "limitations": {
+            "precision": 0.7142857142857143,
+            "recall": 0.8333333333333334,
+            "f1": 0.7692307692307692
+          },
+          "applications": {
+            "precision": 0.6666666666666666,
+            "recall": 0.6666666666666666,
+            "f1": 0.6666666666666666
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          }
+        }
+      }
+    },
+    "NLP": {
+      "paper_count": 8,
+      "extractors": {
+        "heuristic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.9333333333333333
+          },
+          "research_question": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "main_contribution": {
+            "precision": 1.0,
+            "recall": 0.25,
+            "f1": 0.4
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.125,
+            "f1": 0.2222222222222222
+          },
+          "limitations": {
+            "precision": 0.8333333333333334,
+            "recall": 0.7142857142857143,
+            "f1": 0.7692307692307692
+          },
+          "applications": {
+            "precision": 1.0,
+            "recall": 0.2857142857142857,
+            "f1": 0.4444444444444445
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.14285714285714285,
+            "f1": 0.25
+          }
+        },
+        "semantic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571
+          },
+          "research_question": {
+            "precision": 0.75,
+            "recall": 0.75,
+            "f1": 0.75
+          },
+          "method": {
+            "precision": 0.8,
+            "recall": 0.5,
+            "f1": 0.6153846153846154
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 1.0,
+            "f1": 0.9333333333333333
+          },
+          "main_contribution": {
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.625,
+            "f1": 0.7692307692307693
+          },
+          "limitations": {
+            "precision": 0.8333333333333334,
+            "recall": 0.7142857142857143,
+            "f1": 0.7692307692307692
+          },
+          "applications": {
+            "precision": 0.8571428571428571,
+            "recall": 0.8571428571428571,
+            "f1": 0.8571428571428571
+          },
+          "research_gap": {
+            "precision": 0.8,
+            "recall": 0.5714285714285714,
+            "f1": 0.6666666666666666
+          }
+        },
+        "hybrid": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "research_question": {
+            "precision": 0.75,
+            "recall": 0.75,
+            "f1": 0.75
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.625,
+            "f1": 0.7692307692307693
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 1.0,
+            "f1": 0.9333333333333333
+          },
+          "main_contribution": {
+            "precision": 0.75,
+            "recall": 0.75,
+            "f1": 0.75
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.625,
+            "f1": 0.7692307692307693
+          },
+          "limitations": {
+            "precision": 0.8571428571428571,
+            "recall": 0.8571428571428571,
+            "f1": 0.8571428571428571
+          },
+          "applications": {
+            "precision": 0.8571428571428571,
+            "recall": 0.8571428571428571,
+            "f1": 0.8571428571428571
+          },
+          "research_gap": {
+            "precision": 0.8,
+            "recall": 0.5714285714285714,
+            "f1": 0.6666666666666666
+          }
+        }
+      }
+    },
+    "Computer Vision": {
+      "paper_count": 8,
+      "extractors": {
+        "heuristic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.9333333333333333
+          },
+          "research_question": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.9333333333333333
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666
+          },
+          "main_contribution": {
+            "precision": 1.0,
+            "recall": 0.375,
+            "f1": 0.5454545454545454
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.375,
+            "f1": 0.5454545454545454
+          },
+          "limitations": {
+            "precision": 0.5,
+            "recall": 0.25,
+            "f1": 0.3333333333333333
+          },
+          "applications": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.25,
+            "f1": 0.4
+          }
+        },
+        "semantic": {
+          "problem": {
+            "precision": 0.8333333333333334,
+            "recall": 0.625,
+            "f1": 0.7142857142857143
+          },
+          "research_question": {
+            "precision": 0.42857142857142855,
+            "recall": 0.375,
+            "f1": 0.39999999999999997
+          },
+          "method": {
+            "precision": 0.8333333333333334,
+            "recall": 0.625,
+            "f1": 0.7142857142857143
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 0.875,
+            "f1": 0.875
+          },
+          "main_contribution": {
+            "precision": 0.7142857142857143,
+            "recall": 0.625,
+            "f1": 0.6666666666666666
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.375,
+            "f1": 0.5454545454545454
+          },
+          "limitations": {
+            "precision": 0.6,
+            "recall": 0.75,
+            "f1": 0.6666666666666665
+          },
+          "applications": {
+            "precision": 0.625,
+            "recall": 0.8333333333333334,
+            "f1": 0.7142857142857143
+          },
+          "research_gap": {
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5
+          }
+        },
+        "hybrid": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.9333333333333333
+          },
+          "research_question": {
+            "precision": 0.42857142857142855,
+            "recall": 0.375,
+            "f1": 0.39999999999999997
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.9333333333333333
+          },
+          "dataset": {
+            "precision": 0.875,
+            "recall": 0.875,
+            "f1": 0.875
+          },
+          "main_contribution": {
+            "precision": 0.8571428571428571,
+            "recall": 0.75,
+            "f1": 0.7999999999999999
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.625,
+            "f1": 0.7692307692307693
+          },
+          "limitations": {
+            "precision": 0.5,
+            "recall": 0.75,
+            "f1": 0.6
+          },
+          "applications": {
+            "precision": 0.625,
+            "recall": 0.8333333333333334,
+            "f1": 0.7142857142857143
+          },
+          "research_gap": {
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5
+          }
+        }
+      }
+    },
+    "General AI / Other": {
+      "paper_count": 7,
+      "extractors": {
+        "heuristic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "research_question": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.16666666666666666,
+            "f1": 0.2857142857142857
+          },
+          "main_contribution": {
+            "precision": 1.0,
+            "recall": 0.14285714285714285,
+            "f1": 0.25
+          },
+          "results": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "limitations": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "applications": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "research_gap": {
+            "precision": 1.0,
+            "recall": 0.25,
+            "f1": 0.4
+          }
+        },
+        "semantic": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 0.8571428571428571,
+            "f1": 0.923076923076923
+          },
+          "research_question": {
+            "precision": 0.2857142857142857,
+            "recall": 0.2857142857142857,
+            "f1": 0.2857142857142857
+          },
+          "method": {
+            "precision": 0.6,
+            "recall": 0.42857142857142855,
+            "f1": 0.5
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091
+          },
+          "main_contribution": {
+            "precision": 0.2857142857142857,
+            "recall": 0.2857142857142857,
+            "f1": 0.2857142857142857
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "limitations": {
+            "precision": 0.6,
+            "recall": 0.75,
+            "f1": 0.6666666666666665
+          },
+          "applications": {
+            "precision": 1.0,
+            "recall": 0.7142857142857143,
+            "f1": 0.8333333333333333
+          },
+          "research_gap": {
+            "precision": 0.5,
+            "recall": 0.25,
+            "f1": 0.3333333333333333
+          }
+        },
+        "hybrid": {
+          "problem": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "research_question": {
+            "precision": 0.2857142857142857,
+            "recall": 0.2857142857142857,
+            "f1": 0.2857142857142857
+          },
+          "method": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "dataset": {
+            "precision": 1.0,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091
+          },
+          "main_contribution": {
+            "precision": 0.42857142857142855,
+            "recall": 0.42857142857142855,
+            "f1": 0.42857142857142855
+          },
+          "results": {
+            "precision": 1.0,
+            "recall": 0.42857142857142855,
+            "f1": 0.6
+          },
+          "limitations": {
+            "precision": 0.5,
+            "recall": 0.75,
+            "f1": 0.6
+          },
+          "applications": {
+            "precision": 1.0,
+            "recall": 0.7142857142857143,
+            "f1": 0.8333333333333333
+          },
+          "research_gap": {
+            "precision": 0.5,
+            "recall": 0.25,
+            "f1": 0.3333333333333333
+          }
+        }
       }
     }
   }

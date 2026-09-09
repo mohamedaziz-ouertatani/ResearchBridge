@@ -11,11 +11,25 @@ export type EvidenceRole =
   | "opportunity";
 
 export type AssessmentEvidence = {
+  evidence_id?: string;
   role: EvidenceRole;
   paper_id: string;
   paper_title: string;
   text: string;
   section: string | null;
+  review?: EvidenceReview | null;
+};
+
+export type EvidenceReview = {
+  id: string;
+  evidence_id: string;
+  surface_type: string;
+  surface_id: string;
+  role: string;
+  verdict: "supported" | "unclear" | "not_supported";
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 /** The Sec 16 structured-reasoning mirror of a plain-text report field -
@@ -24,7 +38,12 @@ export type AssessmentEvidence = {
  * assessment-derived claim (no review state to sync against). */
 export type AnalysisClaim = {
   id: string;
-  claim_type: "fact" | "inference" | "hypothesis" | "opportunity" | "speculation";
+  claim_type:
+    | "fact"
+    | "inference"
+    | "hypothesis"
+    | "opportunity"
+    | "speculation";
   claim_text: string;
   confidence: string;
   status: "pending" | "approved" | "rejected";
@@ -60,6 +79,7 @@ export type PotentialOpportunity = {
 
 export type ResearchAssessment = {
   id: string;
+  created_at?: string | null;
   research_input: ResearchInput;
   status: string;
   retrieved_paper_ids: string[];
@@ -150,7 +170,10 @@ export type CategoricalLevel = "high" | "medium" | "low" | "not_assessed";
 export type NoveltyLevel = CategoricalLevel | "insufficient_evidence";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    cache: "no-store",
+  });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
     throw new Error(detail?.detail ?? `Request failed (${response.status})`);
@@ -158,8 +181,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 
-async function requestNoContent(path: string, init?: RequestInit): Promise<void> {
-  const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
+async function requestNoContent(
+  path: string,
+  init?: RequestInit,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    cache: "no-store",
+  });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
     throw new Error(detail?.detail ?? `Request failed (${response.status})`);
@@ -178,7 +207,10 @@ export const assessmentApi = {
   upload: (file: File) => {
     const body = new FormData();
     body.append("file", file);
-    return request<ResearchAssessment>("/api/assessments/upload", { method: "POST", body });
+    return request<ResearchAssessment>("/api/assessments/upload", {
+      method: "POST",
+      body,
+    });
   },
 
   get: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}`),
@@ -190,7 +222,10 @@ export const assessmentApi = {
       body: JSON.stringify({ human_reviewed: humanReviewed }),
     }),
 
-  rerun: (id: string) => request<ResearchAssessment>(`/api/assessments/${id}/rerun`, { method: "POST" }),
+  rerun: (id: string) =>
+    request<ResearchAssessment>(`/api/assessments/${id}/rerun`, {
+      method: "POST",
+    }),
 
   /** Synthesizes Direct/Adjacent/Speculative opportunities via a local LLM
    * (off unless the backend has OLLAMA_ENABLED=true) and persists them -
@@ -199,24 +234,34 @@ export const assessmentApi = {
    * cited result after one retry. See docs/superpowers/specs/
    * 2026-09-03-opportunities-synthesis-design.md. */
   synthesizeOpportunities: (id: string) =>
-    request<ResearchAssessment>(`/api/assessments/${id}/opportunities`, { method: "POST" }),
+    request<ResearchAssessment>(`/api/assessments/${id}/opportunities`, {
+      method: "POST",
+    }),
 
   /** Deletes the whole assessment thread (every rerun for the same input,
    * not just this one id) - see the backend route's docstring. */
-  remove: (id: string) => requestNoContent(`/api/assessments/${id}`, { method: "DELETE" }),
+  remove: (id: string) =>
+    requestNoContent(`/api/assessments/${id}`, { method: "DELETE" }),
 
-  history: (id: string) => request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
+  history: (id: string) =>
+    request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
 
   graph: (id: string) => request<GraphData>(`/api/assessments/${id}/graph`),
 
   list: (
     review: ReviewFilter = "all",
-    options?: { sort?: AssessmentSort; novelty?: NoveltyLevel; feasibility?: CategoricalLevel },
+    options?: {
+      sort?: AssessmentSort;
+      novelty?: NoveltyLevel;
+      feasibility?: CategoricalLevel;
+    },
   ) => {
     const params = new URLSearchParams({ review, limit: "50" });
     if (options?.sort) params.set("sort", options.sort);
     if (options?.novelty) params.set("novelty", options.novelty);
     if (options?.feasibility) params.set("feasibility", options.feasibility);
-    return request<AssessmentSummaryPage>(`/api/assessments?${params.toString()}`);
+    return request<AssessmentSummaryPage>(
+      `/api/assessments?${params.toString()}`,
+    );
   },
 };

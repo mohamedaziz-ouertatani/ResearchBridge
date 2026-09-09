@@ -85,7 +85,8 @@ uv run rb-benchmark-fetch
 Next.js app in `frontend/`. `/` is the assessment console (submit an idea
 or upload a paper); other routes cover corpus browsing (`/corpus`), paper
 detail (`/papers/[id]`), assessment reports (`/assessments/[id]`), Q&A
-(`/ask`), gap review (`/gaps`), annotation (`/annotate`), corpus trends
+(`/ask`) and persistent Q&A collections, research project workspaces
+(`/projects` and `/projects/[id]`), gap review (`/gaps`), annotation (`/annotate`), corpus trends
 (`/trends`), and pipeline/corpus admin (`/admin`).
 
 ```bash

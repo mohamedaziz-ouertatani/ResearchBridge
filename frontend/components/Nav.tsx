@@ -25,25 +25,37 @@ const PRIMARY = [
   { href: "/", label: "assess" },
   { href: "/ask", label: "ask the corpus" },
   { href: "/assessments", label: "assessments" },
+  { href: "/projects", label: "projects" },
 ];
 
 const INFRASTRUCTURE = [
-  { href: "/corpus", label: "corpus", description: "Browse the papers this app searches." },
-  { href: "/trends", label: "trends", description: "How topics in the corpus have shifted over time." },
+  {
+    href: "/corpus",
+    label: "corpus",
+    description: "Browse the papers this app searches.",
+  },
+  {
+    href: "/trends",
+    label: "trends",
+    description: "How topics in the corpus have shifted over time.",
+  },
   {
     href: "/gaps",
     label: "gap review",
-    description: "Patterns the system noticed across papers, waiting on a human check.",
+    description:
+      "Patterns the system noticed across papers, waiting on a human check.",
   },
   {
     href: "/annotate",
     label: "annotation workbench",
-    description: "Hand-labeled papers used to measure how accurate the system is.",
+    description:
+      "Hand-labeled papers used to measure how accurate the system is.",
   },
   {
     href: "/claims",
     label: "claims",
-    description: "The structured Evidence → Inference reasoning behind gaps and assessments.",
+    description:
+      "The structured Evidence → Inference reasoning behind gaps and assessments.",
   },
   {
     href: "/admin",
@@ -54,11 +66,20 @@ const INFRASTRUCTURE = [
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  if (href === "/corpus") return pathname === "/corpus" || pathname.startsWith("/papers");
+  if (href === "/corpus")
+    return pathname === "/corpus" || pathname.startsWith("/papers");
   return pathname.startsWith(href);
 }
 
-function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+function NavLink({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
   return (
     <Link
       href={href}
@@ -80,7 +101,10 @@ function InfrastructureMenu({ pathname }: { pathname: string }) {
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -97,7 +121,10 @@ function InfrastructureMenu({ pathname }: { pathname: string }) {
         className={`eyebrow flex items-center gap-1 ${active ? "text-[var(--ink)]" : "text-[var(--ink-faint)] hover:text-[var(--ink)]"}`}
       >
         infrastructure
-        <span aria-hidden className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}>
+        <span
+          aria-hidden
+          className={`text-[0.625rem] transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </button>
@@ -111,12 +138,16 @@ function InfrastructureMenu({ pathname }: { pathname: string }) {
               aria-current={isActive(pathname, item.href) ? "page" : undefined}
               onClick={() => setOpen(false)}
               className={`block px-3 py-2 ${
-                isActive(pathname, item.href) ? "bg-[var(--field)]" : "hover:bg-[var(--field)]"
+                isActive(pathname, item.href)
+                  ? "bg-[var(--field)]"
+                  : "hover:bg-[var(--field)]"
               }`}
             >
               <span
                 className={`block text-[0.8125rem] ${
-                  isActive(pathname, item.href) ? "text-[var(--ink)]" : "text-[var(--ink-soft)]"
+                  isActive(pathname, item.href)
+                    ? "text-[var(--ink)]"
+                    : "text-[var(--ink-soft)]"
                 }`}
               >
                 {item.label}
@@ -147,7 +178,10 @@ export function Nav() {
   return (
     <header className="border-b border-[var(--rule)] py-5">
       <div className="flex items-center justify-between gap-4">
-        <Link href="/" className="display shrink-0 text-[1.0625rem] hover:text-[var(--ink-soft)]">
+        <Link
+          href="/"
+          className="display shrink-0 text-[1.0625rem] hover:text-[var(--ink-soft)]"
+        >
           ResearchBridge
         </Link>
 
@@ -156,7 +190,11 @@ export function Nav() {
         <div className="hidden items-center gap-x-6 sm:flex">
           <nav className="flex items-baseline gap-x-5">
             {PRIMARY.map((item) => (
-              <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} />
+              <NavLink
+                key={item.href}
+                {...item}
+                active={isActive(pathname, item.href)}
+              />
             ))}
             <InfrastructureMenu pathname={pathname} />
           </nav>
@@ -179,11 +217,19 @@ export function Nav() {
       {menuOpen && (
         <nav className="mt-4 flex flex-col gap-1 border-t border-[var(--rule-soft)] pt-4 sm:hidden">
           {PRIMARY.map((item) => (
-            <MobileNavLink key={item.href} {...item} active={isActive(pathname, item.href)} />
+            <MobileNavLink
+              key={item.href}
+              {...item}
+              active={isActive(pathname, item.href)}
+            />
           ))}
           <span aria-hidden className="my-2 h-px bg-[var(--rule-soft)]" />
           {INFRASTRUCTURE.map((item) => (
-            <MobileNavLink key={item.href} {...item} active={isActive(pathname, item.href)} />
+            <MobileNavLink
+              key={item.href}
+              {...item}
+              active={isActive(pathname, item.href)}
+            />
           ))}
           <span aria-hidden className="my-2 h-px bg-[var(--rule-soft)]" />
           <div className="py-2">
@@ -195,7 +241,15 @@ export function Nav() {
   );
 }
 
-function MobileNavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+function MobileNavLink({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
   return (
     <Link
       href={href}
