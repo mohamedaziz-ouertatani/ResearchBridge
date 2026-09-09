@@ -257,3 +257,24 @@ def test_reasoning_distinguishes_widened_admission_from_close_admission(session)
 def test_calibrated_constants_are_the_expected_values() -> None:
     assert WIDENED_DISTANCE == 0.40
     assert CLAIM_OVERLAP_THRESHOLD == 0.20
+
+
+def test_distinct_paper_count_is_unaffected_by_duplicate_evidence_rows_for_one_paper(session) -> None:
+    """Two evidence rows for the SAME paper (e.g. a method claim and a
+    dataset claim on the same paper) must count as one distinct paper, not
+    two - guards the paper-id-keyed dict construction in
+    assess_technical_feasibility against ever regressing into a row count.
+    This is a characterization test, not a bugfix - the design investigation
+    behind the assessment-report-hardening plan found no live bug here; the
+    "high confidence from a single paper" symptom in the audited sample
+    reports traced to something else (dedup of duplicated evidence rows
+    elsewhere in the pipeline), not to this function's counting logic."""
+    paper = _paper(session, "p1")
+    _claim(session, paper, "method", "We propose a graph-based approach.")
+    _claim(session, paper, "dataset", "We collect 10,000 transactions.")
+    session.commit()
+
+    result = assess_technical_feasibility(session, [(paper.id, NEAR)], QUERY, NO_IDF)
+
+    assert result.level == "medium"  # exactly one distinct paper, not two
+    assert "One relevant retrieved paper" in result.reasoning
