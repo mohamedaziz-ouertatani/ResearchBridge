@@ -79,6 +79,24 @@ def test_every_candidate_is_a_verbatim_substring_of_the_abstract(monkeypatch) ->
         assert c.claim_text == c.evidence_quote
 
 
+def test_rejects_malformed_best_match_and_falls_to_next_best(monkeypatch) -> None:
+    """A bare section heading can win on word-overlap similarity over the
+    real content sentence for a field (semantic.py's own documented
+    "fluent-but-content-free" failure mode) - the filter must reject it and
+    fall through to the next-best suitor instead of dropping the field
+    entirely when a genuine candidate is available."""
+    _use_controlled_field_queries(monkeypatch, {"method": "attention protocol"})
+    # "Attention Protocol." matches the field query word-for-word (similarity
+    # 1.0) but is a 2-token bare heading; the real sentence only partially
+    # overlaps the query (similarity ~0.53) but is a genuine sentence.
+    abstract = "Attention Protocol. Our protocol handles attention well in practice."
+
+    candidates = SemanticExtractor(WordOverlapEmbedder()).extract(_paper(abstract), {})
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.claim_text == "Our protocol handles attention well in practice."
+
+
 def test_zero_overlap_field_gets_no_candidate(monkeypatch) -> None:
     # the field query shares no vocabulary at all with any abstract sentence
     # -> similarity 0.0, well under MIN_SIMILARITY -> omitted, not guessed

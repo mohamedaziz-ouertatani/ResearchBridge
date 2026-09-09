@@ -52,6 +52,7 @@ from collections import defaultdict
 from researchbridge.db.models import Paper
 from researchbridge.embedding.base import Embedder
 from researchbridge.extraction.base import ClaimCandidate
+from researchbridge.extraction.quote_quality import is_acceptable_quote
 from researchbridge.extraction.sections import sentences_for_field
 from researchbridge.extraction.sentences import split_sentences
 
@@ -146,7 +147,11 @@ class SemanticExtractor:
 
         candidates: list[ClaimCandidate] = []
         for field in fields:
-            suitors = proposals.get(field)
+            suitors = [
+                (sentence, score)
+                for sentence, score in proposals.get(field, [])
+                if is_acceptable_quote(sentence)
+            ]
             if not suitors:
                 continue
             sentence, similarity = max(suitors, key=lambda pair: pair[1])
