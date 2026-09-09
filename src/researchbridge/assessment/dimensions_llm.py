@@ -24,12 +24,69 @@ import re
 import requests
 
 from researchbridge.assessment.dimensions import IdeaDimension, extract_dimensions
+from researchbridge.config import ollama_enabled, ollama_host, ollama_model, ollama_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
 _DIMENSION_LINE_RE = re.compile(r"^\s*\d+[.)]\s*(.+?)\s*$")
 MIN_DIMENSION_TOKENS = 1
 MAX_DIMENSION_TOKENS = 8
+
+# Single-word labels that describe a research ACTIVITY rather than a
+# technical concept the corpus could plausibly cover. The prompt already
+# forbids these ("never generic verbs, adjectives alone, or filler
+# words") and the model emits them anyway - found live 2026-09-09, where
+# a clean drug-target-affinity idea produced "Encoding" and "Jointly" as
+# 2 of its 8 dimensions. Each one is a guaranteed not_found, and since
+# novelty.py grades on the fraction of dimensions covered, every filler
+# slot pushes the verdict toward "high novelty". Two junk slots out of
+# eight is a 25% novelty bias.
+#
+# Applied ONLY to single-token labels: "Adversarial training" and "Model
+# evaluation protocol" are genuine dimensions that happen to contain a
+# listed word, so matching on substrings would throw away real signal.
+_FILLER_DIMENSION_LABELS = frozenset(
+    {
+        "analysis",
+        "application",
+        "approach",
+        "architecture",
+        "assessment",
+        "comparison",
+        "design",
+        "development",
+        "encoding",
+        "evaluation",
+        "experiment",
+        "experiments",
+        "framework",
+        "implementation",
+        "improvement",
+        "integration",
+        "jointly",
+        "method",
+        "methodology",
+        "model",
+        "optimization",
+        "performance",
+        "prediction",
+        "process",
+        "research",
+        "result",
+        "results",
+        "study",
+        "system",
+        "technique",
+        "testing",
+        "training",
+        "validation",
+    }
+)
+
+
+def _is_filler_dimension(label: str) -> bool:
+    tokens = label.split()
+    return len(tokens) == 1 and tokens[0].strip(".,;:-").lower() in _FILLER_DIMENSION_LABELS
 
 
 def _build_prompt(idea_text: str, max_dimensions: int) -> tuple[str, str]:
@@ -48,6 +105,7 @@ def _build_prompt(idea_text: str, max_dimensions: int) -> tuple[str, str]:
 
 def parse_dimensions_response(text: str, max_dimensions: int) -> list[IdeaDimension]:
     dimensions: list[IdeaDimension] = []
+    seen: set[str] = set()
     for line in text.splitlines():
         match = _DIMENSION_LINE_RE.match(line)
         if not match:
@@ -56,6 +114,16 @@ def parse_dimensions_response(text: str, max_dimensions: int) -> list[IdeaDimens
         token_count = len(label.split())
         if not label or token_count < MIN_DIMENSION_TOKENS or token_count > MAX_DIMENSION_TOKENS:
             continue
+        if _is_filler_dimension(label):
+            continue
+        # Case-insensitive dedupe: a repeated label inflates the
+        # denominator novelty.py divides by, making an idea look less
+        # covered than it is. Found live 2026-09-09 - see
+        # _FILLER_DIMENSION_LABELS above for the sibling failure.
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
         dimensions.append(IdeaDimension(label=label))
         if len(dimensions) >= max_dimensions:
             break
@@ -72,13 +140,11 @@ class DimensionExtractionUnavailable(Exception):
     caller that doesn't explicitly ask for the LLM-only path."""
 
 
-def ollama_enabled() -> bool:
-    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "phi3:mini")
+    host = ollama_host()
+    model = ollama_model("phi3:mini")
     response = requests.post(
         f"{host}/api/chat",
         json={
@@ -98,11 +164,21 @@ def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
 
 
 def extract_dimensions_via_llm(idea_text: str, max_dimensions: int = 8) -> list[IdeaDimension]:
+    # Guard BEFORE the model call, not after: with no idea to extract
+    # from, the model answers the only text it was given - its own system
+    # prompt - and those instructions get parsed as dimensions and
+    # persisted into a user-facing report. Found live 2026-09-09, where
+    # whitespace-only input produced the dimensions "Research idea",
+    # "User-submitted content", "Nouns/noun phrases", "Grounded in
+    # wording" and "Avoid invented terminology". No output-side filter can
+    # fix this reliably, so the empty call is simply never made.
+    if not idea_text.strip():
+        raise DimensionExtractionUnavailable("idea text is empty - nothing to extract dimensions from")
     if not ollama_enabled():
         raise DimensionExtractionUnavailable("local LLM dimension extraction is not enabled")
 
     system_prompt, user_prompt = _build_prompt(idea_text, max_dimensions)
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
+    timeout = ollama_timeout_seconds()
 
     for attempt in range(2):
         try:
