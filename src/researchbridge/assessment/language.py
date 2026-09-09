@@ -29,6 +29,7 @@ new model" constraint.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 
 _MIN_LETTERS = 20
@@ -88,19 +89,50 @@ _OTHER_LANGUAGE_FUNCTION_WORDS = frozenset(
 
 _MIN_FUNCTION_WORDS = 4
 
+# Arabizi (Latin-script chat transliteration of Arabic, common in informal
+# Tunisian/Maghrebi writing) has no standard orthography, so a word list
+# the way _OTHER_LANGUAGE_FUNCTION_WORDS covers French/Spanish/etc. isn't
+# practical. What IS consistent across writers is reusing digits that look
+# like the Arabic letter they replace (3=ain, 7=Ha, 9=qaf, ...) inside an
+# otherwise-lowercase word, e.g. "na3mel" (I do), "eb3ath" (send). That
+# digit-between-letters shape is what code-switched idea text (English
+# function words plus Arabizi content words) slips past the function-word
+# check above: the English words are real English, so english>=other and
+# the text reads as plain English even though most of it isn't.
+#
+# Requiring lowercase on BOTH sides of the digit is what keeps this from
+# firing on chemical formulas/model names, which conventionally put an
+# uppercase element symbol or letter right after the digit (H2O, Pd2Cl2,
+# GPT2) rather than another lowercase letter.
+_ARABIZI_TOKEN_PATTERN = re.compile(r"[a-z][2356789][a-z]")
+_MIN_ARABIZI_TOKENS = 2
+
+
+def _has_arabizi_chat_numerals(text: str) -> bool:
+    matches = sum(1 for word in text.split() if _ARABIZI_TOKEN_PATTERN.search(word))
+    return matches >= _MIN_ARABIZI_TOKENS
+
 
 def is_likely_non_english(text: str) -> bool:
-    """True when the idea text is probably not English, by either signal:
-    a majority non-Latin script, or Latin script whose function words look
-    more like another European language than English.
+    """True when the idea text is probably not English, by any of three
+    signals: a majority non-Latin script, Latin script whose function
+    words look more like another European language than English, or
+    Arabizi chat-numeral spelling code-switched into otherwise-English
+    text (see _has_arabizi_chat_numerals's own docstring - found live
+    2026-09-09: neither of the other two signals catches this case, since
+    the script is Latin and the English words present are genuinely
+    English).
 
     Deliberately conservative. It requires _MIN_FUNCTION_WORDS matches
-    before judging at all, and demands a strict majority, so an English
-    idea dense with technical terms and light on function words stays
-    unflagged rather than being guessed at from too little signal - the
-    same "don't guess from thin evidence" stance is_likely_non_latin_script
-    takes with its own length floor."""
+    before judging by that signal at all, and demands a strict majority,
+    so an English idea dense with technical terms and light on function
+    words stays unflagged rather than being guessed at from too little
+    signal - the same "don't guess from thin evidence" stance
+    is_likely_non_latin_script takes with its own length floor."""
     if is_likely_non_latin_script(text):
+        return True
+
+    if _has_arabizi_chat_numerals(text):
         return True
 
     words = [w.strip(".,;:!?()[]\"'").casefold() for w in text.split()]

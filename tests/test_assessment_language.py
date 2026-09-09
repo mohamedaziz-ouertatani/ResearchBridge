@@ -76,3 +76,37 @@ def test_non_latin_script_is_also_reported_as_non_english() -> None:
 
 def test_short_input_is_not_guessed_at() -> None:
     assert is_likely_non_english("Nous proposons") is False
+
+
+def test_code_switched_arabizi_idea_is_flagged_as_likely_non_english() -> None:
+    """Found live 2026-09-09: Latin-script code-switched input (Tunisian
+    Arabizi mixed with English/French technical terms, as Tunisian users
+    commonly write informally) got no non-English caveat at all - the
+    function-word signal was split across the English bucket (real English
+    words like "a"/"using"/"and") and nothing at all (the Arabizi words
+    aren't in either function-word list, which only covers Western
+    European languages), so the English count won by default. Chat-alphabet
+    digits standing in for Arabic letters mid-word (na3mel, eb3ath) are a
+    cheap, distinctive signal this script-and-function-word heuristic can't
+    see any other way."""
+    text = (
+        "Nheb na3mel a machine learning model li ykashef el fraud f "
+        "transactions bancaire eb3ath alert automatically, using deep "
+        "learning w anomaly detection."
+    )
+
+    assert is_likely_non_english(text) is True
+
+
+def test_chemical_formulas_with_digits_are_not_mistaken_for_arabizi() -> None:
+    """Arabizi chat numerals are conventionally lowercase (na3mel, eb3ath);
+    chemical formulas conventionally switch to an uppercase element symbol
+    right after the digit (Pd2Cl2, CO2, H2O), so requiring lowercase on
+    both sides of the digit tells them apart without a language-ID model."""
+    text = (
+        "We synthesize a Pd2Cl2 catalyst that reduces CO2 to methanol using "
+        "an H2O-based electrolyte at elevated temperature, achieving high "
+        "Faradaic efficiency across repeated cycles in aqueous solution."
+    )
+
+    assert is_likely_non_english(text) is False
