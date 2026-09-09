@@ -711,20 +711,47 @@ def test_recommendation_reasoning_is_persisted_and_derivable_at_read_time(sessio
 # test_opportunity_synthesis.py.
 
 
-def _mock_ollama(monkeypatch: pytest.MonkeyPatch, relevance_content: str, opportunity_content: str) -> None:
-    relevance_response = Mock()
-    relevance_response.json.return_value = {"message": {"content": relevance_content}}
-    relevance_response.raise_for_status = Mock()
-    monkeypatch.setattr(
-        "researchbridge.assessment.application_relevance.requests.post", Mock(return_value=relevance_response)
-    )
+def _mock_ollama(
+    monkeypatch: pytest.MonkeyPatch, relevance_content: str, opportunity_content: str, absurdity_content: str = "PLAUSIBLE"
+) -> None:
+    """All four optional-LLM-stage modules (application_relevance,
+    opportunity_synthesis, absurdity, dimensions_llm) do a plain `import
+    requests` and call `requests.post` - the same global `requests` module
+    object, not a per-module copy (verified: `application_relevance.requests
+    is opportunity_synthesis.requests`). Patching `<module>.requests.post`
+    for more than one module therefore does not install two independent
+    mocks - each monkeypatch.setattr call overwrites the SAME global
+    attribute, so only the last one applied ever actually runs, and every
+    other module silently falls through to it (or, if nothing patches this
+    path at all, to a real Ollama server if one happens to be running
+    locally - exactly the wrong-shaped-response failures this was found by:
+    "missing judgment(s)" / "missing tier(s)" / "no valid numbered dimension
+    lines", all real parser rejections of another module's canned content).
+    One shared dispatcher, keyed by each module's own distinguishing system-
+    prompt text, is the fix - single mock, single call site, routes by what
+    the request actually is."""
 
-    opportunity_response = Mock()
-    opportunity_response.json.return_value = {"message": {"content": opportunity_content}}
-    opportunity_response.raise_for_status = Mock()
-    monkeypatch.setattr(
-        "researchbridge.assessment.opportunity_synthesis.requests.post", Mock(return_value=opportunity_response)
-    )
+    def _dispatch(*args, **kwargs):
+        system_prompt = kwargs["json"]["messages"][0]["content"]
+        if "For EACH numbered application, judge whether" in system_prompt:
+            content = relevance_content
+        elif "Propose exactly three product/technology opportunities" in system_prompt:
+            content = opportunity_content
+        elif "combines real technical/scientific terms from domains" in system_prompt:
+            content = absurdity_content
+        else:
+            # dimensions_llm or any future stage this dispatcher doesn't yet
+            # know about - fails open to the deterministic fallback each of
+            # those modules already defines for an unparseable response, so
+            # a test that doesn't care about this stage's exact output stays
+            # unaffected.
+            content = "not a recognized response shape for this stage"
+        response = Mock()
+        response.json.return_value = {"message": {"content": content}}
+        response.raise_for_status = Mock()
+        return response
+
+    monkeypatch.setattr("researchbridge.assessment.application_relevance.requests.post", Mock(side_effect=_dispatch))
 
 
 def test_llm_stages_disabled_by_default_even_with_ollama_env_enabled(
@@ -782,6 +809,14 @@ def test_llm_stages_application_filter_drops_irrelevant_candidates_when_enabled(
     session_factory, embedder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    # A single shared mock: application_relevance/opportunity_synthesis/
+    # absurdity/dimensions_llm all call the same global requests.post (see
+    # _mock_ollama's docstring above) - only one monkeypatch.setattr on this
+    # path can ever take effect. This test only cares about the relevance
+    # judgment, so a single fixed "1: irrelevant" response for every call is
+    # fine: opportunity synthesis is never reached (zero relevant
+    # applications), and the absurdity/dimensions_llm stages fail open on
+    # this unparseable-for-them content, same as an unreachable model would.
     relevance_response = Mock()
     relevance_response.json.return_value = {"message": {"content": "1: irrelevant"}}
     relevance_response.raise_for_status = Mock()
@@ -809,12 +844,14 @@ def test_llm_stages_fail_open_on_application_filter_when_ollama_unreachable(
     import requests
 
     monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    # One mock covers every stage: all four optional-LLM modules share the
+    # same global requests.post (see _mock_ollama's docstring above), so
+    # this single ConnectionError applies to relevance filtering,
+    # opportunity synthesis, the absurdity guardrail, and dimensions_llm
+    # alike - exactly the "every stage fails open" case this test exists
+    # to prove.
     monkeypatch.setattr(
         "researchbridge.assessment.application_relevance.requests.post",
-        Mock(side_effect=requests.ConnectionError("connection refused")),
-    )
-    monkeypatch.setattr(
-        "researchbridge.assessment.opportunity_synthesis.requests.post",
         Mock(side_effect=requests.ConnectionError("connection refused")),
     )
     session = session_factory()
@@ -827,7 +864,10 @@ def test_llm_stages_fail_open_on_application_filter_when_ollama_unreachable(
 
     session.close()
     # relevance filtering failed -> keeps the deterministic, unfiltered
-    # application; opportunity synthesis also failed -> falls back to NULL
+    # application; opportunity synthesis also failed -> falls back to NULL;
+    # absurdity check also unreachable -> fails open (recommendation stays
+    # whatever the deterministic pipeline produced, not forced to REQUIRES
+    # HUMAN REVIEW just because the guardrail itself was unreachable)
     assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening."
     assert assessment.potential_opportunities is None
 
@@ -903,6 +943,52 @@ def test_llm_stages_splits_speculative_opportunities_into_a_separate_claim(
     assert "broader fraud-risk monitoring platform" in opportunity_claim.claim_text
 
 
+def test_llm_stages_absurdity_guardrail_forces_requires_human_review_when_flagged(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content="Direct: real-time fraud screening API for banks [1]",
+        absurdity_content="REQUIRES_REVIEW: stacks unrelated cryptography and geometry terms with no precedent",
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated on a single bank's data only.")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    session.close()
+    assert assessment.recommendation == "REQUIRES HUMAN REVIEW"
+    assert assessment.confidence == "low"
+    assert "Irreconcilable Concept Combination" in assessment.novelty_reasoning
+
+
+def test_llm_stages_absurdity_guardrail_does_not_override_when_plausible(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content="Direct: real-time fraud screening API for banks [1]",
+        absurdity_content="PLAUSIBLE",
+    )
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated on a single bank's data only.")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
+
+    session.close()
+    assert "Irreconcilable Concept Combination" not in assessment.novelty_reasoning
+
+
 def test_build_assessment_raises_if_narrative_text_has_no_evidence(session_factory, embedder, monkeypatch) -> None:
     """A build_assessment() that would otherwise persist real body text
     backed by zero evidence rows (the historical bug behind two stale
@@ -951,6 +1037,14 @@ def test_out_of_corpus_idea_is_flagged_and_its_narrative_fields_suppressed(sessi
     assert assessment.research_gap_text is None
     assert assessment.risks_and_limitations is None
     assert assessment.technical_feasibility_level == "not_assessed"
+    # comparison_summary ("Problems already addressed" / "Existing
+    # approaches") was previously built and gated only per-paper
+    # (existing_solutions.py's own FAR_DISTANCE=0.65 cutoff), independent of
+    # this out-of-corpus mean-distance signal (0.48) - so a paper landing
+    # between the two thresholds still leaked its method/limitations claims
+    # into the report even though every other section correctly showed
+    # INSUFFICIENT EVIDENCE.
+    assert assessment.comparison_summary is None
 
 
 def test_in_corpus_idea_is_flagged_as_covered(session_factory, embedder) -> None:
@@ -1045,3 +1139,20 @@ def test_out_of_corpus_novelty_reads_insufficient_evidence_not_high(session_fact
     assert assessment.corpus_coverage_status == "out_of_corpus"
     assert assessment.novelty_level == "insufficient_evidence"
     assert assessment.recommendation == "INSUFFICIENT EVIDENCE"
+
+
+def test_retrieval_distances_are_persisted_for_audit(session_factory, embedder) -> None:
+    """corpus_coverage_status is decided from these two numbers, and neither
+    the export layer nor the frontend has an embedder to recompute them."""
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "Evaluated on a single bank's data only.")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.nearest_distance is not None
+    assert assessment.mean_distance is not None
+    assert assessment.nearest_distance <= assessment.mean_distance

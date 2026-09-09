@@ -189,6 +189,51 @@ def test_partially_addressed_also_requires_a_close_paper(embedder) -> None:
     assert result[0].status == "weak_evidence"
 
 
+@dataclass
+class OrthogonalEmbedder:
+    """Every distinct text gets its own orthogonal one-hot vector, so cosine
+    similarity between any two different texts is always 0.0 - simulates a
+    real sentence embedder giving a short alphanumeric code (e.g. "CWE-022")
+    no meaningful semantic overlap with a claim that quotes it verbatim,
+    which is exactly the case the identifier exact-match fallback exists
+    for (see coverage.py's _IDENTIFIER_RE docstring)."""
+
+    model_name: str = "orthogonal-fake"
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        unique = sorted(set(texts))
+        index = {t: i for i, t in enumerate(unique)}
+        return [[1.0 if i == index[t] else 0.0 for i in range(len(unique))] for t in texts]
+
+
+def test_identifier_exact_match_rescues_a_dimension_with_zero_semantic_overlap() -> None:
+    dims = [IdeaDimension(label="CWE-022 path traversal handling")]
+    papers = [("Paper A", NEAR, [_claim("method", "we mitigate CWE-022 via strict input sanitization")])]
+
+    result = compute_dimension_coverage(dims, papers, OrthogonalEmbedder())
+
+    assert result[0].status == "weak_evidence"
+    assert len(result[0].evidence_ids) == 1
+
+
+def test_identifier_exact_match_does_not_fire_when_the_code_never_appears() -> None:
+    dims = [IdeaDimension(label="CWE-022 path traversal handling")]
+    papers = [("Paper A", NEAR, [_claim("method", "an entirely unrelated technique")])]
+
+    result = compute_dimension_coverage(dims, papers, OrthogonalEmbedder())
+
+    assert result[0].status == "not_found"
+
+
+def test_identifier_exact_match_is_case_insensitive() -> None:
+    dims = [IdeaDimension(label="LoRA fine-tuning")]
+    papers = [("Paper A", NEAR, [_claim("method", "we apply lora adapters to the base model")])]
+
+    result = compute_dimension_coverage(dims, papers, OrthogonalEmbedder())
+
+    assert result[0].status == "weak_evidence"
+
+
 def test_multiple_dimensions_are_each_scored_independently(embedder) -> None:
     dims = [IdeaDimension(label="concept drift"), IdeaDimension(label="class imbalance")]
     papers = [

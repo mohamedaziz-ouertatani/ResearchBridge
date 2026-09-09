@@ -72,6 +72,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from researchbridge.assessment.absurdity import AbsurdityCheckUnavailable, check_for_irreconcilable_concepts
 from researchbridge.assessment.application_relevance import ApplicationRelevanceUnavailable, filter_relevant_applications
 from researchbridge.assessment.applications import ApplicationsResult, assess_applications
 from researchbridge.assessment.claims import (
@@ -82,7 +83,7 @@ from researchbridge.assessment.claims import (
 from researchbridge.assessment.coverage import compute_dimension_coverage
 from researchbridge.assessment.dimensions import extract_dimensions
 from researchbridge.assessment.dimensions_llm import extract_dimensions_with_fallback
-from researchbridge.assessment.existing_solutions import build_existing_solutions
+from researchbridge.assessment.existing_solutions import ExistingSolutionsResult, build_existing_solutions
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
 from researchbridge.assessment.language import is_likely_non_english
@@ -277,6 +278,14 @@ def build_assessment(
         risks = replace(risks, text=None, evidence_ids=[])
         feasibility = replace(feasibility, level="not_assessed", reasoning=None, evidence_ids=[])
         applications = ApplicationsResult(applications=[], evidence_ids=[], status="not_assessed")
+        # existing_solutions ("Problems already addressed" / "Existing
+        # approaches") is built earlier from the same retrieved set and only
+        # gated per-paper (existing_solutions.py's own RELEVANCE_DISTANCE
+        # cutoff) - not by this corpus-wide mean-distance signal. Without
+        # this reset, an out-of-corpus idea still rendered partial,
+        # unrelated-domain quotes under those headings even though every
+        # other section correctly showed INSUFFICIENT EVIDENCE.
+        existing_solutions = ExistingSolutionsResult(text=None, evidence_ids=[])
 
     recommendation = assess_recommendation(
         novelty_level=novelty.level,
@@ -289,6 +298,41 @@ def build_assessment(
         research_gap_is_strong=gap.is_closely_grounded and gap.is_strongly_stated,
         technical_feasibility_level=feasibility.level,
     )
+
+    # Absurdity/nonsense guardrail (assessment/absurdity.py). Distance/
+    # similarity-based gates elsewhere in this function catch an idea with
+    # NOTHING relevant in the corpus; they cannot catch one built by
+    # stacking real, individually well-studied terms from domains that do
+    # not combine, since retrieval can still find topically-adjacent papers
+    # for each stacked term separately (see that module's own docstring).
+    # Gated behind enable_llm_stages like the other three optional local-LLM
+    # stages in this function; fails OPEN on unavailability, so this can
+    # only ever ADD the REQUIRES HUMAN REVIEW label on top of whatever the
+    # deterministic pipeline already produced, never remove or block it.
+    if enable_llm_stages:
+        try:
+            absurdity = check_for_irreconcilable_concepts(research_input.raw_text)
+        except AbsurdityCheckUnavailable:
+            absurdity = None
+        if absurdity is not None and absurdity.flagged:
+            recommendation = replace(
+                recommendation,
+                recommendation="REQUIRES HUMAN REVIEW",
+                confidence="low",
+                reasoning=(
+                    f"REQUIRES HUMAN REVIEW: Irreconcilable Concept Combination - {absurdity.reason}\n\n"
+                    + recommendation.reasoning
+                ),
+            )
+            novelty = replace(
+                novelty,
+                reasoning=(
+                    f"REQUIRES HUMAN REVIEW: Irreconcilable Concept Combination - this idea's "
+                    f"terminology appears to combine domains that do not meaningfully connect "
+                    f"({absurdity.reason}), flagged for human review rather than an automated "
+                    f"novelty reading.\n\n" + novelty.reasoning
+                ),
+            )
 
     research_gap_source_value = (
         gap.source
@@ -349,6 +393,8 @@ def build_assessment(
         ),
         potential_applications_status=applications.status,
         corpus_coverage_status=corpus_coverage_status,
+        nearest_distance=(min(retrieved_distances) if retrieved_distances else None),
+        mean_distance=mean_distance,
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),

@@ -34,6 +34,7 @@ the retrieved literature sample does or doesn't discuss this dimension.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field
 
@@ -127,6 +128,29 @@ DIMENSION_MATCH_SIMILARITY = 0.30
 _AFFIRMATIVE_CLAIM_TYPES = frozenset({"method", "dataset", "main_contribution", "results", "applications"})
 _CONCERN_CLAIM_TYPES = frozenset({"limitations", "problem", "research_gap"})
 
+# Standard technical/security/scientific identifiers (CWE-022, CVE-2021-1234,
+# INT4, LoRA, GPT-4, ...) embed poorly under a general-purpose sentence
+# embedder - the model has no reason to place "CWE-022" close to a claim
+# that literally quotes it, since the code carries no distributed semantic
+# meaning the way ordinary vocabulary does. That let a dimension built
+# around one of these codes score not_found even when a retrieved paper's
+# claim contains the exact same code verbatim - a real keyword match, lost
+# because only embedding similarity was checked. Recognizes three shapes:
+# an all-caps prefix + digits, optionally hyphen-separated ("CWE-022",
+# "CVE-2021-1234"), a short letter run directly fused with digits ("INT4",
+# "GPT-4" once the hyphen is treated as optional), and an internal-caps
+# acronym-like token ("LoRA") that has no digits at all. Any dimension
+# containing a token like this gets an exact-substring fallback match
+# alongside (never instead of) the semantic-similarity check below - a
+# dimension with no such token behaves exactly as before.
+_IDENTIFIER_RE = re.compile(
+    r"\b(?:[A-Z]{2,6}-\d{2,4}(?:-\d+)?|[A-Za-z]{2,6}-?\d{1,4}[A-Za-z]?|[A-Z][a-z]+[A-Z][A-Za-z]*)\b"
+)
+
+
+def _identifiers_in(text: str) -> set[str]:
+    return {match.casefold() for match in _IDENTIFIER_RE.findall(text)}
+
 
 @dataclass
 class DimensionCoverage:
@@ -160,10 +184,19 @@ def compute_dimension_coverage(
 
     results: list[DimensionCoverage] = []
     for dimension, dvec in zip(dimensions, dimension_vectors, strict=True):
+        dimension_identifiers = _identifiers_in(dimension.label)
         matches: list[tuple[str, float, ClaimRecord]] = []
         for (title, distance, claim), cvec in zip(all_claims, claim_vectors, strict=True):
             similarity = sum(a * b for a, b in zip(dvec, cvec, strict=True))
-            if similarity >= DIMENSION_MATCH_SIMILARITY:
+            claim_text_folded = claim[1].casefold()
+            # Substring search against the claim's raw text, not another
+            # regex pass over it: the identifier's canonical casing (e.g.
+            # "LoRA") is what the dimension label carries, but a claim
+            # quoting it may use different casing ("lora adapters") that
+            # the internal-caps branch of _IDENTIFIER_RE would no longer
+            # recognize as identifier-shaped once case-folded.
+            identifier_hit = any(identifier in claim_text_folded for identifier in dimension_identifiers)
+            if similarity >= DIMENSION_MATCH_SIMILARITY or identifier_hit:
                 matches.append((title, distance, claim))
 
         results.append(_status_for(dimension.label, matches))
