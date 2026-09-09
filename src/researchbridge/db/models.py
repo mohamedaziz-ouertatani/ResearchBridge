@@ -654,6 +654,13 @@ class ResearchAssessment(Base):
     # already computed but discarded before this column existed.
     potential_applications_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # "not_assessed" | "unavailable" | "found" - distinguishes "no
+    # qualifying applications existed to synthesize from" (synthesis never
+    # attempted) from "Ollama was disabled/unreachable/produced an invalid
+    # response" (attempted and failed, worth retrying) - both previously
+    # rendered as the same permanent "left to a human reviewer" refusal.
+    # See assessment/opportunity_synthesis.py.
+    potential_opportunities_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     technical_feasibility_level: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     technical_feasibility_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     risks_and_limitations: Mapped[str | None] = mapped_column(Text, nullable=True)

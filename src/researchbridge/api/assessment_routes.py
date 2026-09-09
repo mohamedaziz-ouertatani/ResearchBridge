@@ -418,6 +418,7 @@ def synthesize_assessment_opportunities(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     assessment.potential_opportunities, cited_evidence_ids = to_persisted_opportunities(applications, result)
+    assessment.potential_opportunities_status = "found"
 
     # Link the same real evidence the cited applications already trace to -
     # never fabricated for this field. This route can be called again on
@@ -520,6 +521,7 @@ def _to_out(
         technical_feasibility_level=assessment.technical_feasibility_level,
         technical_feasibility_reasoning=assessment.technical_feasibility_reasoning,
         potential_opportunities=assessment.potential_opportunities,
+        potential_opportunities_status=assessment.potential_opportunities_status,
         risks_and_limitations=assessment.risks_and_limitations,
         recommendation=assessment.recommendation,
         confidence=assessment.confidence,

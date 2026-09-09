@@ -40,10 +40,17 @@ from researchbridge.assessment.export_charts import (
 
 FONTS_DIR = Path(__file__).parent / "fonts"
 
-OPPORTUNITIES_REASON = (
-    "Not generated. Naming a product opportunity means inventing a claim the "
-    "literature does not make, so this is left to a human reviewer."
-)
+_OPPORTUNITIES_UNASSESSED_REASONS = {
+    "not_assessed": (
+        "Not generated. Naming a product opportunity means inventing a claim the "
+        "literature does not make, so this is left to a human reviewer."
+    ),
+    "unavailable": (
+        "Temporarily unavailable: opportunity synthesis was attempted but the local "
+        "model was unreachable or did not produce a valid result. Retry via the "
+        "opportunities endpoint, or leave to a human reviewer."
+    ),
+}
 
 _GAP_UNASSESSED_REASONS = {
     "no_relevant_evidence": (
@@ -221,7 +228,9 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
         ReportSection(
             label="Product / technology opportunities",
             body=None,
-            unassessed_reason=OPPORTUNITIES_REASON,
+            unassessed_reason=_OPPORTUNITIES_UNASSESSED_REASONS.get(
+                assessment.potential_opportunities_status, _OPPORTUNITIES_UNASSESSED_REASONS["not_assessed"]
+            ),
             evidence=by_role.get("opportunity", []),
         ),
         ReportSection(

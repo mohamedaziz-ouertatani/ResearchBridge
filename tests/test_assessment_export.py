@@ -41,6 +41,7 @@ def _assessment(**overrides) -> ResearchAssessmentOut:
         technical_feasibility_level="medium",
         technical_feasibility_reasoning="A graph attention mechanism was described.",
         potential_opportunities=None,
+        potential_opportunities_status="not_assessed",
         risks_and_limitations="- Paper Title: evaluated only on offline datasets",
         recommendation="Proceed with caution",
         confidence="medium",
@@ -260,6 +261,20 @@ def test_md_escape_only_guards_line_starting_markers_not_mid_sentence_punctuatio
     assert _md_escape("- a leading bullet-like line") == "\\- a leading bullet-like line"
     assert _md_escape("# not a heading") == "\\# not a heading"
     assert _md_escape("1. not a list") == "\\1. not a list"
+
+
+def test_opportunities_unavailable_status_shows_retry_message_not_permanent_refusal() -> None:
+    assessment = _assessment(potential_opportunities=None, potential_opportunities_status="unavailable")
+    sections = build_report_sections(assessment)
+    opportunities = next(s for s in sections if s.label == "Product / technology opportunities")
+    assert "temporarily unavailable" in opportunities.unassessed_reason.lower()
+
+
+def test_opportunities_not_assessed_status_shows_no_grounds_message() -> None:
+    assessment = _assessment(potential_opportunities=None, potential_opportunities_status="not_assessed")
+    sections = build_report_sections(assessment)
+    opportunities = next(s for s in sections if s.label == "Product / technology opportunities")
+    assert "inventing a claim" in opportunities.unassessed_reason.lower()
 
 
 def test_existing_solutions_evidence_excludes_quotes_already_in_body() -> None:

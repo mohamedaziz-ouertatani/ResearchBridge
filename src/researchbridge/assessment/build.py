@@ -176,6 +176,7 @@ def build_assessment(
     opportunities = assess_opportunities(session, papers_by_distance)
 
     opportunities_json: list[dict] | None = None
+    opportunities_status = "not_assessed"
     opportunity_evidence_ids: set[str] = set()
     non_speculative_evidence_ids: set[str] = set()
     speculative_evidence_ids: set[str] = set()
@@ -200,6 +201,7 @@ def build_assessment(
             opportunities_json, opportunity_evidence_ids = to_persisted_opportunities(
                 source_applications, synthesis_result
             )
+            opportunities_status = "found"
             for opp in synthesis_result.opportunities:
                 target = speculative_evidence_ids if opp.tier == "speculative" else non_speculative_evidence_ids
                 for i in opp.source_application_indices:
@@ -207,7 +209,13 @@ def build_assessment(
                     if evidence_id_str is not None:
                         target.add(evidence_id_str)
         except OpportunitySynthesisUnavailable:
-            pass  # fail closed - keep assess_opportunities()'s deterministic NULL default
+            # fail closed - keep assess_opportunities()'s deterministic NULL
+            # default, but record that synthesis was attempted and failed
+            # (Ollama disabled/unreachable/invalid response) - distinct from
+            # "not_assessed" (no qualifying applications, never attempted)
+            # so the export layer can show a retry-worthy message instead of
+            # the permanent "left to a human reviewer" refusal.
+            opportunities_status = "unavailable"
 
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
     recommendation = assess_recommendation(
@@ -283,6 +291,7 @@ def build_assessment(
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),
+        potential_opportunities_status=opportunities_status,
         risks_and_limitations=risks.text,
         recommendation=recommendation.recommendation,
         confidence=recommendation.confidence,

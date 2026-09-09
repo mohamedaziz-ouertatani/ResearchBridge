@@ -382,6 +382,13 @@ class ResearchAssessmentOut(BaseModel):
     states. Each item: {tier, opportunity, source_applications: [{application,
     paper_id, paper_title}]}, every citation checked against the
     assessment's own potential_applications before being shown."""
+    potential_opportunities_status: str
+    """"not_assessed" | "unavailable" | "found". "not_assessed": no
+    qualifying applications existed to synthesize from (synthesis never
+    attempted). "unavailable": Ollama was disabled, unreachable, or
+    produced an invalid response after one retry - worth retrying via
+    POST /assessments/{id}/opportunities later. "found": synthesized and
+    persisted."""
     risks_and_limitations: str | None
     """One line per relevant retrieved paper's own explicit limitations
     claim, grounded the same way as potential_applications (see
