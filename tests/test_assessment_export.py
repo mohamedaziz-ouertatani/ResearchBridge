@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import uuid
 
+import pytest
+
 from researchbridge.api.schemas import (
     AnalysisClaimOut,
     AssessmentEvidenceOut,
@@ -261,6 +263,12 @@ def test_md_escape_only_guards_line_starting_markers_not_mid_sentence_punctuatio
     assert _md_escape("- a leading bullet-like line") == "\\- a leading bullet-like line"
     assert _md_escape("# not a heading") == "\\# not a heading"
     assert _md_escape("1. not a list") == "\\1. not a list"
+
+
+def test_unrecognized_applications_status_raises_instead_of_masking() -> None:
+    assessment = _assessment(potential_applications=None, potential_applications_status="some_new_status_value")
+    with pytest.raises(ValueError, match="some_new_status_value"):
+        build_report_sections(assessment)
 
 
 def test_opportunities_unavailable_status_shows_retry_message_not_permanent_refusal() -> None:

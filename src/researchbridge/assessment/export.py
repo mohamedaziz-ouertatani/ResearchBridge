@@ -69,6 +69,10 @@ _APPLICATIONS_UNASSESSED_REASONS = {
     "not_assessed": "No relevant paper was retrieved for this input, so applications could not be assessed.",
     "no_evidence": "No retrieved paper stated an application.",
 }
+# "found" has no entry in the reasons dict above (its reason string is never
+# shown - body is populated instead), but is still a recognized status - see
+# ApplicationsResult.status in assessment/applications.py.
+_APPLICATIONS_STATUSES = frozenset(_APPLICATIONS_UNASSESSED_REASONS) | {"found"}
 
 
 @dataclass
@@ -176,9 +180,11 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
     )
 
     applications_body = None
-    applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS.get(
-        assessment.potential_applications_status, _APPLICATIONS_UNASSESSED_REASONS["not_assessed"]
-    )
+    if assessment.potential_applications_status not in _APPLICATIONS_STATUSES:
+        raise ValueError(
+            f"unrecognized potential_applications_status {assessment.potential_applications_status!r}"
+        )
+    applications_unassessed_reason = _APPLICATIONS_UNASSESSED_REASONS.get(assessment.potential_applications_status)
     if assessment.potential_applications:
         applications_body = "\n".join(
             f"- {app['application']} (source: {app['source_paper']})" for app in assessment.potential_applications
