@@ -888,3 +888,28 @@ def test_llm_stages_splits_speculative_opportunities_into_a_separate_claim(
     assert "industry-wide" not in opportunity_claim.claim_text
     assert "real-time fraud screening API" in opportunity_claim.claim_text
     assert "broader fraud-risk monitoring platform" in opportunity_claim.claim_text
+
+
+def test_build_assessment_raises_if_narrative_text_has_no_evidence(session_factory, embedder, monkeypatch) -> None:
+    """A build_assessment() that would otherwise persist real body text
+    backed by zero evidence rows (the historical bug behind two stale
+    assessments discovered in production) must fail loudly instead."""
+    from researchbridge.assessment import build as build_module
+    from researchbridge.assessment.existing_solutions import ExistingSolutionsResult
+
+    monkeypatch.setattr(
+        build_module,
+        "build_existing_solutions",
+        lambda papers_with_claims: ExistingSolutionsResult(text="some claim text", evidence_ids=[]),
+    )
+
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    with pytest.raises(build_module.AssessmentIncompleteError, match="comparison_summary"):
+        build_module.build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()

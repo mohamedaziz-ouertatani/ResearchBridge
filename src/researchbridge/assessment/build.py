@@ -93,6 +93,22 @@ from researchbridge.embedding.base import Embedder
 from researchbridge.embedding.search import search_by_text
 
 
+class AssessmentIncompleteError(ValueError):
+    """Raised when an assess_* function produced narrative text with no
+    evidence backing it - refusing to persist a ResearchAssessment that
+    can't stand behind its own text. Found live: two assessments built by
+    an earlier pipeline version had populated comparison_summary/
+    novelty_reasoning text but zero linked ResearchAssessmentEvidence rows,
+    showing "evidence quotes: 0" in their header and silently dropping the
+    References section - see docs/superpowers/specs/
+    2026-09-09-assessment-report-hardening-design.md, Phase 3/8."""
+
+
+def _assert_evidence_linked(field_name: str, text: str | None, evidence_ids: list) -> None:
+    if text and not evidence_ids:
+        raise AssessmentIncompleteError(f"{field_name} has narrative text but no linked evidence ids")
+
+
 def build_assessment(
     session: Session,
     research_input_id: uuid.UUID,
@@ -211,6 +227,28 @@ def build_assessment(
         if gap.status == "found"
         else ("no_relevant_evidence" if gap.status == "not_assessed" else "checked_no_gap_found")
     )
+
+    _assert_evidence_linked("comparison_summary", existing_solutions.text, existing_solutions.evidence_ids)
+    # novelty.reasoning is exempt: unlike every other field here, assess_novelty
+    # always narrates something (including "found nothing to compare against" -
+    # see that module's own docstring), so a non-null reasoning string with no
+    # evidence_ids is its normal, honest "not enough evidence" case, not a sign
+    # the text is ungrounded.
+    # "reused_candidate_gap" is exempt: its evidence traces through the
+    # separately-reviewed CandidateGapEvidence table (see gap.py's
+    # _reuse_approved_candidate_gap), not this build's own extraction - a
+    # human already reviewed and approved the gap itself, so an empty
+    # evidence_ids list here reflects that table's own state, not a
+    # newly-fabricated claim from this build.
+    if gap.status == "found" and gap.source != "reused_candidate_gap":
+        _assert_evidence_linked("research_gap_text", gap.text, gap.evidence_ids)
+    if applications.status == "found":
+        _assert_evidence_linked("potential_applications", "found", applications.evidence_ids)
+    if feasibility.level != "not_assessed":
+        _assert_evidence_linked(
+            "technical_feasibility_reasoning", feasibility.reasoning, feasibility.evidence_ids
+        )
+    _assert_evidence_linked("risks_and_limitations", risks.text, risks.evidence_ids)
 
     assessment = ResearchAssessment(
         research_input_id=research_input.id,
