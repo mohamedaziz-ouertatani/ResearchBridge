@@ -150,7 +150,12 @@ export function AssessmentReport({
         <MobileReportNav />
 
         <Group {...REPORT_GROUPS[0]}>
-          <Field id="input" label="input" gradeable={false}>
+          <Field
+            id="input"
+            label="input"
+            hint="The idea or document you submitted, as read for this assessment."
+            gradeable={false}
+          >
             <p className="font-[family-name:var(--type-text)] text-[1.0625rem] leading-[1.7]">
               {assessment.research_input.raw_text.length > 600
                 ? `${assessment.research_input.raw_text.slice(0, 600)}…`
@@ -177,6 +182,7 @@ export function AssessmentReport({
           <Field
             id="related-research"
             label="related research"
+            hint="Papers from the corpus that actually contributed evidence to this report - not every paper that was retrieved was used."
             gradeable={false}
           >
             {contributingPapers.size === 0 ? (
@@ -206,6 +212,7 @@ export function AssessmentReport({
           <Field
             id="when-discussed"
             label="when this idea was discussed"
+            hint="How the papers behind this report are spread across publication years."
             gradeable={false}
           >
             <IdeaYearTrend evidence={assessment.evidence} />
@@ -216,6 +223,7 @@ export function AssessmentReport({
           <Field
             id="existing-solutions"
             label="existing solutions"
+            hint="What the retrieved papers already claim to solve or use, so you can see how this idea compares."
             surfaceId={assessment.id}
             evidence={byRole.get("comparison")}
             claim={claimForText(
@@ -256,6 +264,7 @@ export function AssessmentReport({
           <Field
             id="research-gap"
             label="research gap"
+            hint="A specific problem the retrieved literature hasn't yet solved, if the evidence points to one."
             surfaceId={assessment.id}
             evidence={byRole.get("research_gap")}
             claim={claimForText(
@@ -288,6 +297,7 @@ export function AssessmentReport({
           <Field
             id="applications"
             label="potential applications"
+            hint="Concrete real-world uses for this idea, each one a claim actually made in a retrieved paper - not brainstormed."
             surfaceId={assessment.id}
             evidence={byRole.get("application")}
           >
@@ -358,6 +368,7 @@ export function AssessmentReport({
           <Field
             id="risks"
             label="risks / limitations"
+            hint="Limitations or open problems the retrieved literature itself calls out - not a full risk assessment of this idea."
             surfaceId={assessment.id}
             evidence={byRole.get("risk")}
             claim={claimForText(
@@ -387,6 +398,7 @@ export function AssessmentReport({
           <Field
             id="reasoning"
             label="recommendation reasoning"
+            hint="A plain-text recap of the signals above, laid out the way the recommendation was actually reached."
             gradeable={false}
           >
             <Preformatted
@@ -926,6 +938,7 @@ function IdeaYearLineChart({ byYear }: { byYear: Record<string, number> }) {
 function Field({
   id,
   label,
+  hint,
   surfaceId,
   level,
   evidence,
@@ -936,6 +949,11 @@ function Field({
   /** Anchor target for ReportNav / MobileReportNav's jump links. */
   id?: string;
   label: string;
+  /** One plain-language line explaining what this field means and how to
+   * read it - shown under the label for readers without research/ML
+   * background. Optional because some fields already carry an equivalent
+   * explainer inline in their content (novelty, feasibility). */
+  hint?: string;
   surfaceId?: string;
   level?: string;
   evidence?: AssessmentEvidence[];
@@ -957,18 +975,24 @@ function Field({
       id={id}
       className="grid scroll-mt-8 grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 border-b border-[var(--rule-soft)] py-7 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-6"
     >
-      {/* the evidence gutter: how many real passages back this reading */}
+      {/* the evidence gutter: how many real passages back this reading, with
+          a plain-word unit label underneath so the count reads on its own,
+          without needing to discover the hover tooltip */}
       <div className="pt-0.5">
         {gradeable && (
           <span
-            className="readout text-[0.8125rem] text-[var(--ink-faint)] tabular-nums"
             title={
               count > 0
                 ? `${count} supporting passage${count === 1 ? "" : "s"}`
                 : "no supporting passage"
             }
           >
-            {count > 0 ? count : "—"}
+            <span className="readout block text-[0.8125rem] text-[var(--ink-faint)] tabular-nums">
+              {count > 0 ? count : "—"}
+            </span>
+            <span className="mt-0.5 block text-[0.5625rem] leading-tight tracking-wide text-[var(--ink-faint)] uppercase">
+              {count > 0 ? (count === 1 ? "source" : "sources") : "none found"}
+            </span>
           </span>
         )}
       </div>
@@ -992,6 +1016,12 @@ function Field({
             )}
           </span>
         </div>
+
+        {hint && (
+          <p className="mt-1.5 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+            {hint}
+          </p>
+        )}
 
         <div className="mt-3">{children}</div>
 
