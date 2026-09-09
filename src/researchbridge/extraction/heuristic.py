@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from researchbridge.db.models import Paper
 from researchbridge.extraction.base import ClaimCandidate
+from researchbridge.extraction.quote_quality import is_acceptable_quote
 from researchbridge.extraction.sections import sentences_for_field
 from researchbridge.extraction.sentences import split_sentences
 
@@ -106,14 +107,28 @@ class HeuristicExtractor:
                 candidates.append(ClaimCandidate(field, sentence, sentence, confidence="medium"))
                 used_abstract_sentences.add(sentence)
 
-        # skip the fallback if the opening sentence was already claimed by a
-        # real cue-phrase match above - relabeling it "problem" too would be
-        # a duplicate, and quite possibly a mislabel (a method sentence isn't
-        # the problem statement just because it happens to open the abstract)
-        if abstract_sentences and abstract_sentences[0] not in used_abstract_sentences:
-            candidates.append(
-                ClaimCandidate("problem", abstract_sentences[0], abstract_sentences[0], confidence="low")
+        # skip the fallback entirely if the opening sentence was already
+        # claimed by a real cue-phrase match above - relabeling it "problem"
+        # too would be a duplicate, and quite possibly a mislabel (a method
+        # sentence isn't the problem statement just because it happens to
+        # open the abstract). Otherwise, scan forward past the opening
+        # sentence if it's malformed (truncated, boilerplate) rather than
+        # accepting it unconditionally - the first sentence is still
+        # strongly preferred (Sec 15's "problem opens the abstract"
+        # convention), just not at the cost of a garbled quote when a later,
+        # still-unclaimed sentence would do.
+        first_sentence = abstract_sentences[0] if abstract_sentences else None
+        if first_sentence is not None and first_sentence not in used_abstract_sentences:
+            problem_sentence = next(
+                (
+                    sentence
+                    for sentence in abstract_sentences
+                    if sentence not in used_abstract_sentences and is_acceptable_quote(sentence)
+                ),
+                None,
             )
+            if problem_sentence is not None:
+                candidates.append(ClaimCandidate("problem", problem_sentence, problem_sentence, confidence="low"))
 
         return candidates
 
@@ -121,7 +136,7 @@ class HeuristicExtractor:
 def _first_matching_sentence(sentences: list[str], phrases: list[str]) -> str | None:
     for phrase in phrases:
         for sentence in sentences:
-            if phrase in sentence.lower():
+            if phrase in sentence.lower() and is_acceptable_quote(sentence):
                 return sentence
     return None
 
@@ -129,6 +144,6 @@ def _first_matching_sentence(sentences: list[str], phrases: list[str]) -> str | 
 def _first_matching_pair(pairs: list[tuple[str, str]], phrases: list[str]) -> tuple[str, str] | None:
     for phrase in phrases:
         for sentence, section_name in pairs:
-            if phrase in sentence.lower():
+            if phrase in sentence.lower() and is_acceptable_quote(sentence):
                 return sentence, section_name
     return None

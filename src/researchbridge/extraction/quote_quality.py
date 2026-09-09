@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 
-MIN_QUOTE_TOKENS = 6
+MIN_QUOTE_TOKENS = 4
 
 _TERMINAL_PUNCTUATION_RE = re.compile(r'[.!?][)\]"”’\']*\s*$')
 _HYPHEN_LINE_WRAP_RE = re.compile(r"[A-Za-z]-\s*$")

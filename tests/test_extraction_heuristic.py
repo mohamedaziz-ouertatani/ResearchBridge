@@ -58,6 +58,32 @@ def test_field_with_no_cue_match_is_omitted_not_fabricated() -> None:
     assert "applications" not in types
 
 
+def test_rejects_truncated_cue_match_and_falls_through() -> None:
+    # "we propose" matches the too-short fragment first in reading order,
+    # but it must be skipped in favor of the next sentence containing a
+    # method cue phrase.
+    abstract = (
+        "Prior work struggles with X. We propose DU. "
+        "We propose a complete graph-based method for X. It works on real data."
+    )
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
+
+    method = next(c for c in candidates if c.claim_type == "method")
+    assert method.claim_text == "We propose a complete graph-based method for X."
+
+
+def test_problem_fallback_skips_a_truncated_opening_sentence() -> None:
+    abstract = (
+        "For. This paper studies a lock-free queue design under heavy contention. "
+        "We propose a wait-free algorithm. Results show a 3x speedup."
+    )
+    candidates = HeuristicExtractor().extract(_paper(abstract), {})
+
+    problem = next((c for c in candidates if c.claim_type == "problem"), None)
+    assert problem is not None
+    assert problem.claim_text != "For."
+
+
 def test_problem_falls_back_to_first_sentence_at_low_confidence() -> None:
     abstract = "Coordination across regions is expensive. We propose a cheaper protocol."
     candidates = HeuristicExtractor().extract(_paper(abstract), {})
