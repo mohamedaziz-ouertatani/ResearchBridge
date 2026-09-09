@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 from researchbridge.assessment.coverage import DimensionCoverage
 from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
 from researchbridge.db.models import Evidence, ExtractedClaim, Paper
+from researchbridge.extraction.quote_quality import looks_truncated
 
 PaperWithDistance = tuple[uuid.UUID, float]
 
@@ -89,9 +90,26 @@ def assess_risks(
 
     lines: list[str] = []
     evidence_ids: list[uuid.UUID] = []
+    # (paper, text) already listed. Each limitation is rendered as a
+    # standalone bullet, so a sentence extracted twice for one paper shows
+    # up twice, and a fragment the sentence splitter cut mid-sentence reads
+    # as a non-sequitur. Found live 2026-09-09, where a real report listed
+    # a "risk" that ended mid-comparison at "(96.1% vs." and 16% of quote
+    # lines across 30 generated reports were duplicates. Keyed by paper so
+    # two different papers naming the same limitation both stay - that
+    # repetition is real corroboration, not noise.
+    seen: set[tuple[uuid.UUID, str]] = set()
     for paper_id in relevant_paper_ids:
         for text, evidence_id, title in by_paper_id.get(paper_id, []):
+            if looks_truncated(text):
+                continue
+            key = (paper_id, " ".join(text.split()).casefold())
+            if key in seen:
+                continue
+            seen.add(key)
             lines.append(f'- {title}: "{text}"')
             evidence_ids.append(evidence_id)
 
+    if not lines:
+        return RisksResult(text=None, evidence_ids=[], coverage_gaps=coverage_gaps)
     return RisksResult(text="\n".join(lines), evidence_ids=evidence_ids, coverage_gaps=coverage_gaps)
