@@ -102,7 +102,7 @@ def test_retrieves_related_papers_by_embedding_the_input_text(session_factory, e
 def test_comparison_summary_is_grounded_in_real_claim_text(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -110,13 +110,13 @@ def test_comparison_summary_is_grounded_in_real_claim_text(session_factory, embe
 
     session.close()
     assert assessment.comparison_summary is not None
-    assert "evaluated only in offline settings" in assessment.comparison_summary
+    assert "evaluated only in offline settings." in assessment.comparison_summary
 
 
 def test_comparison_evidence_is_linked_for_every_claim_used(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "limitations", "evaluated only in offline settings")
+    evidence_id = _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -134,7 +134,7 @@ def test_comparison_evidence_is_linked_for_every_claim_used(session_factory, emb
 def test_excludes_stub_claims_from_comparison(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "synthetic placeholder text", extraction_method="stub")
+    _claim(session, paper, "limitations", "synthetic placeholder text.", extraction_method="stub")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -176,7 +176,7 @@ def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have
 ) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "method", "an unrelated method claim")
+    _claim(session, paper, "method", "an unrelated method claim.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -194,7 +194,7 @@ def test_potential_applications_is_empty_list_not_null_when_relevant_papers_have
 def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -208,13 +208,13 @@ def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> 
     session.close()
     comparison_claims = [c for c in claim if c.claim_type == "fact"]
     assert len(comparison_claims) == 1
-    assert "evaluated only in offline settings" in comparison_claims[0].claim_text
+    assert "evaluated only in offline settings." in comparison_claims[0].claim_text
 
 
 def test_applications_creates_an_opportunity_analysis_claim(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -226,7 +226,7 @@ def test_applications_creates_an_opportunity_analysis_claim(session_factory, emb
         )
     ).scalars().all()
     session.close()
-    application_claims = [c for c in claims if "real-time payment fraud screening" in c.claim_text]
+    application_claims = [c for c in claims if "real-time payment fraud screening." in c.claim_text]
     assert len(application_claims) == 1
     assert application_claims[0].claim_type == "opportunity"
 
@@ -236,7 +236,7 @@ def test_research_gap_claim_is_skipped_when_the_gap_is_reused_from_a_candidate_g
 ) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -317,6 +317,12 @@ def test_novelty_is_low_when_dimension_coverage_is_well_established(session_fact
     # text hash, so a second paper can only land at the same retrieval
     # distance as the query if its embedding vector is set directly rather
     # than derived from its own (necessarily different) title.
+    #
+    # These four claim texts deliberately carry NO trailing period, unlike
+    # every other fixture here: coverage.py matches a claim to a dimension
+    # through the embedder, and the FakeEmbedder is a text hash, so
+    # "graph transformers." and "graph transformers" are unrelated vectors.
+    # The text must equal the RAKE-extracted dimension label exactly.
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
     _claim(session, paper, "method", "graph transformers")
@@ -347,32 +353,39 @@ def test_novelty_is_low_when_dimension_coverage_is_well_established(session_fact
     assert "fraud detection -> established" in assessment.novelty_reasoning
 
 
-def test_novelty_is_high_when_a_single_paper_cannot_corroborate_dimension_coverage(session_factory, embedder) -> None:
-    # this is the behavior change the redesign targets: a single retrieved
-    # paper at distance 0.0 (an exact title match) used to guarantee "low"
-    # novelty on its own. Now, with dimensions extracted, a single paper's
-    # claims can only ever reach "weak_evidence" per dimension (coverage.py
-    # requires 2+ distinct corroborating papers for "established") - so
-    # novelty correctly reads "high" here even though the nearest paper is
-    # an exact match, because the evidence backing that match's own
-    # dimensions is thin, not because closeness itself was ignored.
+def test_novelty_is_low_when_the_nearest_paper_is_an_exact_match(session_factory, embedder) -> None:
+    # REVERSED 2026-09-09. This test previously asserted "high" here, on
+    # the reasoning that a single paper's claims can only ever reach
+    # "weak_evidence" per dimension (coverage.py requires 2+ distinct
+    # corroborating papers for "established"), so thin dimension evidence
+    # should outweigh an exact title match.
+    #
+    # Live testing showed that reasoning produces exactly the wrong answer.
+    # Feeding back the verbatim abstracts of 12 papers already in the
+    # corpus retrieved each source paper at rank 1 at distance 0.007-0.063,
+    # and 7 of the 12 were graded "medium" or "high" novelty - 3 of those
+    # reaching HIGH PRIORITY, one at high confidence. Sparse dimension
+    # coverage is a statement about how well the corpus corroborates the
+    # idea's PARTS; it cannot outvote a whole-document match, which is
+    # direct evidence the idea already exists. See novelty.py's
+    # near-duplicate short-circuit.
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
     assessment = build_assessment(session, ri.id, embedder, top_k=5)
 
     session.close()
-    assert assessment.novelty_level == "high"
+    assert assessment.novelty_level == "low"
     assert "Dimension coverage:" in assessment.novelty_reasoning
 
 
 def test_novelty_evidence_is_linked_with_role_novelty(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "limitations", "evaluated only in offline settings")
+    evidence_id = _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -390,7 +403,7 @@ def test_novelty_evidence_is_linked_with_role_novelty(session_factory, embedder)
 def test_research_gap_is_set_from_an_explicit_claim_in_the_neighborhood(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -405,7 +418,7 @@ def test_research_gap_is_set_from_an_explicit_claim_in_the_neighborhood(session_
 def test_research_gap_evidence_is_linked_with_role_research_gap(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    evidence_id = _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -423,7 +436,7 @@ def test_research_gap_evidence_is_linked_with_role_research_gap(session_factory,
 def test_research_gap_stays_null_when_no_gap_evidence_exists(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "some unrelated limitation")
+    _claim(session, paper, "limitations", "some unrelated limitation.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -440,7 +453,7 @@ def test_research_gap_stays_null_when_no_gap_evidence_exists(session_factory, em
 def test_potential_applications_is_set_from_the_neighborhood(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -448,7 +461,7 @@ def test_potential_applications_is_set_from_the_neighborhood(session_factory, em
 
     session.close()
     assert assessment.potential_applications is not None
-    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening."
     assert assessment.potential_applications[0]["source_paper"] == "graph transformers for fraud detection"
     assert assessment.potential_applications_status == "found"
 
@@ -456,7 +469,7 @@ def test_potential_applications_is_set_from_the_neighborhood(session_factory, em
 def test_applications_evidence_is_linked_with_role_application(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening")
+    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -478,7 +491,7 @@ def test_potential_applications_is_empty_list_without_any_applications_claim(ses
     # and the not_assessed case covered elsewhere in this file)
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "some unrelated limitation")
+    _claim(session, paper, "limitations", "some unrelated limitation.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -491,7 +504,7 @@ def test_potential_applications_is_empty_list_without_any_applications_claim(ses
 def test_technical_feasibility_is_set_from_the_neighborhood(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "method", "a graph attention mechanism")
+    _claim(session, paper, "method", "a graph attention mechanism.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -505,7 +518,7 @@ def test_technical_feasibility_is_set_from_the_neighborhood(session_factory, emb
 def test_feasibility_evidence_is_linked_with_role_feasibility(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "method", "a graph attention mechanism")
+    evidence_id = _claim(session, paper, "method", "a graph attention mechanism.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -523,7 +536,7 @@ def test_feasibility_evidence_is_linked_with_role_feasibility(session_factory, e
 def test_potential_opportunities_stays_null_by_design(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -537,20 +550,20 @@ def test_potential_opportunities_stays_null_by_design(session_factory, embedder)
 def test_risks_and_limitations_is_set_from_the_neighborhood(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _claim(session, paper, "limitations", "evaluated only on offline datasets.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
     assessment = build_assessment(session, ri.id, embedder, top_k=5)
 
     session.close()
-    assert "evaluated only on offline datasets" in assessment.risks_and_limitations
+    assert "evaluated only on offline datasets." in assessment.risks_and_limitations
 
 
 def test_risks_evidence_is_linked_with_role_risk(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "limitations", "evaluated only on offline datasets")
+    evidence_id = _claim(session, paper, "limitations", "evaluated only on offline datasets.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -568,8 +581,8 @@ def test_risks_evidence_is_linked_with_role_risk(session_factory, embedder) -> N
 def test_recommendation_and_confidence_are_set_from_the_other_signals(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
-    _claim(session, paper, "method", "a graph attention mechanism")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
+    _claim(session, paper, "method", "a graph attention mechanism.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -586,8 +599,8 @@ def test_recommendation_not_boosted_by_a_gap_that_is_not_closely_grounded(sessio
     # even though the report field still surfaces the text
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "method", "a graph attention mechanism")
-    _claim(session, paper, "method", "a second graph attention mechanism")  # 2 distinct method claims -> high feasibility needs 2 papers, keep simple: not required here
+    _claim(session, paper, "method", "a graph attention mechanism.")
+    _claim(session, paper, "method", "a second graph attention mechanism.")  # 2 distinct method claims -> high feasibility needs 2 papers, keep simple: not required here
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -654,7 +667,7 @@ def test_novelty_reasoning_includes_dimension_coverage_when_dimensions_are_extra
 ) -> None:
     session = session_factory()
     paper = _paper(session, embedder, "p1", "federated learning for fraud detection across banks")
-    _claim(session, paper, "method", "a federated learning method for fraud detection")
+    _claim(session, paper, "method", "a federated learning method for fraud detection.")
     ri = _research_input(
         session,
         "A federated learning system for detecting financial fraud across multiple banks "
@@ -677,7 +690,7 @@ def test_recommendation_reasoning_is_persisted_and_derivable_at_read_time(sessio
     # itself is exercised in the export/API tests).
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -727,14 +740,14 @@ def test_llm_stages_disabled_by_default_even_with_ollama_env_enabled(
     monkeypatch.setattr("researchbridge.assessment.opportunity_synthesis.requests.post", mock_post)
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
     assessment = build_assessment(session, ri.id, embedder, top_k=5)
 
     session.close()
-    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening."
     assert assessment.potential_opportunities is None
 
 
@@ -753,14 +766,14 @@ def test_llm_stages_filters_applications_and_synthesizes_opportunities_when_enab
     )
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
     assessment = build_assessment(session, ri.id, embedder, top_k=5, enable_llm_stages=True)
 
     session.close()
-    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening."
     assert assessment.potential_opportunities is not None
     assert [o["tier"] for o in assessment.potential_opportunities] == ["direct", "adjacent", "speculative"]
 
@@ -777,7 +790,7 @@ def test_llm_stages_application_filter_drops_irrelevant_candidates_when_enabled(
     )
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -806,7 +819,7 @@ def test_llm_stages_fail_open_on_application_filter_when_ollama_unreachable(
     )
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -815,7 +828,7 @@ def test_llm_stages_fail_open_on_application_filter_when_ollama_unreachable(
     session.close()
     # relevance filtering failed -> keeps the deterministic, unfiltered
     # application; opportunity synthesis also failed -> falls back to NULL
-    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening"
+    assert assessment.potential_applications[0]["application"] == "real-time payment fraud screening."
     assert assessment.potential_opportunities is None
 
 
@@ -834,7 +847,7 @@ def test_llm_stages_opportunity_evidence_is_linked_with_role_opportunity(
     )
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening")
+    evidence_id = _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -864,7 +877,7 @@ def test_llm_stages_splits_speculative_opportunities_into_a_separate_claim(
     )
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "applications", "real-time payment fraud screening")
+    _claim(session, paper, "applications", "real-time payment fraud screening.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -905,7 +918,7 @@ def test_build_assessment_raises_if_narrative_text_has_no_evidence(session_facto
 
     session = session_factory()
     paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _claim(session, paper, "limitations", "evaluated only in offline settings")
+    _claim(session, paper, "limitations", "evaluated only in offline settings.")
     ri = _research_input(session, "graph transformers for fraud detection")
     session.commit()
 
@@ -913,3 +926,122 @@ def test_build_assessment_raises_if_narrative_text_has_no_evidence(session_facto
         build_module.build_assessment(session, ri.id, embedder, top_k=5)
 
     session.close()
+
+
+def test_out_of_corpus_idea_is_flagged_and_its_narrative_fields_suppressed(session_factory, embedder) -> None:
+    """When nothing retrieved is within FAR_DISTANCE, every narrative field
+    would otherwise be grounded in unrelated papers. Found live 2026-09-09:
+    a 13th-century manuscript pigment-analysis idea produced a research gap
+    and a risk quoted from an Arabic OCR benchmark paper, with nothing in
+    the report telling the reader the idea fell outside the corpus."""
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "reinforcement learning for robot grasping")
+    _claim(session, paper, "research_gap", "no prior work evaluates grasping under occlusion.")
+    _claim(session, paper, "limitations", "our method assumes a fixed camera pose.")
+    _claim(session, paper, "method", "we train a policy with PPO on a simulated arm.")
+    # this exact string embeds >= novelty.FAR_DISTANCE from the paper title
+    # above under the FakeEmbedder, which is what makes it "out of corpus"
+    ri = _research_input(session, "pigment analysis of illuminated manuscripts variant 2122")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.corpus_coverage_status == "out_of_corpus"
+    assert assessment.research_gap_text is None
+    assert assessment.risks_and_limitations is None
+    assert assessment.technical_feasibility_level == "not_assessed"
+
+
+def test_in_corpus_idea_is_flagged_as_covered(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _claim(session, paper, "limitations", "evaluated on a single bank's data only.")
+    ri = _research_input(session, "graph transformers for fraud detection")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert assessment.corpus_coverage_status == "in_corpus"
+    assert assessment.risks_and_limitations is not None
+
+
+def test_non_english_caveat_does_not_claim_the_input_is_non_latin_script(session_factory, embedder) -> None:
+    """The caveat used to say "non-English/non-Latin-script language",
+    which is wrong for the French and Spanish inputs it now also fires on
+    (see assessment/language.py's is_likely_non_english)."""
+    session = session_factory()
+    paper = _paper(session, embedder, "p1", "detection de lesions cutanees")
+    _claim(session, paper, "limitations", "Une seule cohorte a ete utilisee.")
+    ri = _research_input(
+        session,
+        "Nous proposons un systeme d'apprentissage profond pour la detection automatique "
+        "des lesions cutanees a partir d'images dermoscopiques, en utilisant des reseaux "
+        "de neurones convolutifs entraines sur des donnees multicentriques.",
+    )
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=5)
+
+    session.close()
+    assert "non-Latin-script" not in assessment.novelty_reasoning
+    assert "English-optimized" in assessment.novelty_reasoning
+
+
+def test_out_of_corpus_uses_mean_distance_not_the_single_nearest_paper(session_factory, embedder) -> None:
+    """One lucky near match does not mean the corpus can speak to an idea.
+    Calibrated 2026-09-09 (scripts/calibrate_out_of_corpus.py): over 18
+    in-domain and 18 out-of-domain ideas, nearest-distance OVERLAPS between
+    the two classes (in.max 0.426 vs out.min 0.415) while mean-of-top-10
+    separates cleanly (0.463 vs 0.491). The first guard read nearest
+    against 0.65 and so never fired: a 13th-century manuscript idea
+    retrieved its nearest paper at 0.403.
+
+    Here one paper sits close while the rest of the neighbourhood is far,
+    which must still read as out-of-corpus."""
+    session = session_factory()
+    close = _paper(session, embedder, "p1", "pigment analysis of illuminated manuscripts")
+    _claim(session, close, "limitations", "Only three folios were sampled.")
+    for i in range(9):
+        far = _paper(session, embedder, f"far{i}", f"an entirely unrelated paper about topic {i}")
+        _claim(session, far, "limitations", f"Unrelated limitation {i}.")
+    ri = _research_input(session, "pigment analysis of illuminated manuscripts")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=10)
+
+    session.close()
+    assert assessment.corpus_coverage_status == "out_of_corpus"
+    assert assessment.research_gap_text is None
+    assert assessment.risks_and_limitations is None
+
+
+def test_out_of_corpus_novelty_reads_insufficient_evidence_not_high(session_factory, embedder) -> None:
+    """"Novelty: high" is the headline a reader takes away, and printing it
+    for an idea the corpus cannot speak to is the exact false positive this
+    work set out to remove - nonsense and out-of-domain ideas scored "high"
+    because nothing matched them, which is an absence of evidence rather
+    than evidence of novelty. novelty.py already has the honest label for
+    that state, and recommendation.py already treats it as unassessed.
+
+    Uses the real out-of-corpus shape: a nearest paper close enough to
+    produce dimension coverage (so novelty would otherwise aggregate to
+    "high"), with a distant neighbourhood behind it.
+    """
+    session = session_factory()
+    close = _paper(session, embedder, "p1", "pigment analysis of illuminated manuscripts")
+    _claim(session, close, "limitations", "Only three folios were sampled.")
+    _claim(session, close, "method", "We used X-ray fluorescence on each folio.")
+    for i in range(9):
+        far = _paper(session, embedder, f"far{i}", f"an entirely unrelated paper about topic {i}")
+        _claim(session, far, "limitations", f"Unrelated limitation {i}.")
+    ri = _research_input(session, "pigment analysis of illuminated manuscripts")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=10)
+
+    session.close()
+    assert assessment.corpus_coverage_status == "out_of_corpus"
+    assert assessment.novelty_level == "insufficient_evidence"
+    assert assessment.recommendation == "INSUFFICIENT EVIDENCE"

@@ -85,8 +85,8 @@ from researchbridge.assessment.dimensions_llm import extract_dimensions_with_fal
 from researchbridge.assessment.existing_solutions import build_existing_solutions
 from researchbridge.assessment.feasibility import assess_technical_feasibility
 from researchbridge.assessment.gap import assess_research_gap
-from researchbridge.assessment.language import is_likely_non_latin_script
-from researchbridge.assessment.novelty import assess_novelty
+from researchbridge.assessment.language import is_likely_non_english
+from researchbridge.assessment.novelty import OUT_OF_CORPUS_MEAN_DISTANCE, assess_novelty
 from researchbridge.assessment.opportunities import assess_opportunities
 from researchbridge.assessment.opportunity_synthesis import (
     OpportunitySynthesisUnavailable,
@@ -159,14 +159,14 @@ def build_assessment(
         [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
         dimension_coverages=dimension_coverages,
     )
-    if is_likely_non_latin_script(research_input.raw_text):
+    if is_likely_non_english(research_input.raw_text):
         novelty = replace(
             novelty,
             reasoning=(
-                "Note: this idea appears to be written in a non-English/non-Latin-"
-                "script language. This corpus and its embedding model are English-"
-                "optimized, so retrieval quality (and therefore this novelty signal) "
-                "is less reliable here than for English input.\n\n" + novelty.reasoning
+                "Note: this idea does not appear to be written in English. This "
+                "corpus and its embedding model are English-optimized, so retrieval "
+                "quality (and therefore this novelty signal) is less reliable here "
+                "than for English input.\n\n" + novelty.reasoning
             ),
         )
 
@@ -233,6 +233,51 @@ def build_assessment(
             opportunities_status = "unavailable"
 
     risks = assess_risks(session, papers_by_distance, dimension_coverages=dimension_coverages)
+
+    # Out-of-corpus guard. Every assess_* function above relevance-gates
+    # its OWN contribution, but nothing checked whether the corpus had
+    # anything relevant to say about this idea AT ALL - so an idea with no
+    # neighbours still got a gap, a risk and a feasibility reading quoted
+    # from whatever happened to be nearest. Found live 2026-09-09: a
+    # 13th-century manuscript pigment-analysis idea produced a research gap
+    # and a risk quoted from an Arabic OCR benchmark paper, with no
+    # indication to the reader that the idea fell outside the corpus.
+    #
+    # Measured as the MEAN over the retrieved set, not the nearest paper:
+    # nearest-distance cannot separate in-domain from out-of-domain at any
+    # threshold on this corpus (see OUT_OF_CORPUS_MEAN_DISTANCE), because
+    # one lucky match says nothing about whether the neighbourhood is on
+    # topic.
+    #
+    # novelty is reduced to "insufficient_evidence" rather than left as
+    # computed. It is the headline a reader takes away, and "Novelty: high"
+    # for an idea this corpus cannot speak to is the precise false positive
+    # this guard exists to remove - an out-of-domain or nonsense input
+    # scores "high" because NOTHING matched it, which is an absence of
+    # evidence, not evidence of novelty. "insufficient_evidence" is
+    # novelty.py's own honest label for that state, and
+    # recommendation.py already treats it as unassessed, so the top-line
+    # verdict becomes INSUFFICIENT EVIDENCE instead of a confident reading.
+    # The reasoning TEXT is preserved: it explains what was searched and
+    # why the result is thin, which is exactly what a reader needs here.
+    retrieved_distances = [distance for _paper, distance, _claims in papers_with_claims]
+    mean_distance = (sum(retrieved_distances) / len(retrieved_distances)) if retrieved_distances else None
+    is_out_of_corpus = mean_distance is None or mean_distance >= OUT_OF_CORPUS_MEAN_DISTANCE
+    corpus_coverage_status = "out_of_corpus" if is_out_of_corpus else "in_corpus"
+    if is_out_of_corpus:
+        # Only downgrade a POSITIVE reading. "not_assessed" already means
+        # something more specific - no retrieved paper had usable claims at
+        # all (see assess_novelty) - and the codebase deliberately keeps the
+        # two labels distinct for the reasoning text's benefit, so
+        # collapsing one into the other would lose information without
+        # changing any verdict (recommendation.py treats both as unassessed).
+        if novelty.level not in ("not_assessed", "insufficient_evidence"):
+            novelty = replace(novelty, level="insufficient_evidence")
+        gap = replace(gap, text=None, status="not_assessed", evidence_ids=[], candidate_gap_id=None)
+        risks = replace(risks, text=None, evidence_ids=[])
+        feasibility = replace(feasibility, level="not_assessed", reasoning=None, evidence_ids=[])
+        applications = ApplicationsResult(applications=[], evidence_ids=[], status="not_assessed")
+
     recommendation = assess_recommendation(
         novelty_level=novelty.level,
         # only count the gap as "found" for recommendation purposes if it's
@@ -303,6 +348,7 @@ def build_assessment(
             else ([] if applications.status == "no_evidence" else None)
         ),
         potential_applications_status=applications.status,
+        corpus_coverage_status=corpus_coverage_status,
         technical_feasibility_level=feasibility.level,
         technical_feasibility_reasoning=feasibility.reasoning,
         potential_opportunities=(opportunities_json if opportunities_json is not None else opportunities.opportunities),

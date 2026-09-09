@@ -653,6 +653,17 @@ class ResearchAssessment(Base):
     # assessment/applications.py's ApplicationsResult.status, which was
     # already computed but discarded before this column existed.
     potential_applications_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
+    # "not_assessed" | "in_corpus" | "out_of_corpus" - whether ANY retrieved
+    # paper was close enough (within novelty.FAR_DISTANCE) for this corpus
+    # to have something real to say about the idea. Found live 2026-09-09: a
+    # 13th-century manuscript pigment-analysis idea, with no art-history
+    # papers in this CS/AI/ML corpus at all, still produced a research gap
+    # and a risk quoted from an Arabic OCR benchmark - the nearest papers,
+    # not relevant ones. "out_of_corpus" suppresses those narrative fields
+    # in build.py and drives an explicit banner in the export layer, so the
+    # report says "outside this corpus" instead of quietly answering from
+    # whatever happened to be nearest.
+    corpus_coverage_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
     potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # "not_assessed" | "unavailable" | "found" - distinguishes "no
     # qualifying applications existed to synthesize from" (synthesis never

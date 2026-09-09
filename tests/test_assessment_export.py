@@ -334,3 +334,84 @@ def test_build_markdown_escapes_body_text_containing_markdown_syntax() -> None:
     # the escaped form should appear verbatim; the raw unescaped form should not
     assert "\\- Paper Title: \\*fabricated\\* claims \\[dangerous\\](url)" in text
     assert "\n- Paper Title: *fabricated* claims [dangerous](url)\n" not in text
+
+
+def test_out_of_corpus_assessment_carries_a_banner_in_the_markdown_report() -> None:
+    """An idea with no relevant neighbours must say so at the top. Found
+    live 2026-09-09: a 13th-century manuscript idea produced a research gap
+    and a risk quoted from an Arabic OCR benchmark, and nothing in the
+    report told the reader the idea fell outside this corpus."""
+    md = build_markdown(_assessment(corpus_coverage_status="out_of_corpus")).decode("utf-8")
+
+    assert "outside" in md.lower()
+    banner_position = md.lower().index("outside")
+    assert banner_position < md.index("01")
+
+
+def test_in_corpus_assessment_has_no_out_of_corpus_banner() -> None:
+    md = build_markdown(_assessment(corpus_coverage_status="in_corpus")).decode("utf-8")
+
+    assert "falls outside" not in md.lower()
+
+
+def test_evidence_quote_tile_counts_distinct_quotes_only() -> None:
+    """The tile read len(assessment.evidence), which counts the same
+    sentence once per stored row. Found live 2026-09-09: one report
+    advertised "evidence quotes: 41" while showing 6 distinct quotes."""
+    repeated = "a graph attention mechanism"
+    assessment = _assessment(
+        evidence=[
+            AssessmentEvidenceOut(
+                role="comparison", evidence_id=uuid.uuid4(), paper_id=PAPER_ID,
+                paper_title="Paper Title", text=repeated, section=None,
+            )
+            for _ in range(5)
+        ]
+    )
+
+    md = build_markdown(assessment).decode("utf-8")
+
+    assert "**evidence quotes**: 1" in md
+
+
+def test_out_of_corpus_banner_appears_in_the_docx_report() -> None:
+    from docx import Document
+
+    data = build_docx(_assessment(corpus_coverage_status="out_of_corpus"))
+    document = Document(io.BytesIO(data))
+    text = "\n".join(p.text for p in document.paragraphs)
+
+    assert "falls outside the corpus" in text
+
+
+def test_out_of_corpus_banner_appears_in_the_pdf_report() -> None:
+    data = build_pdf(_assessment(corpus_coverage_status="out_of_corpus"))
+
+    assert data.startswith(b"%PDF")
+    assert len(data) > 0
+
+
+def test_no_application_evidence_message_names_the_corpus_coverage_cause() -> None:
+    """"No retrieved paper stated an application" reads like a fact about
+    these specific papers. The real cause is structural: only 2% of the
+    corpus (1,619 of 82,596 papers as of 2026-09-09) carries an
+    applications claim at all, so this field is empty for almost every
+    idea. A reader deciding whether to trust the gap should know which of
+    the two they are looking at."""
+    sections = build_report_sections(
+        _assessment(potential_applications=[], potential_applications_status="no_evidence")
+    )
+    applications = next(s for s in sections if s.label == "Potential applications")
+
+    assert applications.unassessed_reason is not None
+    assert "extraction coverage" in applications.unassessed_reason.lower()
+
+
+def test_opportunities_not_assessed_message_names_its_dependency_on_applications() -> None:
+    sections = build_report_sections(
+        _assessment(potential_opportunities=None, potential_opportunities_status="not_assessed")
+    )
+    opportunities = next(s for s in sections if s.label == "Product / technology opportunities")
+
+    assert opportunities.unassessed_reason is not None
+    assert "application" in opportunities.unassessed_reason.lower()

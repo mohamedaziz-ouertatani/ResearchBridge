@@ -517,6 +517,7 @@ def _to_out(
         research_gap_source=assessment.research_gap_source,
         candidate_gap_id=assessment.candidate_gap_id,
         potential_applications=assessment.potential_applications,
+        corpus_coverage_status=assessment.corpus_coverage_status,
         potential_applications_status=assessment.potential_applications_status,
         technical_feasibility_level=assessment.technical_feasibility_level,
         technical_feasibility_reasoning=assessment.technical_feasibility_reasoning,
