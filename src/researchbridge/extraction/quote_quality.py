@@ -35,6 +35,71 @@ _VERB_HINT_RE = re.compile(
 )
 _NUMBERED_HEADING_RE = re.compile(r"^\s*\d+(\.\d+)*\.?\s*$")
 
+# Abbreviations whose trailing period is NOT a sentence end. A quote
+# ending on one of these was cut mid-sentence by the sentence splitter,
+# but still satisfies _TERMINAL_PUNCTUATION_RE above and so used to pass.
+# Found live 2026-09-09 in a real report, where the risks section showed
+# "However, YOLO26 achieved significantly superior specificity (96.1% vs."
+# as a standalone risk of the user's idea.
+# A sentence that ends on its FIRST enumerated item was cut before the
+# list it promised. Found live 2026-09-09: a research gap read "...
+# motivates two concrete directions for future work: (i)." - terminal
+# punctuation and balanced parentheses meant every other check passed.
+#
+# Requires a colon earlier in the text, so a sentence that merely ends on a
+# parenthetical - "...retrieval-augmented generation (RAG)." - is untouched;
+# it is the promise of a list followed by nothing that marks the cut. The
+# marker itself is matched loosely (any 1-3 characters) because papers
+# enumerate with ASCII "i"/"1"/"a" and with mathematical-italic codepoints
+# alike.
+_CUT_AT_ENUMERATION_RE = re.compile(r":\s*\S{0,40}?\(.{1,3}\)\s*\.?\s*$", re.DOTALL)
+
+_TRAILING_ABBREVIATION_RE = re.compile(
+    r"(?:^|[\s(\[])(?:"
+    r"vs|cf|resp|approx|ca|etc|e\.g|i\.e|et\s+al|Fig|Figs|Eq|Eqs|Ref|Refs|Sec|Tab|No|Nos|"
+    r"Dr|Prof|Mr|Mrs|Ms|St|Inc|Ltd|Co|Vol|pp|al"
+    r")\.$",
+    re.IGNORECASE,
+)
+
+
+def looks_truncated(text: str) -> bool:
+    """True if `text` was clearly cut mid-sentence.
+
+    Narrower on purpose than is_acceptable_quote below, which also
+    enforces a minimum length, demands terminal punctuation, and screens
+    out boilerplate/headings. This predicate is for text that has ALREADY
+    passed the extraction gate and is about to be rendered as a standalone
+    quote, so re-imposing the full extraction policy there would drop good
+    material.
+
+    Deliberately does NOT treat "no terminal punctuation" as a cut. That
+    rule belongs at extraction time, where it helps pick a well-formed
+    sentence out of many candidates. Applied at render time it is
+    destructive: 15.1% of this corpus's 5,370 stored research_gap claims
+    are complete sentences whose final period was lost in extraction
+    ("Recommendations are provided for future research and institutional
+    integration"), measured 2026-09-09, and rejecting them discards real
+    signal. A dangling bracket, a trailing abbreviation or a cut
+    enumeration are structural evidence of a cut; missing punctuation is
+    not. Those structural signals reject 1.4% of the same claims.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if _HYPHEN_LINE_WRAP_RE.search(stripped):
+        return True
+    if _TRAILING_ABBREVIATION_RE.search(stripped):
+        return True
+    if _CUT_AT_ENUMERATION_RE.search(stripped):
+        return True
+    # An opened bracket that never closes means the sentence was cut
+    # inside it, even when a period happens to follow.
+    for opener, closer in (("(", ")"), ("[", "]")):
+        if stripped.count(opener) > stripped.count(closer):
+            return True
+    return False
+
 
 def is_acceptable_quote(text: str) -> bool:
     """True if `text` looks like a real, complete sentence worth showing as
@@ -49,9 +114,12 @@ def is_acceptable_quote(text: str) -> bool:
     if len(tokens) < MIN_QUOTE_TOKENS:
         return False
 
-    if _HYPHEN_LINE_WRAP_RE.search(stripped):
+    if looks_truncated(stripped):
         return False
 
+    # Extraction-time only, deliberately NOT part of looks_truncated - see
+    # that function's docstring on why render-time filtering must not use
+    # this rule.
     if not _TERMINAL_PUNCTUATION_RE.search(stripped):
         return False
 
@@ -69,12 +137,58 @@ def is_acceptable_quote(text: str) -> bool:
     if _NUMBERED_HEADING_RE.match(stripped):
         return False
 
-    # Title-Case-with-no-verb heuristic for a bare section heading: most
-    # words capitalized, and no recognizable verb anywhere in the line.
-    words = [w for w in re.findall(r"[A-Za-z]+", stripped) if w]
-    if words:
-        capitalized = sum(1 for w in words if w[0].isupper())
-        if capitalized / len(words) >= 0.8 and not _VERB_HINT_RE.search(stripped):
+    if looks_like_heading(stripped):
+        return False
+
+    return True
+
+
+# Function words a title legitimately leaves lowercase ("Limitations AND
+# Future Work"). They are excluded from the capitalized-word ratio below
+# rather than counted as evidence of running prose - counting them is what
+# let "Limitations and Future Work." through as a quotable sentence, since
+# one lowercase word out of four drops the ratio to 0.75.
+_TITLE_LOWERCASE_WORDS = frozenset(
+    {"a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "nor", "of", "on",
+     "or", "the", "to", "up", "via", "with", "versus", "vs"}
+)
+
+# A leading section number ("3.2", "9.") before the heading text itself.
+_LEADING_SECTION_NUMBER_RE = re.compile(r"^\s*\d+(\.\d+)*\.?\s+")
+
+MAX_HEADING_WORDS = 12
+
+
+def looks_like_heading(text: str) -> bool:
+    """True if `text` is a section heading rather than a sentence.
+
+    Title-Case-with-no-verb, applied per line so stacked headings are
+    caught too. Found live 2026-09-09: an assessment reported its research
+    gap as "Limitations and Future Work / Limited Distance Metrics.", two
+    headings and no gap statement, because extraction had captured a
+    section boundary rather than prose.
+
+    Every line must look like a heading for the whole text to count as
+    one, so a heading followed by a real sentence is NOT rejected - that
+    text still contains substance worth quoting.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return False
+
+    for line in lines:
+        line = _LEADING_SECTION_NUMBER_RE.sub("", line)
+        words = re.findall(r"[A-Za-z]+", line)
+        # A long line is prose even if heavily capitalized; a heading is short.
+        if not words or len(words) > MAX_HEADING_WORDS:
+            return False
+        if _VERB_HINT_RE.search(line):
+            return False
+        significant = [w for w in words if w.lower() not in _TITLE_LOWERCASE_WORDS]
+        if not significant:
+            return False
+        capitalized = sum(1 for w in significant if w[0].isupper())
+        if capitalized / len(significant) < 0.8:
             return False
 
     return True
