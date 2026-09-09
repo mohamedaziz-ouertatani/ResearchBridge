@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from researchbridge.extraction.validation import VALIDATABLE_CLAIM_TYPES, validate_claim_type
+from researchbridge.extraction.validation import (
+    VALIDATABLE_CLAIM_TYPES,
+    _has_sector_deployment_signal,
+    validate_claim_type,
+)
 
 
 def test_results_sentence_mislabeled_as_research_gap_is_rejected() -> None:
@@ -833,3 +837,147 @@ def test_dataset_claim_has_no_tier() -> None:
 
     assert result.is_valid is True
     assert result.tier is None
+
+
+# --- sector-deployment acceptance path (2026-09-09) -----------------------
+# A fifth acceptance path for deployment context expressed as a named
+# external SECTOR plus an OPERATIONAL activity, rather than the actor +
+# downstream-action shape the existing paths recognize. See
+# validation.py's _SECTOR_OPERATION_RE block comment for the measurement
+# behind it. Every test below states which of the three required
+# conditions it exercises.
+
+
+def test_sector_plus_operation_with_deployment_framing_is_accepted() -> None:
+    # the case that motivated this path - a real rejected candidate
+    result = validate_claim_type(
+        "applications",
+        "This paper provides an overview of AI application areas in railway systems, focusing on "
+        "key segments such as train movement control, traffic management, infrastructure and "
+        "rolling stock maintenance.",
+    )
+
+    assert result.is_valid
+
+
+def test_a_solution_for_a_named_sector_operation_is_accepted() -> None:
+    result = validate_claim_type(
+        "applications",
+        "Overall, this system provides a robust and scalable solution for intelligent traffic "
+        "management and emergency response enhancement, contributing to safer road environments.",
+    )
+
+    assert result.is_valid
+
+
+def test_sector_deployment_acceptance_is_flagged_weak_for_gate_two() -> None:
+    # routed through assessment/applications.py's own-task-overlap scrutiny,
+    # which has the paper context this module does not
+    result = validate_claim_type(
+        "applications",
+        "These results establish the framework as a practical and deployable solution for "
+        "real-time wind farm control under strict operational constraints.",
+    )
+
+    assert result.is_valid
+    assert result.tier == "weak"
+
+
+def test_bare_discipline_enumeration_is_still_rejected() -> None:
+    # condition 3: naming fields is not describing a deployment
+    result = validate_claim_type(
+        "applications",
+        "It explores the wide-ranging applications of AI in sectors such as healthcare, finance, "
+        "transportation, manufacturing and entertainment.",
+    )
+
+    assert not result.is_valid
+
+
+def test_the_sector_path_does_not_accept_a_domain_named_without_an_operation() -> None:
+    # condition 1: a sector alone is not a deployment context.
+    #
+    # Asserted against the sector path directly, not validate_claim_type:
+    # "applications in healthcare" is accepted at weak tier by the
+    # PRE-EXISTING generic qualifying-context fallback (verified against
+    # HEAD before writing this), which this change deliberately leaves
+    # untouched. The guarantee here is that the new path adds nothing to
+    # that case.
+    assert not _has_sector_deployment_signal("The method has applications in healthcare and in finance.")
+    assert not _has_sector_deployment_signal("AI has applications in education.")
+
+
+def test_generic_applications_wording_is_still_rejected() -> None:
+    result = validate_claim_type("applications", "The model has many potential real-world applications.")
+
+    assert not result.is_valid
+
+
+def test_motivation_sentence_naming_a_sector_is_still_rejected() -> None:
+    result = validate_claim_type(
+        "applications",
+        "Hence, there is a significant need for automating the inspection process in manufacturing "
+        "to minimize potential human error.",
+    )
+
+    assert not result.is_valid
+
+
+def test_background_sentence_naming_a_sector_operation_is_still_rejected() -> None:
+    # condition 2/3: the sector+operation shape is present, but the sentence
+    # claims no deployment - it describes a research area
+    result = validate_claim_type(
+        "applications",
+        "Scheduling of flexible manufacturing systems has been one of the most attractive areas "
+        "for both researchers and practitioners.",
+    )
+
+    assert not result.is_valid
+
+
+def test_method_description_is_still_rejected() -> None:
+    result = validate_claim_type(
+        "applications",
+        "We tackle both problems in this work by leveraging semantic information derived from an "
+        "RGB camera on-board the vehicle.",
+    )
+
+    assert not result.is_valid
+
+
+def test_result_sentence_is_still_rejected() -> None:
+    result = validate_claim_type(
+        "applications",
+        "Experimental results on benchmark datasets show that M4L-JMF achieves significantly "
+        "better results than existing solutions.",
+    )
+
+    assert not result.is_valid
+
+
+def test_own_task_restatement_is_still_rejected() -> None:
+    result = validate_claim_type(
+        "applications", "This work focuses on long-term chaotic time series forecasting."
+    )
+
+    assert not result.is_valid
+
+
+def test_future_work_naming_a_sector_is_still_rejected() -> None:
+    result = validate_claim_type(
+        "applications",
+        "Future research should extend this framework to real-world supply chain management "
+        "scenarios.",
+    )
+
+    assert not result.is_valid
+
+
+def test_existing_actor_action_path_still_accepts_at_strong_tier() -> None:
+    # the pre-existing path must be completely unchanged by this addition
+    result = validate_claim_type(
+        "applications", "The tool can be used by clinicians in hospitals to prioritise referrals."
+    )
+
+    assert result.is_valid
+    assert result.tier == "strong"

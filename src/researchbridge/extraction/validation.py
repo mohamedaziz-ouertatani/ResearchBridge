@@ -453,6 +453,113 @@ _QUALIFYING_CONTEXT_RE = re.compile(r"\b(in|for|at|by|within|across|among)\s+[a-
 # bare-acronym exclusion can't discriminate them without corpus-level
 # tuning this investigation didn't have access to run - left unaddressed,
 # same as the module already documents).
+# ---------------------------------------------------------------------------
+# Sector-deployment path (2026-09-09). A FIFTH acceptance path, additive:
+# every existing path above is untouched, and this one only runs after all
+# of them have declined.
+#
+# Motivation, measured not guessed: applications is the rarest claim type
+# in this corpus (2.05% of papers), and the bottleneck is one rejection
+# reason - 36,035 of 36,035 rejected candidates cite "no concrete
+# deployment context". Sampling that pool found a small, consistent class
+# of genuine misses whose deployment context is a named EXTERNAL SECTOR
+# plus an OPERATIONAL activity ("AI application areas in railway systems
+# ... train movement control, rolling stock maintenance"; "a solution for
+# intelligent traffic management and emergency response") rather than the
+# actor + downstream-action shape _ACTOR_SETTING_RE/_DOWNSTREAM_ACTION_RE
+# already recognize.
+#
+# THREE conditions must all hold, and each one is load-bearing - dropping
+# any of them was measured against the full rejected pool and made
+# precision materially worse:
+#   1. a concrete sector adjacent to an operational activity. A bare field
+#      name ("healthcare", "finance", "education") is deliberately NOT a
+#      sector here; it names a discipline, not a deployment. The two terms
+#      must sit within 12 characters of each other so "traffic management"
+#      and "wind farm control" match while a sector and an unrelated later
+#      "management" in a long sentence do not.
+#   2. deployment framing (applied/deployed/used in/solution for/supports
+#      ...). Without this, a sector name alone admitted motivation,
+#      background and results sentences: it is what separates "a solution
+#      for intelligent traffic management" from "scheduling of flexible
+#      manufacturing systems has been an attractive area for researchers".
+#   3. neither a background/agenda shape nor a bare "sectors such as ..."
+#      enumeration of discipline names.
+#
+# Scope, deliberately: this recovers ~74 of 35,480 still-rejected
+# candidates (0.2%). That is small because the corpus is CS/AI-heavy and
+# genuinely contains few external-sector deployment claims - the sector
+# shape matches only 0.4% of the pool while the framing terms match 26%.
+# It was NOT widened to close that gap: widening means admitting bare
+# discipline names, which is exactly the ungrounded filler applications
+# validation exists to refuse.
+_DEPLOYMENT_SECTOR = (
+    r"rail(?:way|road)s?|train|locomotive|rolling stock|metro|tram"
+    r"|road traffic|traffic management|traffic control|traffic signal"
+    r"|transport(?:ation)?|logistics|supply chain|fleet|freight|warehouse"
+    r"|aviation|airport|airline|air traffic|maritime|shipping|seaport"
+    r"|emergency|disaster|ambulance|firefighting|search and rescue"
+    r"|retail|e-?commerce|storefront|point[- ]of[- ]sale|inventory"
+    r"|agricultur(?:e|al)|farm(?:ing|s)?|orchard|crop|irrigation|livestock"
+    r"|manufactur(?:e|ing)|factory|assembly line|production line|industrial plant"
+    r"|power grid|electric(?:ity)? grid|smart grid|energy grid|substation|wind farm"
+    r"|water treatment|wastewater|pipeline|mining|drilling|construction site"
+    r"|patient care|clinical workflow|bedside|triage|operating room|hospital ward"
+    r"|classroom|border control|customs|policing"
+)
+
+_DEPLOYMENT_OPERATION = (
+    r"management|control|maintenance|monitoring|scheduling|dispatch(?:ing)?"
+    r"|routing|planning|inspection|screening|surveillance|response"
+    r"|operations?|allocation|safety|security|compliance|servicing|automation"
+)
+
+_SECTOR_OPERATION_RE = re.compile(
+    rf"\b(?:{_DEPLOYMENT_SECTOR})\b[\w\-, ]{{0,12}}?\b(?:{_DEPLOYMENT_OPERATION})\b"
+    rf"|\b(?:{_DEPLOYMENT_OPERATION})\b[\w\-, ]{{0,12}}?\b(?:{_DEPLOYMENT_SECTOR})\b",
+    re.IGNORECASE,
+)
+
+_DEPLOYMENT_FRAMING_RE = re.compile(
+    r"\bapplicabilit(?:y|ies)\b|\bapplicable\b|\bapplications?\b|\bapplied\b"
+    r"|\bdeploy(?:ed|able|ment)\b|\bused\s+(?:in|for|to)\b|\buse case\b"
+    r"|\bsolution for\b|\bsupports?\b|\bsupporting\b|\bassists?\b|\bassisting\b"
+    r"|\benables?\b|\benabling\b|\bfacilitates?\b|\bin practice\b|\breal[- ]world\b",
+    re.IGNORECASE,
+)
+
+# Background/agenda/motivation shapes that name a sector while claiming no
+# deployment at all.
+_BACKGROUND_FRAMING_RE = re.compile(
+    r"\bhas (?:been|long been) (?:one of )?(?:the )?most\b|\bhas attracted\b"
+    r"|\battracted (?:much|considerable|significant|growing) (?:attention|interest)\b"
+    r"|\bplays? an? (?:important|vital|key|crucial) role\b"
+    r"|\bis (?:an? )?(?:important|active|attractive|challenging) (?:area|topic|problem|research)\b"
+    r"|\bhas emerged as\b|\bopening the door\b|\bin recent years\b"
+    r"|\bexpected to be\b|\bresearch (?:topics?|themes?|agenda|directions?)\b"
+    r"|\bfuture research\b|\bfuture work\b|\bbecome aware of\b"
+    r"|\binitiatives cover\b|\bstrong trends\b|\btrends include\b",
+    re.IGNORECASE,
+)
+
+# "sectors such as healthcare, finance, transportation..." - an enumeration
+# of DISCIPLINE names, which this change explicitly excludes: naming fields
+# is not describing a deployment.
+_BARE_SECTOR_LIST_RE = re.compile(
+    r"\b(?:sectors?|fields?|domains?|areas?|industries)\s+(?:such as|including|like)\b",
+    re.IGNORECASE,
+)
+
+
+def _has_sector_deployment_signal(text: str) -> bool:
+    """A concrete external sector paired with an operational activity, in
+    deployment framing - see the block comment above for the three
+    conditions and why each is required."""
+    if _BACKGROUND_FRAMING_RE.search(text) or _BARE_SECTOR_LIST_RE.search(text):
+        return False
+    return bool(_SECTOR_OPERATION_RE.search(text)) and bool(_DEPLOYMENT_FRAMING_RE.search(text))
+
+
 _VAGUE_QUALIFIER_RE = re.compile(
     r"\bin general\b|\bfor future (work|studies|research)\b|\bin the future\b"
     r"|\bfor general purposes\b|\bfor further research\b|\bin future\b"
@@ -567,6 +674,16 @@ def _has_application_signal(text: str) -> tuple[bool, bool]:
             continue
         if _QUALIFYING_CONTEXT_RE.search(complement):
             return True, True
+
+    # Fifth path, tried only after every clause-based path above declined -
+    # see the _SECTOR_OPERATION_RE block comment. Flagged weak so Gate 2
+    # (assessment/applications.py) applies its own-task-overlap scrutiny:
+    # the residual borderline cases here are papers restating their own
+    # task in sector language ("a solution for a single retailer inventory
+    # management environment ... using DQN"), which is precisely what Gate 2
+    # has the paper context to catch and this module does not.
+    if _has_sector_deployment_signal(text):
+        return True, True
 
     return False, False
 
