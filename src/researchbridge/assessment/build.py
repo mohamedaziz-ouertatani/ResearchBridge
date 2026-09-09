@@ -277,6 +277,21 @@ def build_assessment(
         risks = replace(risks, text=None, evidence_ids=[])
         feasibility = replace(feasibility, level="not_assessed", reasoning=None, evidence_ids=[])
         applications = ApplicationsResult(applications=[], evidence_ids=[], status="not_assessed")
+        # Opportunities were synthesized ABOVE, from applications as they
+        # stood before this guard ran - so a positive synthesis result must
+        # be discarded here too, or the report ends up showing
+        # potential_applications=not_assessed next to synthesized product
+        # opportunities that trace back to those very applications. Found
+        # live 2026-09-09: a hyperparameter dump with no real idea in it
+        # retrieved one distant paper and still produced three named
+        # "product opportunities" grounded in that paper's applications
+        # claim, with nothing else in the report suggesting the corpus had
+        # anything relevant to say.
+        opportunities_json = None
+        opportunities_status = "not_assessed"
+        opportunity_evidence_ids = set()
+        non_speculative_evidence_ids = set()
+        speculative_evidence_ids = set()
 
     recommendation = assess_recommendation(
         novelty_level=novelty.level,

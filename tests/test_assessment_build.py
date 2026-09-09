@@ -1045,3 +1045,43 @@ def test_out_of_corpus_novelty_reads_insufficient_evidence_not_high(session_fact
     assert assessment.corpus_coverage_status == "out_of_corpus"
     assert assessment.novelty_level == "insufficient_evidence"
     assert assessment.recommendation == "INSUFFICIENT EVIDENCE"
+
+
+def test_out_of_corpus_idea_suppresses_synthesized_opportunities_too(
+    session_factory, embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Found live 2026-09-09: opportunities are synthesized from
+    applications BEFORE the out-of-corpus guard runs, and the guard resets
+    applications back to empty/not_assessed without touching the
+    opportunities it already produced. A meaningless hyperparameter dump
+    (no real idea at all) retrieved one distant paper, synthesized three
+    named "product opportunities" from it via the mocked LLM stage below,
+    and the resulting report showed potential_applications=not_assessed
+    side by side with three grounded-looking opportunities - exactly the
+    false confidence the out-of-corpus guard exists to remove elsewhere."""
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    _mock_ollama(
+        monkeypatch,
+        relevance_content="1: relevant",
+        opportunity_content=(
+            "Direct: real-time fraud screening API for banks [1]\n"
+            "Adjacent: a broader fraud-risk monitoring platform [1]\n"
+            "Speculative: an industry-wide fraud intelligence network [1]"
+        ),
+    )
+    session = session_factory()
+    close = _paper(session, embedder, "p1", "pigment analysis of illuminated manuscripts")
+    _claim(session, close, "applications", "used to date medieval manuscript pigments.")
+    for i in range(9):
+        far = _paper(session, embedder, f"far{i}", f"an entirely unrelated paper about topic {i}")
+        _claim(session, far, "limitations", f"Unrelated limitation {i}.")
+    ri = _research_input(session, "pigment analysis of illuminated manuscripts")
+    session.commit()
+
+    assessment = build_assessment(session, ri.id, embedder, top_k=10, enable_llm_stages=True)
+
+    session.close()
+    assert assessment.corpus_coverage_status == "out_of_corpus"
+    assert assessment.potential_applications_status == "not_assessed"
+    assert assessment.potential_opportunities is None
+    assert assessment.potential_opportunities_status == "not_assessed"
