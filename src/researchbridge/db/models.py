@@ -664,6 +664,13 @@ class ResearchAssessment(Base):
     # report says "outside this corpus" instead of quietly answering from
     # whatever happened to be nearest.
     corpus_coverage_status: Mapped[str] = mapped_column(String, nullable=False, default="not_assessed")
+    # The two retrieval numbers corpus_coverage_status was decided from,
+    # persisted so the verdict is auditable after the fact - neither the
+    # export layer nor the frontend has an embedder to recompute them, and
+    # "why did this read as out of corpus" is the first question a reader
+    # asks. NULL for assessments built before this existed.
+    nearest_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mean_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
     potential_opportunities: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # "not_assessed" | "unavailable" | "found" - distinguishes "no
     # qualifying applications existed to synthesize from" (synthesis never

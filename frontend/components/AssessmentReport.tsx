@@ -92,7 +92,7 @@ const REPORT_GROUPS = [
       { id: "applications", label: "potential applications" },
       { id: "opportunities", label: "product / technology opportunities" },
       { id: "feasibility", label: "technical feasibility" },
-      { id: "risks", label: "risks / limitations" },
+      { id: "risks", label: "limitations in related work" },
     ],
   },
   {
@@ -266,13 +266,30 @@ export function AssessmentReport({
             {assessment.research_gap_text ? (
               <>
                 <Prose text={assessment.research_gap_text} />
-                {assessment.research_gap_source && (
-                  <p className="eyebrow mt-3">
-                    {assessment.research_gap_source === "reused_candidate_gap"
-                      ? "reused a reviewed candidate gap"
-                      : "found for this input"}
-                  </p>
-                )}
+                {/* A gap the pipeline itself judged generic reads exactly
+                    like an explicitly stated one once it is quoted as prose -
+                    the distinction is buried mid-sentence in text people
+                    skim. The badge puts it where the eye lands. */}
+                <p className="eyebrow mt-3 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-[2px] border px-2 py-0.5 ${
+                      assessment.research_gap_text?.startsWith("Explicitly stated in")
+                        ? "border-[var(--ink)] text-[var(--ink)]"
+                        : "border-[var(--rule)] text-[var(--ink-faint)]"
+                    }`}
+                  >
+                    {assessment.research_gap_text?.startsWith("Explicitly stated in")
+                      ? "explicitly stated"
+                      : "inferred from generic future-work wording"}
+                  </span>
+                  {assessment.research_gap_source && (
+                    <span className="text-[var(--ink-faint)]">
+                      {assessment.research_gap_source === "reused_candidate_gap"
+                        ? "reused a reviewed candidate gap"
+                        : "found for this input"}
+                    </span>
+                  )}
+                </p>
               </>
             ) : (
               <Unassessed
@@ -312,7 +329,7 @@ export function AssessmentReport({
                 reason={
                   assessment.potential_applications_status === "not_assessed"
                     ? "No relevant paper was retrieved for this input, so applications could not be assessed."
-                    : "No retrieved paper stated an application."
+                    : "No retrieved paper stated an application. This is the norm rather than a signal about this idea: applications are the rarest extracted claim type in this corpus, present on roughly 2% of papers, so extraction coverage - not the idea - is usually the limiting factor here."
                 }
               />
             )}
@@ -355,9 +372,16 @@ export function AssessmentReport({
             </p>
           </Field>
 
+          {/* NOT "risks of this idea": every line is a limitation a
+              RETRIEVED PAPER stated about its own work, quoted verbatim (see
+              assessment/risks.py, which never synthesizes). Live testing
+              surfaced "manual interpretation of chest X-rays is
+              time-consuming" (a motivation) and "we find that it does not
+              lead to significant loss in accuracy" (a positive result) under
+              the old heading, where both read as risks of the submission. */}
           <Field
             id="risks"
-            label="risks / limitations"
+            label="limitations in related work"
             surfaceId={assessment.id}
             evidence={byRole.get("risk")}
             claim={claimForText(
@@ -499,6 +523,56 @@ function Group({
   );
 }
 
+/*
+  Report-wide reliability caveats.
+
+  These qualify EVERY judgement below them, so they sit above the first
+  section rather than inside whichever field happens to mention them. The
+  language caveat in particular existed only as the first sentence of
+  novelty_reasoning's prose, where it read as commentary on the novelty
+  number rather than a warning about the whole reading; and the
+  out-of-corpus caveat reached the exported file but never the web report
+  at all, so the same assessment told two different stories depending on
+  where you read it.
+*/
+export function reliabilityBanners(assessment: ResearchAssessment): string[] {
+  const banners: string[] = [];
+  if (assessment.corpus_coverage_status === "out_of_corpus") {
+    banners.push(
+      "This idea falls outside the corpus this system searches. No retrieved paper was close " +
+        "enough to ground a comparison, so the research gap, limitations and technical " +
+        "feasibility sections are reported as not assessed rather than answered from unrelated " +
+        "papers. Treat the novelty reading as an absence of local evidence, not confirmed novelty.",
+    );
+  }
+  if (assessment.input_language_caveat) {
+    banners.push(
+      "This idea does not appear to be written in English. The corpus and its embedding model " +
+        "are English-optimized, so retrieval quality - and every judgement built on it below - " +
+        "is less reliable here than for English input.",
+    );
+  }
+  return banners;
+}
+
+function ReliabilityBanners({ assessment }: { assessment: ResearchAssessment }) {
+  const banners = reliabilityBanners(assessment);
+  if (banners.length === 0) return null;
+  return (
+    <div className="mt-6 space-y-2">
+      {banners.map((text) => (
+        <p
+          key={text.slice(0, 40)}
+          role="note"
+          className="max-w-[72ch] border-l-2 border-[var(--live)] bg-[var(--rule-soft)]/30 px-4 py-3 text-[0.8125rem] leading-relaxed text-[var(--ink)]"
+        >
+          {text}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function Verdict({
   assessment,
   grounded,
@@ -603,12 +677,27 @@ function Verdict({
             {grounded} / {total}
           </dd>
         </div>
+        {/* the two numbers corpus_coverage_status was decided from - "why did
+            this read as out of corpus" is the first question a reader asks */}
+        <div className="rounded-[2px] border border-[var(--rule-soft)] px-4 py-2.5">
+          <dt className="eyebrow">nearest / mean distance</dt>
+          <dd className="readout mt-1 text-[0.9375rem] tabular-nums">
+            {assessment.nearest_distance !== null &&
+            assessment.mean_distance !== null
+              ? `${assessment.nearest_distance.toFixed(3)} / ${assessment.mean_distance.toFixed(3)}`
+              : "—"}
+          </dd>
+        </div>
       </dl>
 
-      <p className="mt-5 max-w-[58ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">
-        Confidence counts how many signals could be assessed, not how likely
-        this reading is to be right. Fields with no supporting passage are left
-        unassessed rather than filled in.
+      <ReliabilityBanners assessment={assessment} />
+
+      <p className="mt-5 max-w-[62ch] text-[0.875rem] leading-relaxed text-[var(--ink-faint)]">
+        Every field below carries a count of the real quoted passages backing
+        it; click the count to read them. A field showing{" "}
+        <span className="readout">—</span> has nothing behind it and says so in
+        words rather than being filled in. Confidence counts how many signals
+        could be assessed, not how likely this reading is to be right.
       </p>
     </header>
   );
@@ -1164,7 +1253,7 @@ function Opportunities({
 
   if (!applications || applications.length === 0) {
     return (
-      <Unassessed reason="Not enough evidence: no potential applications were found for this idea to synthesize opportunities from." />
+      <Unassessed reason="Not generated: this stage runs only when the potential-applications field above found something to build on, which is uncommon - applications are the rarest extracted claim type in this corpus (roughly 2% of papers), so in practice this field is almost always empty. Naming a product opportunity unprompted would mean inventing a claim the literature does not make, so it is left to a human reviewer." />
     );
   }
 

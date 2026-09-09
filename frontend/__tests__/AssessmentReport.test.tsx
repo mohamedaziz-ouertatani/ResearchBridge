@@ -27,6 +27,11 @@ function baseAssessment(overrides: Partial<ResearchAssessment> = {}): ResearchAs
     candidate_gap_id: null,
     potential_applications: null,
     potential_applications_status: "not_assessed",
+    potential_opportunities_status: "not_assessed",
+    corpus_coverage_status: "in_corpus",
+    nearest_distance: 0.21,
+    mean_distance: 0.38,
+    input_language_caveat: false,
     technical_feasibility_level: "not_assessed",
     technical_feasibility_reasoning: null,
     potential_opportunities: null,
@@ -136,8 +141,10 @@ describe("AssessmentReport", () => {
     render(<AssessmentReport assessment={baseAssessment({ potential_applications: null })} />);
 
     expect(screen.queryByRole("button", { name: /synthesize opportunities/ })).not.toBeInTheDocument();
+    // wording changed 2026-09-09: the message now names extraction coverage
+    // as the limiting factor rather than implying the idea was at fault
     expect(
-      screen.getByText(/no potential applications were found for this idea/),
+      screen.getByText(/this stage runs only when the potential-applications field/),
     ).toBeInTheDocument();
   });
 
@@ -224,5 +231,140 @@ describe("AssessmentReport", () => {
     expect(screen.getByText("fraud-scoring API")).toBeInTheDocument();
     expect(screen.queryByText(/synthesize opportunities/)).not.toBeInTheDocument();
     expect(screen.getByText(/AI-synthesized from the applications above/)).toBeInTheDocument();
+  });
+});
+
+
+describe("AssessmentReport reliability banners", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows the out-of-corpus banner when the corpus has nothing relevant to say", () => {
+    // this banner reached the exported file but never the web report, so the
+    // same assessment told two different stories depending on where it was read
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({ corpus_coverage_status: "out_of_corpus" })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/falls outside the corpus this system searches/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no out-of-corpus banner for an in-corpus idea", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({ corpus_coverage_status: "in_corpus" })}
+      />,
+    );
+
+    expect(
+      screen.queryByText(/falls outside the corpus this system searches/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the non-English banner above the report rather than buried in novelty prose", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport assessment={baseAssessment({ input_language_caveat: true })} />,
+    );
+
+    expect(
+      screen.getByText(/does not appear to be written in English/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows both banners together when both apply", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({
+          corpus_coverage_status: "out_of_corpus",
+          input_language_caveat: true,
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/falls outside the corpus/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not appear to be written in English/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the retrieval distances the corpus-coverage verdict was decided from", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({ nearest_distance: 0.0068, mean_distance: 0.4123 })}
+      />,
+    );
+
+    expect(screen.getByText("0.007 / 0.412")).toBeInTheDocument();
+  });
+
+  it("renders a dash for an assessment predating persisted distances", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({ nearest_distance: null, mean_distance: null })}
+      />,
+    );
+
+    expect(screen.getByText("nearest / mean distance")).toBeInTheDocument();
+  });
+
+  it("labels the limitations field as related work, not as risks of the idea", () => {
+    // every line is a limitation a RETRIEVED PAPER stated about its own work
+    stubHistoryFetch();
+    render(<AssessmentReport assessment={baseAssessment()} />);
+
+    expect(screen.getAllByText("limitations in related work").length).toBeGreaterThan(0);
+    expect(screen.queryByText("risks / limitations")).not.toBeInTheDocument();
+  });
+
+  it("marks a generic future-work gap as inferred rather than explicitly stated", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({
+          research_gap_text:
+            "No explicit gap stated; nearest related paper mentions future work generically: \"more work is needed\" (from \"A Paper\")",
+          research_gap_source: "input_specific",
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText("inferred from generic future-work wording"),
+    ).toBeInTheDocument();
+  });
+
+  it("marks an author-stated gap as explicitly stated", () => {
+    stubHistoryFetch();
+    render(
+      <AssessmentReport
+        assessment={baseAssessment({
+          research_gap_text:
+            'Explicitly stated in "A Paper": "no prior work evaluates this under distribution shift"',
+          research_gap_source: "input_specific",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("explicitly stated")).toBeInTheDocument();
+  });
+
+  it("explains the evidence gutter so the count is readable without narration", () => {
+    stubHistoryFetch();
+    render(<AssessmentReport assessment={baseAssessment()} />);
+
+    expect(
+      screen.getByText(/count of the real quoted passages backing it/),
+    ).toBeInTheDocument();
   });
 });

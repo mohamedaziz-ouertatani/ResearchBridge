@@ -34,6 +34,11 @@ function assessment(
       },
     ],
     potential_applications_status: "found",
+    potential_opportunities_status: "not_assessed",
+    corpus_coverage_status: "in_corpus",
+    nearest_distance: 0.21,
+    mean_distance: 0.38,
+    input_language_caveat: false,
     technical_feasibility_level: "medium",
     technical_feasibility_reasoning:
       "A related method is already implemented in the literature.",

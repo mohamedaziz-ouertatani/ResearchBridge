@@ -95,6 +95,23 @@ export type ResearchAssessment = {
    * papers were retrieved but none stated an application" when
    * potential_applications is empty or null. */
   potential_applications_status: string;
+  /** "not_assessed" | "unavailable" | "found" - distinguishes "no qualifying
+   * applications existed to synthesize from" (never attempted) from "the
+   * local model was unreachable" (attempted, worth retrying). */
+  potential_opportunities_status: string;
+  /** "not_assessed" | "in_corpus" | "out_of_corpus" - whether ANY retrieved
+   * paper was close enough for this corpus to have something real to say.
+   * "out_of_corpus" means the gap/risks/feasibility fields were suppressed
+   * rather than answered from unrelated papers. */
+  corpus_coverage_status: string;
+  /** The two retrieval numbers corpus_coverage_status was decided from.
+   * Null for assessments built before they were persisted. */
+  nearest_distance: number | null;
+  mean_distance: number | null;
+  /** True when the submitted text does not appear to be English - the corpus
+   * and embedder are English-optimized, so every judgement below is less
+   * reliable. Derived server-side from the input, never stored. */
+  input_language_caveat: boolean;
   technical_feasibility_level: string;
   technical_feasibility_reasoning: string | null;
   potential_opportunities: PotentialOpportunity[] | null;

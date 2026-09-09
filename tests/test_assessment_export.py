@@ -415,3 +415,62 @@ def test_opportunities_not_assessed_message_names_its_dependency_on_applications
 
     assert opportunities.unassessed_reason is not None
     assert "application" in opportunities.unassessed_reason.lower()
+
+
+def test_non_english_input_carries_a_banner_above_the_first_section() -> None:
+    """The language caveat used to exist only as the first sentence of
+    novelty_reasoning's prose, where it read as commentary on the novelty
+    number rather than a warning about the whole reading."""
+    md = build_markdown(_assessment(input_language_caveat=True)).decode("utf-8")
+
+    assert "does not appear to be written in English" in md
+    assert md.index("does not appear to be written in English") < md.index("01")
+
+
+def test_english_input_has_no_language_banner() -> None:
+    md = build_markdown(_assessment(input_language_caveat=False)).decode("utf-8")
+
+    assert "does not appear to be written in English" not in md
+
+
+def test_both_reliability_banners_render_together() -> None:
+    md = build_markdown(
+        _assessment(corpus_coverage_status="out_of_corpus", input_language_caveat=True)
+    ).decode("utf-8")
+
+    assert "falls outside the corpus" in md
+    assert "does not appear to be written in English" in md
+
+
+def test_stats_tiles_show_retrieval_distances_and_corpus_coverage() -> None:
+    md = build_markdown(
+        _assessment(nearest_distance=0.0068, mean_distance=0.4123, corpus_coverage_status="in_corpus")
+    ).decode("utf-8")
+
+    assert "**nearest / mean distance**: 0.007 / 0.412" in md
+    assert "**corpus coverage**: in corpus" in md
+
+
+def test_stats_tiles_do_not_repeat_the_header_line_fields() -> None:
+    # confidence and human-reviewed are already on the header line; the
+    # tiles used to print both again
+    md = build_markdown(_assessment()).decode("utf-8")
+
+    assert md.count("confidence") == 1
+    assert "**human reviewed**" not in md
+
+
+def test_missing_distances_render_as_a_dash_not_a_crash() -> None:
+    md = build_markdown(_assessment(nearest_distance=None, mean_distance=None)).decode("utf-8")
+
+    assert "**nearest / mean distance**: —" in md
+
+
+def test_limitations_section_is_not_labelled_as_risks_of_the_idea() -> None:
+    """Every line is a limitation a RETRIEVED PAPER stated about its own
+    work. Calling that "risks" invited readers to take it as an assessment
+    of the submitted idea."""
+    labels = [s.label for s in build_report_sections(_assessment())]
+
+    assert "Limitations reported in related work" in labels
+    assert "Risks / limitations" not in labels

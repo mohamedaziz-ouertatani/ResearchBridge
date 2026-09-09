@@ -71,6 +71,7 @@ from researchbridge.assessment.build import build_assessment
 from researchbridge.assessment.claims import sync_claim_status
 from researchbridge.assessment.export import build_docx, build_markdown, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
+from researchbridge.assessment.language import is_likely_non_english
 from researchbridge.assessment.matching import match_uploaded_paper
 from researchbridge.assessment.opportunity_synthesis import (
     OpportunitySynthesisUnavailable,
@@ -518,6 +519,10 @@ def _to_out(
         candidate_gap_id=assessment.candidate_gap_id,
         potential_applications=assessment.potential_applications,
         corpus_coverage_status=assessment.corpus_coverage_status,
+        nearest_distance=assessment.nearest_distance,
+        mean_distance=assessment.mean_distance,
+        # derived, never stored - see the field's docstring in schemas.py
+        input_language_caveat=is_likely_non_english(research_input.raw_text),
         potential_applications_status=assessment.potential_applications_status,
         technical_feasibility_level=assessment.technical_feasibility_level,
         technical_feasibility_reasoning=assessment.technical_feasibility_reasoning,

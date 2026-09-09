@@ -364,6 +364,17 @@ class ResearchAssessmentOut(BaseModel):
     """Each item: {application, source_paper, paper_id} - an application a
     retrieved paper explicitly states, never a synthesized/invented one
     (see assessment/applications.py)."""
+    nearest_distance: float | None = None
+    mean_distance: float | None = None
+    """The two retrieval numbers corpus_coverage_status was decided from.
+    None for assessments built before they were persisted."""
+    input_language_caveat: bool = False
+    """True when the submitted text does not appear to be English. DERIVED
+    at serialization time from the input, never stored: it is a property of
+    the input, not a finding about the literature, and deriving it keeps
+    historical assessments consistent with today's detector. The corpus and
+    embedder are English-optimized, so retrieval - and every judgement built
+    on it - is less reliable here."""
     corpus_coverage_status: str = "not_assessed"
     """"not_assessed" | "in_corpus" | "out_of_corpus". Whether ANY retrieved
     paper was close enough for this corpus to have something real to say

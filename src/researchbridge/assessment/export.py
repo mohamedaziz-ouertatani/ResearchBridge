@@ -263,7 +263,15 @@ def build_report_sections(assessment: ResearchAssessmentOut) -> list[ReportSecti
             claim=_claim_for_text(assessment.claims, assessment.technical_feasibility_reasoning),
         ),
         ReportSection(
-            label="Risks / limitations",
+            # NOT "risks of this idea": every line is a limitation a
+            # RETRIEVED PAPER stated about its own work, quoted verbatim
+            # (see assessment/risks.py, which never synthesizes). Calling
+            # that "risks" invited readers to take it as an assessment of
+            # the submitted idea - live testing surfaced "manual
+            # interpretation of chest X-rays is time-consuming" (a
+            # motivation) and "we find that it does not lead to significant
+            # loss in accuracy" (a positive result) under that heading.
+            label="Limitations reported in related work",
             body=assessment.risks_and_limitations,
             unassessed_reason="No retrieved paper stated a limitation.",
             evidence=by_role.get("risk", []),
@@ -283,11 +291,23 @@ def _stats_tiles(assessment: ResearchAssessmentOut, related: list[RelatedPaper])
     # the report does not actually show. Found live 2026-09-09: one report's
     # tile read "evidence quotes: 41" while rendering 6 distinct quotes.
     distinct_quotes = {_normalized_quote_key(item.text) for item in assessment.evidence}
+    # The retrieval numbers the corpus-coverage verdict was decided from -
+    # "why did this read as out of corpus" is the first question a reader
+    # asks, and neither this layer nor the frontend can recompute them.
+    # "—" for assessments built before they were persisted.
+    proximity = (
+        f"{assessment.nearest_distance:.3f} / {assessment.mean_distance:.3f}"
+        if assessment.nearest_distance is not None and assessment.mean_distance is not None
+        else "—"
+    )
     return [
-        ("confidence", assessment.confidence or "—"),
         ("evidence quotes", str(len(distinct_quotes))),
         ("papers cited", str(len(related))),
-        ("human reviewed", "yes" if assessment.human_reviewed else "no"),
+        ("nearest / mean distance", proximity),
+        # confidence and human-reviewed both already appear on the header
+        # line above every format's tiles; corpus coverage did not appear
+        # anywhere, and it qualifies every judgement below it.
+        ("corpus coverage", assessment.corpus_coverage_status.replace("_", " ")),
     ]
 
 
@@ -298,10 +318,34 @@ def _section_evidence_counts(sections: list[ReportSection]) -> list[tuple[str, i
 OUT_OF_CORPUS_BANNER = (
     "This idea falls outside the corpus this system searches. No retrieved "
     "paper was close enough to ground a comparison, so the research gap, "
-    "risks and technical feasibility sections are reported as not assessed "
+    "limitations and technical feasibility sections are reported as not assessed "
     "rather than answered from unrelated papers. Treat the novelty reading "
     "as an absence of local evidence, not as confirmed novelty."
 )
+
+NON_ENGLISH_BANNER = (
+    "This idea does not appear to be written in English. The corpus and its "
+    "embedding model are English-optimized, so retrieval quality - and every "
+    "judgement built on it below - is less reliable here than for English input."
+)
+
+def _reliability_banners(assessment: ResearchAssessmentOut) -> list[str]:
+    """Report-wide caveats, rendered above the first section in every format.
+
+    These qualify EVERY judgement below them, so they sit above the section
+    a reader would otherwise start from rather than inside whichever field
+    happens to mention them. The language caveat in particular used to
+    exist only as the first sentence of novelty_reasoning's prose, where it
+    read as commentary on the novelty number rather than as a warning about
+    the whole reading.
+    """
+    banners: list[str] = []
+    if assessment.corpus_coverage_status == "out_of_corpus":
+        banners.append(OUT_OF_CORPUS_BANNER)
+    if assessment.input_language_caveat:
+        banners.append(NON_ENGLISH_BANNER)
+    return banners
+
 
 _LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
 
@@ -588,11 +632,11 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
 
     # Above the first section, same placement as the markdown and PDF
     # paths - it qualifies every judgement below it.
-    if assessment.corpus_coverage_status == "out_of_corpus":
+    for banner_text in _reliability_banners(assessment):
         from docx.shared import Pt as _Pt
 
         banner = document.add_paragraph()
-        run = banner.add_run(OUT_OF_CORPUS_BANNER)
+        run = banner.add_run(banner_text)
         run.font.name = "Space Grotesk"
         run.font.size = _Pt(9)
         run.font.bold = True
@@ -932,8 +976,8 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     story.append(_pdf_stats_table(assessment, related, styles, content_width))
     story.append(Spacer(1, 16))
 
-    if assessment.corpus_coverage_status == "out_of_corpus":
-        para(OUT_OF_CORPUS_BANNER, "body")
+    for banner_text in _reliability_banners(assessment):
+        para(banner_text, "body")
         story.append(Spacer(1, 12))
 
     chart = evidence_bar_chart_png(counts, width_pt=content_width)
@@ -1082,8 +1126,8 @@ def build_markdown(assessment: ResearchAssessmentOut) -> bytes:
     # Above the first section, not inside one: this qualifies every
     # judgement below it, so a reader who stops after the verdict still
     # sees it. See OUT_OF_CORPUS_BANNER.
-    if assessment.corpus_coverage_status == "out_of_corpus":
-        lines.append(f"> **{OUT_OF_CORPUS_BANNER}**")
+    for banner in _reliability_banners(assessment):
+        lines.append(f"> **{_md_escape(banner)}**")
         lines.append("")
 
     lines.append("---")
