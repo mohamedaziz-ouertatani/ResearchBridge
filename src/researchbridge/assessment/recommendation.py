@@ -97,7 +97,17 @@ def assess_recommendation(
         recommendation = "INSUFFICIENT EVIDENCE"
     elif (
         novelty_level in _ASSESSED_NOVELTY_LEVELS
-        and gap_found
+        # research_gap_is_strong, not merely gap_found: this used to
+        # promote on ANY gap, which meant a "future research directions"
+        # boilerplate sentence was enough to reach the loudest verdict the
+        # system can print. Found live 2026-09-09, where a padded filler
+        # input reached HIGH PRIORITY on the gap text "this review aims to
+        # guide future research". The pipeline already computes that this
+        # gap is weak (gap.py's is_closely_grounded/is_strongly_stated) and
+        # was spending that judgement only on confidence; the category now
+        # respects it too. Such an idea lands on MEDIUM PRIORITY instead -
+        # still surfaced, no longer top-billed.
+        and research_gap_is_strong
         and technical_feasibility_level in ("medium", "high")
     ):
         recommendation = "HIGH PRIORITY"

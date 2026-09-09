@@ -103,6 +103,7 @@ from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
 from researchbridge.assessment.novelty import NEAR_DISTANCE as CLOSE_DISTANCE
 from researchbridge.db.models import CandidateGap, CandidateGapEvidence, Evidence, ExtractedClaim, Paper
 from researchbridge.embedding.base import Embedder
+from researchbridge.extraction.quote_quality import looks_like_heading, looks_truncated
 from researchbridge.gaps.cluster import (
     DEFAULT_MIN_CLUSTER_SIZE,
     DEFAULT_SIMILARITY_THRESHOLD,
@@ -223,7 +224,19 @@ def _explicit_research_gap_claim(
             Evidence.extraction_method != "stub",
         )
     ).all()
-    by_paper_id = {row.paper_id: (row.text, row.evidence_id, row.title, row.validation_tier) for row in rows}
+    # A research_gap claim that is only a section heading ("Limitations and
+    # Future Work") is a section boundary extraction captured as prose, not
+    # a stated gap. Printed under "Explicitly stated in ..." it reads as a
+    # finding, which undercuts the evidence grounding the rest of the report
+    # depends on. Found live 2026-09-09 - see extraction/quote_quality.py's
+    # looks_like_heading. Dropped here rather than repaired: the next
+    # qualifying paper's real gap is a better answer than a tidied heading,
+    # and no gap at all is better than a fabricated one.
+    by_paper_id = {
+        row.paper_id: (row.text, row.evidence_id, row.title, row.validation_tier)
+        for row in rows
+        if not looks_like_heading(row.text) and not looks_truncated(row.text)
+    }
 
     def _result_for(paper_id: uuid.UUID, *, weak_fallback: bool) -> GapAssessmentResult:
         text, evidence_id, paper_title, validation_tier = by_paper_id[paper_id]

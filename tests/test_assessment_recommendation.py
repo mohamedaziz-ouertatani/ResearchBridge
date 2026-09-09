@@ -126,10 +126,13 @@ def test_confidence_drops_to_medium_when_feasibility_is_only_medium() -> None:
 
 
 def test_confidence_drops_to_medium_when_gap_is_found_but_not_strong() -> None:
-    # a gap was found (still counts for the recommendation category) but
-    # research_gap_is_strong=False (e.g. a weak-tier boilerplate "future
-    # research" sentence, or a source paper that's only loosely related) -
-    # must not count as a strong signal for confidence
+    # a gap was found but research_gap_is_strong=False (e.g. a weak-tier
+    # boilerplate "future research" sentence, or a source paper that's
+    # only loosely related) - must not count as a strong signal for
+    # confidence. Since 2026-09-09 it no longer carries the category to
+    # HIGH PRIORITY either (see assess_recommendation's HIGH PRIORITY
+    # branch); this test previously asserted "category unaffected", which
+    # was the behaviour that let boilerplate top-bill an idea.
     result = assess_recommendation(
         novelty_level="medium",
         research_gap_text="Extensive experiments suggest promising avenues for future research.",
@@ -137,8 +140,8 @@ def test_confidence_drops_to_medium_when_gap_is_found_but_not_strong() -> None:
         technical_feasibility_level="high",
     )
 
-    assert result.recommendation == "HIGH PRIORITY"  # category unaffected
-    assert result.confidence == "medium"  # but confidence reflects the thin gap
+    assert result.recommendation == "MEDIUM PRIORITY"
+    assert result.confidence == "medium"  # confidence reflects the thin gap
 
 
 def test_confidence_is_low_when_only_one_signal_is_strong() -> None:
@@ -235,3 +238,31 @@ def test_reasoning_mentions_recommendation_and_confidence() -> None:
     )
     assert result.recommendation.lower() in result.reasoning.lower()
     assert result.confidence.lower() in result.reasoning.lower()
+
+
+def test_high_priority_requires_a_strongly_stated_gap_not_just_any_gap() -> None:
+    """A gap the pipeline itself already judged weak (loosely related
+    source, or pure "future research" boilerplate) must not carry an idea
+    to the loudest verdict. Found live 2026-09-09: a padded filler input
+    reached HIGH PRIORITY on a gap whose entire text was "this review aims
+    to guide future research", because the category test used gap_found
+    while only confidence used gap_is_strong."""
+    result = assess_recommendation(
+        novelty_level="medium",
+        research_gap_text="this review aims to guide future research and DL technologies in oncology",
+        research_gap_is_strong=False,
+        technical_feasibility_level="medium",
+    )
+
+    assert result.recommendation == "MEDIUM PRIORITY"
+
+
+def test_high_priority_still_granted_when_the_gap_is_strongly_stated() -> None:
+    result = assess_recommendation(
+        novelty_level="medium",
+        research_gap_text="no prior work evaluates this under distribution shift",
+        research_gap_is_strong=True,
+        technical_feasibility_level="medium",
+    )
+
+    assert result.recommendation == "HIGH PRIORITY"

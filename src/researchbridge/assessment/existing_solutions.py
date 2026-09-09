@@ -45,6 +45,7 @@ import uuid
 from dataclasses import dataclass
 
 from researchbridge.assessment.novelty import FAR_DISTANCE as RELEVANCE_DISTANCE
+from researchbridge.extraction.quote_quality import looks_truncated
 
 ClaimRecord = tuple[str, str, uuid.UUID]  # (claim_type, text, evidence_id)
 PaperClaims = tuple[str, float, list[ClaimRecord]]  # (paper_title, distance, claims)
@@ -84,11 +85,34 @@ def build_existing_solutions(papers_with_claims: list[PaperClaims]) -> ExistingS
 
     for _key, heading, claim_types in _SECTIONS:
         lines: list[str] = []
+        # (paper_title, claim text) already printed under THIS heading. The
+        # same sentence is routinely extracted more than once for one paper
+        # - under a single claim_type across separate extraction runs, or
+        # under two different claim_types that map to the same heading here
+        # (see applications.py's docstring on the dual-extraction
+        # phenomenon) - and each copy used to become its own bullet. Found
+        # live 2026-09-09: one report repeated an identical sentence five
+        # consecutive times under "Problems already addressed", and 16% of
+        # all quote lines across 30 generated reports were duplicates,
+        # inflating the "evidence quotes: N" tile the export header shows.
+        # Keyed by paper too, so two different papers making the same point
+        # still both appear - that repetition is real corroboration.
+        seen: set[tuple[str, str]] = set()
         for paper_title, claims in in_gate:
             for claim_type, text, evidence_id in claims:
-                if claim_type in claim_types:
-                    lines.append(f'- "{paper_title}": {text}')
-                    evidence_ids.append(evidence_id)
+                if claim_type not in claim_types:
+                    continue
+                # A fragment the sentence splitter cut mid-sentence reads as
+                # a non-sequitur when quoted as a standalone bullet - see
+                # extraction/quote_quality.py.
+                if looks_truncated(text):
+                    continue
+                key = (paper_title, " ".join(text.split()).casefold())
+                if key in seen:
+                    continue
+                seen.add(key)
+                lines.append(f'- "{paper_title}": {text}')
+                evidence_ids.append(evidence_id)
         if lines:
             blocks.append(heading + "\n" + "\n".join(lines))
 

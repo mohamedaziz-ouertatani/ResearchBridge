@@ -42,8 +42,11 @@ FONTS_DIR = Path(__file__).parent / "fonts"
 
 _OPPORTUNITIES_UNASSESSED_REASONS = {
     "not_assessed": (
-        "Not generated. Naming a product opportunity means inventing a claim the "
-        "literature does not make, so this is left to a human reviewer."
+        "Not generated. This stage runs only when the potential-applications field above "
+        "found something to build on, which is uncommon: applications are the rarest "
+        "extracted claim type in this corpus (roughly 2% of papers), so in practice this "
+        "field is almost always empty. Naming a product opportunity unprompted would mean "
+        "inventing a claim the literature does not make, so it is left to a human reviewer."
     ),
     "unavailable": (
         "Temporarily unavailable: opportunity synthesis was attempted but the local "
@@ -65,9 +68,21 @@ _COMPARISON_CLAIM_RE = re.compile(r'^-\s*"([^"]*)":\s*(.*)$')
 """Matches one line of comparison_summary, same pattern as the web report's
 ComparisonSummary component (AssessmentReport.tsx)."""
 
+# "No retrieved paper stated an application" reads like a finding about
+# these particular papers. It is mostly a fact about the corpus: an
+# "applications" claim is the rarest of the nine extraction types, present
+# on about 2% of papers (1,619 of 82,596 on 2026-09-09), so this field is
+# empty for the large majority of ideas regardless of how good the
+# retrieval was. A reader weighing the report needs to know which of the
+# two they are looking at, so the message says so.
 _APPLICATIONS_UNASSESSED_REASONS = {
     "not_assessed": "No relevant paper was retrieved for this input, so applications could not be assessed.",
-    "no_evidence": "No retrieved paper stated an application.",
+    "no_evidence": (
+        "No retrieved paper stated an application. Note that this is the norm rather than a "
+        "signal about this idea: applications are the rarest extracted claim type in this "
+        "corpus, present on roughly 2% of papers, so extraction coverage - not the idea - is "
+        "usually the limiting factor here."
+    ),
 }
 # "found" has no entry in the reasons dict above (its reason string is never
 # shown - body is populated instead), but is still a recognized status - see
@@ -262,9 +277,15 @@ def _stats_tiles(assessment: ResearchAssessmentOut, related: list[RelatedPaper])
     human-reviewed are already on the assessment; evidence-quote and
     papers-cited counts are derived here rather than stored, since they're
     always recomputable from assessment.evidence."""
+    # DISTINCT quotes, not evidence rows: the same sentence is routinely
+    # stored more than once for one paper (extracted under two claim types,
+    # or twice across separate runs), and counting rows advertised evidence
+    # the report does not actually show. Found live 2026-09-09: one report's
+    # tile read "evidence quotes: 41" while rendering 6 distinct quotes.
+    distinct_quotes = {_normalized_quote_key(item.text) for item in assessment.evidence}
     return [
         ("confidence", assessment.confidence or "—"),
-        ("evidence quotes", str(len(assessment.evidence))),
+        ("evidence quotes", str(len(distinct_quotes))),
         ("papers cited", str(len(related))),
         ("human reviewed", "yes" if assessment.human_reviewed else "no"),
     ]
@@ -273,6 +294,14 @@ def _stats_tiles(assessment: ResearchAssessmentOut, related: list[RelatedPaper])
 def _section_evidence_counts(sections: list[ReportSection]) -> list[tuple[str, int]]:
     return [(section.label, len(section.evidence)) for section in sections]
 
+
+OUT_OF_CORPUS_BANNER = (
+    "This idea falls outside the corpus this system searches. No retrieved "
+    "paper was close enough to ground a comparison, so the research gap, "
+    "risks and technical feasibility sections are reported as not assessed "
+    "rather than answered from unrelated papers. Treat the novelty reading "
+    "as an absence of local evidence, not as confirmed novelty."
+)
 
 _LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
 
@@ -556,6 +585,18 @@ def build_docx(assessment: ResearchAssessmentOut) -> bytes:
     link_by_paper_id = {paper.paper_id: paper.link for paper in related}
 
     _docx_stats_table(document, assessment, related)
+
+    # Above the first section, same placement as the markdown and PDF
+    # paths - it qualifies every judgement below it.
+    if assessment.corpus_coverage_status == "out_of_corpus":
+        from docx.shared import Pt as _Pt
+
+        banner = document.add_paragraph()
+        run = banner.add_run(OUT_OF_CORPUS_BANNER)
+        run.font.name = "Space Grotesk"
+        run.font.size = _Pt(9)
+        run.font.bold = True
+        run.font.color.rgb = _docx_rgb(INK)
 
     sections = build_report_sections(assessment)
     counts = _section_evidence_counts(sections)
@@ -891,6 +932,10 @@ def build_pdf(assessment: ResearchAssessmentOut) -> bytes:
     story.append(_pdf_stats_table(assessment, related, styles, content_width))
     story.append(Spacer(1, 16))
 
+    if assessment.corpus_coverage_status == "out_of_corpus":
+        para(OUT_OF_CORPUS_BANNER, "body")
+        story.append(Spacer(1, 12))
+
     chart = evidence_bar_chart_png(counts, width_pt=content_width)
     if chart:
         chart_png, chart_height = chart
@@ -1033,6 +1078,14 @@ def build_markdown(assessment: ResearchAssessmentOut) -> bytes:
     for label, value in _stats_tiles(assessment, related):
         lines.append(f"- **{label}**: {_md_escape(value)}")
     lines.append("")
+
+    # Above the first section, not inside one: this qualifies every
+    # judgement below it, so a reader who stops after the verdict still
+    # sees it. See OUT_OF_CORPUS_BANNER.
+    if assessment.corpus_coverage_status == "out_of_corpus":
+        lines.append(f"> **{OUT_OF_CORPUS_BANNER}**")
+        lines.append("")
+
     lines.append("---")
     lines.append("")
 

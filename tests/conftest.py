@@ -69,7 +69,27 @@ def _truncate_all(engine) -> None:
 
 @pytest.fixture()
 def session_factory(engine):
+    """Hands out sessions and guarantees they are closed before teardown.
+
+    The teardown TRUNCATE blocks indefinitely behind any session still
+    holding a transaction open, so a single test that fails an assertion
+    before its own `session.close()` line used to deadlock the whole run -
+    every subsequent test then hung rather than reporting, hiding the one
+    real failure. Tracking the sessions here makes cleanup unconditional,
+    so a failing test reports as a failure instead of a hang. Tests may
+    still call session.close() themselves; closing twice is a no-op.
+    """
     _truncate_all(engine)  # in case leftover data exists from a manual/CLI run against the same DB
     factory = make_session_factory(engine)
-    yield factory
+    handed_out = []
+
+    def tracking_factory(*args, **kwargs):
+        session = factory(*args, **kwargs)
+        handed_out.append(session)
+        return session
+
+    yield tracking_factory
+
+    for session in handed_out:
+        session.close()
     _truncate_all(engine)

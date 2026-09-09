@@ -231,3 +231,87 @@ def test_medium_novelty_when_coverage_is_mixed() -> None:
     ]
     result = assess_novelty([("Paper", 0.5, _claims("a claim"))], dimension_coverages=coverages)
     assert result.level == "medium"
+
+
+def test_near_duplicate_nearest_paper_forces_low_novelty_despite_sparse_coverage() -> None:
+    """A retrieved paper at near-zero distance is the idea itself (or a
+    near-duplicate of it), which no amount of sparse dimension coverage
+    should be able to score as novel. Found live 2026-09-09: feeding back
+    the verbatim abstract of a paper already in the corpus retrieved that
+    paper at distance 0.007 and still returned "medium" novelty, because
+    _from_nearest_distance was only consulted when coverage was empty."""
+    coverages = [
+        DimensionCoverage(dimension=f"dimension {i}", status="not_found", evidence_ids=[])
+        for i in range(7)
+    ]
+    coverages.append(DimensionCoverage(dimension="dimension 7", status="established", evidence_ids=[]))
+
+    result = assess_novelty(
+        [("The Idea's Own Paper", 0.007, _claims("a claim"))],
+        dimension_coverages=coverages,
+    )
+
+    assert result.level == "low"
+    assert "The Idea's Own Paper" in result.reasoning
+
+
+def test_near_duplicate_short_circuit_applies_at_the_near_distance_boundary() -> None:
+    coverages = [
+        DimensionCoverage(dimension=f"dimension {i}", status="not_found", evidence_ids=[])
+        for i in range(8)
+    ]
+
+    result = assess_novelty(
+        [("Boundary Paper", 0.35, _claims("a claim"))],
+        dimension_coverages=coverages,
+    )
+
+    assert result.level == "low"
+
+
+def test_coverage_still_decides_just_above_the_near_distance_boundary() -> None:
+    coverages = [
+        DimensionCoverage(dimension=f"dimension {i}", status="not_found", evidence_ids=[])
+        for i in range(8)
+    ]
+
+    result = assess_novelty(
+        [("Moderately Related Paper", 0.351, _claims("a claim"))],
+        dimension_coverages=coverages,
+    )
+
+    assert result.level == "high"
+
+
+def test_high_novelty_reasoning_does_not_call_partial_coverage_well_established() -> None:
+    """"covered" counts established AND partially_addressed, so describing
+    that number as "well-established evidence (matched by 2+ papers)" is a
+    factual mislabel. Found live 2026-09-09: the input "AI" reported "Only
+    2 of 8 dimensions ... have well-established evidence" when both of
+    those two were partially_addressed and NONE were established."""
+    coverages = [
+        DimensionCoverage(dimension="d0", status="partially_addressed", evidence_ids=[]),
+        DimensionCoverage(dimension="d1", status="partially_addressed", evidence_ids=[]),
+    ] + [
+        DimensionCoverage(dimension=f"d{i}", status="not_found", evidence_ids=[]) for i in range(2, 10)
+    ]
+
+    result = assess_novelty([("Distant Paper", 0.6, _claims("a claim"))], dimension_coverages=coverages)
+
+    assert result.level == "high"
+    assert "Only 0 of 10 dimensions" in result.reasoning
+    assert "2 more are partially addressed" in result.reasoning
+
+
+def test_medium_novelty_reasoning_reports_established_count_not_covered_count() -> None:
+    coverages = [
+        DimensionCoverage(dimension="d0", status="established", evidence_ids=[]),
+        DimensionCoverage(dimension="d1", status="partially_addressed", evidence_ids=[]),
+        DimensionCoverage(dimension="d2", status="not_found", evidence_ids=[]),
+        DimensionCoverage(dimension="d3", status="not_found", evidence_ids=[]),
+    ]
+
+    result = assess_novelty([("Distant Paper", 0.6, _claims("a claim"))], dimension_coverages=coverages)
+
+    assert result.level == "medium"
+    assert "1 of 4 dimensions" in result.reasoning

@@ -93,7 +93,7 @@ def test_reuses_an_approved_candidate_gap_in_the_neighborhood(session_factory, e
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     gap = _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -110,7 +110,7 @@ def test_ignores_an_approved_candidate_gap_too_distant_to_be_relevant(session_fa
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -124,7 +124,7 @@ def test_ignores_pending_candidate_gaps(session_factory, embedder) -> None:
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="pending")
     session.commit()
 
@@ -138,7 +138,7 @@ def test_ignores_rejected_candidate_gaps(session_factory, embedder) -> None:
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="rejected")
     session.commit()
 
@@ -151,7 +151,7 @@ def test_ignores_rejected_candidate_gaps(session_factory, embedder) -> None:
 def test_falls_back_to_explicit_research_gap_claim(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    evidence_id = _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    evidence_id = _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -167,7 +167,7 @@ def test_falls_back_to_explicit_research_gap_claim(session_factory, embedder) ->
 def test_explicit_gap_is_not_labeled_as_inference(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -179,7 +179,7 @@ def test_explicit_gap_is_not_labeled_as_inference(session_factory, embedder) -> 
 def test_explicit_gap_excludes_stub_claims(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1")
-    _claim(session, paper, "research_gap", "synthetic placeholder", extraction_method="stub")
+    _claim(session, paper, "research_gap", "synthetic placeholder.", extraction_method="stub")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -191,7 +191,7 @@ def test_explicit_gap_excludes_stub_claims(session_factory, embedder) -> None:
 def test_explicit_gap_ignored_when_paper_is_too_distant_to_be_relevant(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Barely Related Paper")
-    _claim(session, paper, "research_gap", "a tangential unrelated claim")
+    _claim(session, paper, "research_gap", "a tangential unrelated claim.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, FAR)], embedder)
@@ -206,9 +206,9 @@ def test_falls_back_to_inferred_cross_paper_gap(session_factory, embedder) -> No
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    e1 = _claim(session, a, "limitations", "tested only offline in this setup")
-    e2 = _claim(session, b, "limitations", "we test the model only offline in our setup")
-    e3 = _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    e1 = _claim(session, a, "limitations", "tested only offline in this setup.")
+    e2 = _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    e3 = _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -226,8 +226,8 @@ def test_explicit_gap_prefers_the_nearer_paper_over_an_arbitrary_one(session_fac
     session = session_factory()
     far_paper = _paper(session, "far", title="Far Paper")
     near_paper = _paper(session, "near", title="Near Paper")
-    _claim(session, far_paper, "research_gap", "a barely related tangent")
-    _claim(session, near_paper, "research_gap", "the actually relevant gap")
+    _claim(session, far_paper, "research_gap", "a barely related tangent.")
+    _claim(session, near_paper, "research_gap", "the actually relevant gap.")
     session.commit()
 
     # near_paper listed first (it's what the assessment actually retrieved closest),
@@ -243,8 +243,8 @@ def test_returns_nothing_when_no_pattern_clears_the_threshold(session_factory, e
     session = session_factory()
     a = _paper(session, "a")
     b = _paper(session, "b")
-    _claim(session, a, "limitations", "tested only offline")
-    _claim(session, b, "limitations", "requires substantial gpu resources")
+    _claim(session, a, "limitations", "tested only offline.")
+    _claim(session, b, "limitations", "requires substantial gpu resources.")
     session.commit()
 
     result = assess_research_gap(
@@ -262,9 +262,9 @@ def test_returns_nothing_when_every_retrieved_paper_is_too_distant(session_facto
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "tested only offline in this setup")
-    _claim(session, b, "limitations", "we test the model only offline in our setup")
-    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    _claim(session, a, "limitations", "tested only offline in this setup.")
+    _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -279,7 +279,7 @@ def test_returns_nothing_when_every_retrieved_paper_is_too_distant(session_facto
 def test_explicit_gap_is_closely_grounded_when_source_paper_is_near(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -291,7 +291,7 @@ def test_explicit_gap_is_closely_grounded_when_source_paper_is_near(session_fact
 def test_explicit_gap_is_not_closely_grounded_when_source_paper_is_only_mid_distance(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, MID)], embedder)
@@ -307,7 +307,7 @@ def test_reused_candidate_gap_is_closely_grounded_when_seed_paper_is_near(sessio
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -321,7 +321,7 @@ def test_reused_candidate_gap_is_not_closely_grounded_when_seed_paper_is_only_mi
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -337,9 +337,9 @@ def test_inferred_gap_is_closely_grounded_when_at_least_one_member_paper_is_near
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "tested only offline in this setup")
-    _claim(session, b, "limitations", "we test the model only offline in our setup")
-    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    _claim(session, a, "limitations", "tested only offline in this setup.")
+    _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -355,9 +355,9 @@ def test_inferred_gap_is_not_closely_grounded_when_no_member_paper_is_near(sessi
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "tested only offline in this setup")
-    _claim(session, b, "limitations", "we test the model only offline in our setup")
-    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    _claim(session, a, "limitations", "tested only offline in this setup.")
+    _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -387,7 +387,7 @@ def test_no_gap_found_is_not_closely_grounded(session_factory, embedder) -> None
 def test_explicit_gap_is_strongly_stated_when_validation_tier_is_strong(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists", validation_tier="strong")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.", validation_tier="strong")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -400,7 +400,7 @@ def test_explicit_gap_is_not_strongly_stated_when_validation_tier_is_weak(sessio
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
     _claim(
-        session, paper, "research_gap", "suggests promising avenues for future research", validation_tier="weak",
+        session, paper, "research_gap", "suggests promising avenues for future research.", validation_tier="weak",
     )
     session.commit()
 
@@ -418,7 +418,7 @@ def test_reused_candidate_gap_is_always_strongly_stated(session_factory, embedde
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -435,9 +435,9 @@ def test_inferred_gap_is_always_strongly_stated(session_factory, embedder) -> No
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "tested only offline in this setup")
-    _claim(session, b, "limitations", "we test the model only offline in our setup")
-    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    _claim(session, a, "limitations", "tested only offline in this setup.")
+    _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -465,7 +465,7 @@ def test_status_is_not_assessed_when_no_relevant_papers_retrieved(session_factor
 def test_status_is_not_found_when_relevant_papers_exist_but_nothing_matches(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1")
-    _claim(session, paper, "method", "an unrelated method")  # relevant paper, no gap-signaling claim
+    _claim(session, paper, "method", "an unrelated method.")  # relevant paper, no gap-signaling claim
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -483,7 +483,7 @@ def test_reused_candidate_gap_is_tier_strong_gap(session_factory, embedder) -> N
     session = session_factory()
     seed = _paper(session, "seed")
     other = _paper(session, "other")
-    evidence_id = _claim(session, other, "limitations", "offline only")
+    evidence_id = _claim(session, other, "limitations", "offline only.")
     _candidate_gap(session, seed, evidence_id, status="approved", observation="Recurring: offline only")
     session.commit()
 
@@ -496,7 +496,7 @@ def test_reused_candidate_gap_is_tier_strong_gap(session_factory, embedder) -> N
 def test_explicit_single_paper_gap_is_tier_known_limitation(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1", title="Explicit Gap Paper")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -511,9 +511,9 @@ def test_inferred_gap_with_shared_wording_is_tier_strong_gap(session_factory, em
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "tested only offline in this setup")
-    _claim(session, b, "limitations", "we test the model only offline in our setup")
-    _claim(session, c, "limitations", "testing here happens only offline within this setup")
+    _claim(session, a, "limitations", "tested only offline in this setup.")
+    _claim(session, b, "limitations", "we test the model only offline in our setup.")
+    _claim(session, c, "limitations", "testing here happens only offline within this setup.")
     session.commit()
 
     result = assess_research_gap(
@@ -537,11 +537,11 @@ def test_inferred_gap_without_shared_wording_is_tier_potential_gap(session_facto
     a = _paper(session, "a")
     b = _paper(session, "b")
     c = _paper(session, "c")
-    _claim(session, a, "limitations", "insufficient protection of the user privacy and high communication costs in the system")
-    _claim(session, b, "limitations", "security issues such as the single point of failure and the model poisoning in the system")
+    _claim(session, a, "limitations", "insufficient protection of the user privacy and high communication costs in the system.")
+    _claim(session, b, "limitations", "security issues such as the single point of failure and the model poisoning in the system.")
     _claim(
         session, c, "limitations",
-        "existing frameworks remain vulnerable to the poisoning attacks on the data privacy in the system",
+        "existing frameworks remain vulnerable to the poisoning attacks on the data privacy in the system.",
     )
     session.commit()
 
@@ -562,7 +562,7 @@ def test_inferred_gap_without_shared_wording_is_tier_potential_gap(session_facto
 def test_not_found_result_has_no_tier(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1")
-    _claim(session, paper, "method", "an unrelated method")
+    _claim(session, paper, "method", "an unrelated method.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -679,7 +679,7 @@ def test_meta_discourse_boilerplate_never_blocks_a_genuine_cross_paper_cluster(s
 def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embedder) -> None:
     session = session_factory()
     paper = _paper(session, "p1")
-    _claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
@@ -730,3 +730,63 @@ def test_falls_back_to_weak_tier_claim_with_explicit_label_when_no_strong_claim_
     assert result.text.startswith("No explicit gap stated")
     assert "Future work will extend this evaluation along four directions." in result.text
     assert result.is_strongly_stated is False
+
+
+def test_a_section_heading_is_never_reported_as_the_research_gap(session_factory, embedder) -> None:
+    """Found live 2026-09-09: an assessment reported its research gap as
+    "Limitations and Future Work / Limited Distance Metrics." - two stacked
+    section headings that extraction had captured as a research_gap claim.
+    Printed under "Explicitly stated in ..." it reads as a finding, which
+    undercuts the evidence grounding the rest of the report relies on."""
+    session = session_factory()
+    heading_paper = _paper(session, "p1", title="Heading Paper")
+    _claim(session, heading_paper, "research_gap", "Limitations and Future Work\nLimited Distance Metrics.")
+    real_paper = _paper(session, "p2", title="Real Gap Paper")
+    real_evidence_id = _claim(
+        session, real_paper, "research_gap", "no prior work evaluates this under distribution shift."
+    )
+    session.commit()
+
+    result = assess_research_gap(session, [(heading_paper.id, NEAR), (real_paper.id, MID)], embedder)
+
+    session.close()
+    assert "Limited Distance Metrics" not in result.text
+    assert "no prior work evaluates this under distribution shift" in result.text
+    assert result.evidence_ids == [real_evidence_id]
+
+
+def test_no_gap_is_reported_when_the_only_candidate_is_a_heading(session_factory, embedder) -> None:
+    session = session_factory()
+    paper = _paper(session, "p1", title="Heading Only Paper")
+    _claim(session, paper, "research_gap", "Limitations and Future Work.")
+    session.commit()
+
+    result = assess_research_gap(session, [(paper.id, NEAR)], embedder)
+
+    session.close()
+    assert result.text is None or "Limitations and Future Work" not in result.text
+
+
+def test_a_truncated_claim_is_never_reported_as_the_research_gap(session_factory, embedder) -> None:
+    """Same reasoning as the heading case: the gap is quoted verbatim as a
+    finding, so a sentence the splitter cut mid-list promises directions
+    and then delivers none. Found live 2026-09-09 once heading rejection
+    was in place and this fragment surfaced behind it."""
+    session = session_factory()
+    cut_paper = _paper(session, "p1", title="Cut Paper")
+    _claim(
+        session, cut_paper, "research_gap",
+        "This structural mismatch motivates two concrete directions for future work: (i).",
+    )
+    real_paper = _paper(session, "p2", title="Real Gap Paper")
+    real_evidence_id = _claim(
+        session, real_paper, "research_gap", "no prior work evaluates this under distribution shift."
+    )
+    session.commit()
+
+    result = assess_research_gap(session, [(cut_paper.id, NEAR), (real_paper.id, MID)], embedder)
+
+    session.close()
+    assert "directions for future work" not in result.text
+    assert "no prior work evaluates this under distribution shift" in result.text
+    assert result.evidence_ids == [real_evidence_id]

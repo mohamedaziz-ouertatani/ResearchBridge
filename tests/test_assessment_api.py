@@ -139,22 +139,21 @@ def _add_completed_assessment(
 
 def test_post_assessment_creates_input_and_runs_the_pipeline(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only in offline settings")
+    _add_claim(session, paper, "limitations", "evaluated only in offline settings.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
 
     assert body["status"] == "completed"
     assert str(paper.id) in body["retrieved_paper_ids"]
-    assert "evaluated only in offline settings" in body["comparison_summary"]
-    # dimension coverage now drives novelty (see assessment/novelty.py): a
-    # single retrieved paper can only ever reach "weak_evidence" per
-    # dimension (2+ distinct papers are required for "established"), so an
-    # exact-title match with just one corroborating paper reads "high", not
-    # "low" - see tests/test_assessment_build.py's
-    # test_novelty_is_high_when_a_single_paper_cannot_corroborate_dimension_coverage
-    # for the same behavior traced end-to-end at the build_assessment level.
-    assert body["novelty_level"] == "high"
+    assert "evaluated only in offline settings." in body["comparison_summary"]
+    # REVERSED 2026-09-09, same change as
+    # tests/test_assessment_build.py's
+    # test_novelty_is_low_when_the_nearest_paper_is_an_exact_match: sparse
+    # dimension coverage no longer outvotes a whole-document near-duplicate.
+    # This previously asserted "high" for an exact title match, which is
+    # the behaviour that graded 7 of 12 verbatim corpus abstracts as novel.
+    assert body["novelty_level"] == "low"
     assert "Dimension coverage:" in body["novelty_reasoning"]
 
 
@@ -167,7 +166,7 @@ def test_post_assessment_novelty_not_assessed_without_any_evidence(client, sessi
 
 def test_post_assessment_includes_research_gap_from_explicit_claim(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "research_gap", "no real-time evaluation exists")
+    _add_claim(session, paper, "research_gap", "no real-time evaluation exists.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -179,12 +178,12 @@ def test_post_assessment_includes_research_gap_from_explicit_claim(client, sessi
 
 def test_post_assessment_includes_potential_applications(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
 
-    assert body["potential_applications"][0]["application"] == "real-time payment fraud screening"
+    assert body["potential_applications"][0]["application"] == "real-time payment fraud screening."
     assert body["potential_applications_status"] == "found"
 
 
@@ -212,7 +211,7 @@ def test_post_assessment_potential_applications_status_no_evidence_when_relevant
 
 def test_post_assessment_includes_technical_feasibility(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "method", "a graph attention mechanism")
+    _add_claim(session, paper, "method", "a graph attention mechanism.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -223,19 +222,19 @@ def test_post_assessment_includes_technical_feasibility(client, session, embedde
 
 def test_post_assessment_includes_risks_and_limitations(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
 
-    assert "evaluated only on offline datasets" in body["risks_and_limitations"]
+    assert "evaluated only on offline datasets." in body["risks_and_limitations"]
     assert paper.title in body["risks_and_limitations"]
 
 
 def test_post_assessment_includes_recommendation_and_confidence(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "research_gap", "no real-time evaluation exists")
-    _add_claim(session, paper, "method", "a graph attention mechanism")
+    _add_claim(session, paper, "research_gap", "no real-time evaluation exists.")
+    _add_claim(session, paper, "method", "a graph attention mechanism.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -246,7 +245,7 @@ def test_post_assessment_includes_recommendation_and_confidence(client, session,
 
 def test_post_assessment_potential_opportunities_stays_null(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -256,7 +255,7 @@ def test_post_assessment_potential_opportunities_stays_null(client, session, emb
 
 def test_post_assessment_includes_analysis_claims(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -264,7 +263,7 @@ def test_post_assessment_includes_analysis_claims(client, session, embedder) -> 
     claim_types = {c["claim_type"] for c in body["claims"]}
     assert "fact" in claim_types  # comparison summary
     comparison_claim = next(c for c in body["claims"] if c["claim_type"] == "fact")
-    assert "evaluated only on offline datasets" in comparison_claim["claim_text"]
+    assert "evaluated only on offline datasets." in comparison_claim["claim_text"]
 
 
 def test_post_assessment_claims_is_empty_list_without_any_grounded_field(client, session) -> None:
@@ -314,7 +313,7 @@ def test_get_assessment_404s_for_unknown_id(client) -> None:
 
 def _create_with_applications(client, session, embedder) -> dict:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "applications", "real-time payment fraud screening")
+    _add_claim(session, paper, "applications", "real-time payment fraud screening.")
     session.commit()
     return client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
 
@@ -378,7 +377,7 @@ def test_opportunities_synthesizes_and_persists_when_available(
     assert opportunities[0]["opportunity"] == "fraud-scoring API"
     assert opportunities[0]["source_applications"] == [
         {
-            "application": "real-time payment fraud screening",
+            "application": "real-time payment fraud screening.",
             "paper_id": body["potential_applications"][0]["paper_id"],
             "paper_title": "graph transformers for fraud detection",
         }
@@ -412,7 +411,7 @@ def test_opportunities_persist_across_a_fresh_fetch(
 
 def test_assessment_returns_the_evidence_backing_each_field(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     body = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -421,7 +420,7 @@ def test_assessment_returns_the_evidence_backing_each_field(client, session, emb
     assert "comparison" in roles
     assert "risk" in roles
     backing = next(item for item in body["evidence"] if item["role"] == "risk")
-    assert backing["text"] == "evaluated only on offline datasets"
+    assert backing["text"] == "evaluated only on offline datasets."
     assert backing["paper_title"] == "graph transformers for fraud detection"
     assert backing["paper_id"] == str(paper.id)
 
@@ -437,7 +436,7 @@ def test_assessment_evidence_is_empty_when_nothing_was_grounded(client, session,
 
 def test_fetched_assessment_also_carries_its_evidence(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -578,7 +577,7 @@ def test_review_can_toggle_back_to_unreviewed(client) -> None:
 
 def test_review_approves_linked_claims(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
     assert created["claims"], "fixture assumption: this assessment should have at least one claim"
@@ -590,7 +589,7 @@ def test_review_approves_linked_claims(client, session, embedder) -> None:
 
 def test_review_reverts_claims_to_pending_when_unreviewed(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
     client.put(f"/api/assessments/{created['id']}/review", json={"human_reviewed": True})
@@ -608,7 +607,7 @@ def test_review_404s_for_unknown_assessment(client) -> None:
 
 def test_exclusion_does_not_affect_an_existing_assessments_evidence(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -635,7 +634,7 @@ def test_review_persists_across_a_fresh_fetch(client) -> None:
 
 def test_rerun_creates_a_new_assessment_for_the_same_input(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -662,12 +661,12 @@ def test_rerun_picks_up_newly_ingested_evidence(client, session, embedder) -> No
     # same title as the query text so the (hash-based) fake embedder places it
     # at distance 0.0, well within assess_applications' relevance gate
     paper2 = _add_paper(session, embedder, "p2", "graph transformers for fraud detection")
-    _add_claim(session, paper2, "applications", "real-time payment fraud screening")
+    _add_claim(session, paper2, "applications", "real-time payment fraud screening.")
     session.commit()
 
     rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
 
-    assert rerun["potential_applications"][0]["application"] == "real-time payment fraud screening"
+    assert rerun["potential_applications"][0]["application"] == "real-time payment fraud screening."
 
 
 def test_rerun_404s_for_unknown_assessment(client) -> None:
@@ -687,7 +686,7 @@ def test_delete_removes_the_assessment(client) -> None:
 
 def test_delete_removes_every_rerun_in_the_same_thread(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
     rerun = client.post(f"/api/assessments/{created['id']}/rerun").json()
@@ -748,7 +747,7 @@ def test_export_docx_returns_a_docx_file(client, session, embedder) -> None:
     import docx
 
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -759,7 +758,7 @@ def test_export_docx_returns_a_docx_file(client, session, embedder) -> None:
     assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     assert f"assessment-{created['id']}.docx" in response.headers["content-disposition"]
     text = "\n".join(p.text for p in docx.Document(io.BytesIO(response.content)).paragraphs)
-    assert "evaluated only on offline datasets" in text
+    assert "evaluated only on offline datasets." in text
 
 
 def test_export_docx_404s_for_unknown_assessment(client) -> None:
@@ -772,7 +771,7 @@ def test_export_pdf_returns_a_pdf_file(client, session, embedder) -> None:
     import pymupdf
 
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -784,7 +783,7 @@ def test_export_pdf_returns_a_pdf_file(client, session, embedder) -> None:
     assert f"assessment-{created['id']}.pdf" in response.headers["content-disposition"]
     with pymupdf.open(stream=response.content, filetype="pdf") as doc:
         text = "\n".join(page.get_text() for page in doc)
-    assert "evaluated only on offline datasets" in text
+    assert "evaluated only on offline datasets." in text
 
 
 def test_export_pdf_404s_for_unknown_assessment(client) -> None:
@@ -795,7 +794,7 @@ def test_export_pdf_404s_for_unknown_assessment(client) -> None:
 
 def test_export_markdown_returns_a_markdown_file(client, session, embedder) -> None:
     paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
-    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets.")
     session.commit()
 
     created = client.post("/api/assessments", json={"raw_text": "graph transformers for fraud detection"}).json()
@@ -806,7 +805,7 @@ def test_export_markdown_returns_a_markdown_file(client, session, embedder) -> N
     assert response.headers["content-type"] == "text/markdown; charset=utf-8"
     assert f"assessment-{created['id']}.md" in response.headers["content-disposition"]
     text = response.content.decode("utf-8")
-    assert "evaluated only on offline datasets" in text
+    assert "evaluated only on offline datasets." in text
 
 
 def test_export_markdown_404s_for_unknown_assessment(client) -> None:

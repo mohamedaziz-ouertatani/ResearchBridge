@@ -112,6 +112,33 @@ from researchbridge.assessment.coverage import DimensionCoverage
 
 NEAR_DISTANCE = 0.35
 FAR_DISTANCE = 0.65
+
+# Whether the corpus as a WHOLE has anything relevant to say about an
+# idea, measured as the mean distance over the retrieved set - a different
+# question from FAR_DISTANCE above, which gates whether ONE paper is
+# relevant enough to contribute (and is relied on by five modules; do not
+# conflate the two).
+#
+# Calibrated against the real corpus, not guessed - see
+# scripts/calibrate_out_of_corpus.py, which reproduces the measurement.
+# Over 18 in-domain and 18 out-of-domain ideas (78,796 papers,
+# all-MiniLM-L6-v2, top_k=10) on 2026-09-09:
+#
+#     signal        in-domain max   out-of-domain min   margin
+#     nearest           0.426             0.415         -0.011  OVERLAP
+#     mean of top 5     0.440             0.451         +0.011
+#     mean of top 10    0.463             0.491         +0.028
+#
+# Nearest-distance cannot separate the two classes at ANY threshold, which
+# is why the first version of this guard (nearest >= FAR_DISTANCE) never
+# fired in practice: a 13th-century manuscript idea retrieved its nearest
+# paper at 0.403, and even word salad only reached 0.640. The mean asks
+# the right question - is the whole neighbourhood on topic, or did one
+# paper happen to land close. 0.48 is the midpoint of the top-10 gap.
+#
+# Corpus- and model-specific. Re-run the calibration script after corpus
+# growth or an embedder change.
+OUT_OF_CORPUS_MEAN_DISTANCE = 0.48
 TOP_N_FOR_EVIDENCE = 3
 
 ClaimRecord = tuple[str, str, uuid.UUID]  # (claim_type, text, evidence_id)
@@ -158,7 +185,20 @@ def assess_novelty(
 
     scored_coverages = [c for c in (dimension_coverages or []) if c.status != "not_assessed"]
 
-    if scored_coverages:
+    # Document-level near-duplicate check, deliberately BEFORE the
+    # dimension aggregation below. A paper this close is the idea itself
+    # (or a near-duplicate of it), and no dimension-coverage pattern
+    # should be able to outvote that. Found live 2026-09-09: 12 verbatim
+    # abstracts of papers already in the corpus were each retrieved at
+    # rank 1 at distance 0.007-0.063, yet 7 scored "medium"/"high" novelty
+    # (3 reaching HIGH PRIORITY, one at high confidence) because
+    # _from_nearest_distance was only consulted when scored_coverages was
+    # empty - which it almost never is. Dimension coverage is a signal
+    # about the idea's PARTS; this is a signal about the idea AS A WHOLE,
+    # and a whole-document match is the stronger evidence of overlap.
+    if nearest_distance <= NEAR_DISTANCE:
+        level, reasoning = _from_nearest_distance(nearest_title, nearest_distance)
+    elif scored_coverages:
         level, reasoning = _aggregate_from_coverage(scored_coverages)
     else:
         level, reasoning = _from_nearest_distance(nearest_title, nearest_distance)
@@ -220,6 +260,19 @@ def _aggregate_from_coverage(scored_coverages: list[DimensionCoverage]) -> tuple
             f"existing work even if no single retrieved paper is a close overall match."
         )
     weak = sum(1 for c in scored_coverages if c.status == "weak_evidence")
+    # "covered" counts established AND partially_addressed, so the counts
+    # below report "established" and mention partial matches separately -
+    # describing a partially_addressed dimension as "well-established
+    # evidence (matched by 2+ papers)" is simply false. Found live
+    # 2026-09-09: the input "AI" reported "Only 2 of 8 dimensions ... have
+    # well-established evidence" when neither of those two was established.
+    partial = covered - established
+    partial_note = (
+        f" ({partial} more are partially addressed - matched, but not by enough independent papers"
+        f" to count as established.)"
+        if partial
+        else ""
+    )
     weak_note = (
         f" ({weak} more show only weak, single-source evidence - not enough to establish overlap.)"
         if weak
@@ -228,15 +281,15 @@ def _aggregate_from_coverage(scored_coverages: list[DimensionCoverage]) -> tuple
 
     if covered / n <= 0.3:
         return "high", (
-            f"Only {covered} of {n} dimensions of this idea have well-established evidence "
-            f"(matched by 2+ papers) in the retrieved literature sample.{weak_note} This "
+            f"Only {established} of {n} dimensions of this idea have well-established evidence "
+            f"(matched by 2+ papers) in the retrieved literature sample.{partial_note}{weak_note} This "
             f"reflects limited directly related prior work within this corpus, not confirmed "
             f"novelty against the wider scientific literature: the corpus covers only a "
             f"specific CS/AI/ML slice, and this reflects the retrieved sample, not an "
             f"exhaustive search."
         )
     return "medium", (
-        f"{covered} of {n} dimensions of this idea have well-established evidence "
-        f"(matched by 2+ papers) in the retrieved literature.{weak_note} Partial overlap with "
+        f"{established} of {n} dimensions of this idea have well-established evidence "
+        f"(matched by 2+ papers) in the retrieved literature.{partial_note}{weak_note} Partial overlap with "
         f"existing work, not a close match on every dimension."
     )

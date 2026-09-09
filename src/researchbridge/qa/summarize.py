@@ -23,6 +23,7 @@ from dataclasses import dataclass
 import requests
 
 from researchbridge.api.schemas import QuoteHitOut
+from researchbridge.config import ollama_enabled, ollama_host, ollama_model, ollama_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -83,22 +84,11 @@ class SummarizationUnavailable(Exception):
     this into a 503 - never a partially-validated summary."""
 
 
-def ollama_enabled() -> bool:
-    # Default TRUE (2026-09-05): opportunity/application-relevance/summary
-    # LLM stages are all fail-safe (fail-open or fail-closed to a
-    # deterministic NULL/unfiltered result - never a crash or fabricated
-    # output) if Ollama isn't actually installed/running, so defaulting to
-    # "try it" costs a real deployment nothing but a timeout, while
-    # defaulting to "off" silently left every fresh clone/deployment's
-    # product-opportunity field NULL forever unless an operator happened to
-    # discover and flip this var. Explicitly set OLLAMA_ENABLED=false to
-    # opt back out.
-    return os.environ.get("OLLAMA_ENABLED", "true").lower() == "true"
 
 
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> str:
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+    host = ollama_host()
+    model = ollama_model("qwen2.5:3b")
 
     response = requests.post(
         f"{host}/api/chat",
@@ -133,7 +123,7 @@ def summarize_quotes(question: str, hits: list[QuoteHitOut]) -> SummaryResult:
     # only matter when OLLAMA_TIMEOUT_SECONDS is unset, which would then
     # silently give this call a different timeout than the other two for
     # no real reason.
-    timeout = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "20"))
+    timeout = ollama_timeout_seconds()
 
     for attempt in range(2):
         try:

@@ -155,3 +155,62 @@ def test_claim_extraction_and_evidence_text_stay_verbatim_for_in_gate_papers() -
 
     assert f'- "Paper A": {verbatim_text}' in result.text
     assert result.evidence_ids == [ev]
+
+
+def test_identical_claim_text_is_shown_once_per_heading() -> None:
+    """The same sentence is routinely extracted more than once for one
+    paper (under one claim_type or across two), and each copy became its
+    own bullet. Found live 2026-09-09: one report repeated an identical
+    sentence five consecutive times under "Problems already addressed",
+    and 16% of all quote lines across 30 reports were duplicates."""
+    duplicated = "Design activity modelling has received significant attention in research."
+    result = build_existing_solutions(
+        [
+            (
+                "A Paper",
+                0.1,
+                [
+                    ("problem", duplicated, uuid.uuid4()),
+                    ("problem", duplicated, uuid.uuid4()),
+                    ("problem", duplicated, uuid.uuid4()),
+                ],
+            )
+        ]
+    )
+
+    assert result.text is not None
+    assert result.text.count(duplicated) == 1
+    assert len(result.evidence_ids) == 1
+
+
+def test_the_same_sentence_from_two_different_papers_is_kept_for_both() -> None:
+    shared = "Lung disease remains a major global health concern worldwide."
+    result = build_existing_solutions(
+        [
+            ("Paper One", 0.1, [("problem", shared, uuid.uuid4())]),
+            ("Paper Two", 0.2, [("problem", shared, uuid.uuid4())]),
+        ]
+    )
+
+    assert result.text is not None
+    assert result.text.count(shared) == 2
+
+
+def test_truncated_claim_text_is_not_rendered_as_a_bullet() -> None:
+    result = build_existing_solutions(
+        [
+            (
+                "A Paper",
+                0.1,
+                [
+                    ("problem", "However, YOLO26 achieved significantly superior specificity (96.1% vs.", uuid.uuid4()),
+                    ("problem", "Manual interpretation of chest X-rays is slow and error-prone.", uuid.uuid4()),
+                ],
+            )
+        ]
+    )
+
+    assert result.text is not None
+    assert "96.1% vs." not in result.text
+    assert "Manual interpretation" in result.text
+    assert len(result.evidence_ids) == 1

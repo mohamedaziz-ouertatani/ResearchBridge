@@ -364,6 +364,12 @@ class ResearchAssessmentOut(BaseModel):
     """Each item: {application, source_paper, paper_id} - an application a
     retrieved paper explicitly states, never a synthesized/invented one
     (see assessment/applications.py)."""
+    corpus_coverage_status: str = "not_assessed"
+    """"not_assessed" | "in_corpus" | "out_of_corpus". Whether ANY retrieved
+    paper was close enough for this corpus to have something real to say
+    about the idea. "out_of_corpus" drives an explicit banner in the export
+    layer, and build.py suppresses the paper-grounded narrative fields -
+    see db/models.py's own note on the column."""
     potential_applications_status: str
     """"not_assessed" | "no_evidence" | "found". Mirrors research_gap_source:
     when potential_applications is empty or null, this distinguishes "no
