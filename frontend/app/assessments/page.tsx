@@ -10,6 +10,7 @@ import {
   type NoveltyLevel,
   type ReviewFilter,
 } from "@/lib/assessmentApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -256,6 +257,7 @@ function AssessmentRow({
   const [error, setError] = useState<string | null>(null);
 
   async function confirmDelete() {
+    setConfirming(false);
     setDeleting(true);
     setError(null);
     try {
@@ -331,36 +333,25 @@ function AssessmentRow({
        * always reserves its own space instead of overlapping the
        * timestamp above whenever the row's content wraps. */}
       <div className="flex flex-none items-baseline gap-2 pt-px">
-        {!confirming ? (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            aria-label="Delete this assessment"
-            className="eyebrow text-[0.6875rem] text-[var(--ink-faint)] hover:text-[var(--live)]"
-          >
-            delete
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => void confirmDelete()}
-              disabled={deleting}
-              className="eyebrow text-[0.6875rem] text-[var(--live)] hover:underline disabled:opacity-50"
-            >
-              {deleting ? "deleting…" : "confirm?"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={deleting}
-              className="eyebrow text-[0.6875rem] text-[var(--ink-faint)] hover:text-[var(--ink)] disabled:opacity-50"
-            >
-              cancel
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={deleting}
+          aria-label="Delete this assessment"
+          className="eyebrow text-[0.6875rem] text-[var(--ink-faint)] hover:text-[var(--live)] disabled:opacity-50"
+        >
+          {deleting ? "deleting…" : "delete"}
+        </button>
       </div>
+      <ConfirmDialog
+        open={confirming}
+        title="Delete this assessment?"
+        description="This research input and its assessment report will be permanently removed."
+        confirmLabel="delete assessment"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setConfirming(false)}
+      />
     </li>
   );
 }

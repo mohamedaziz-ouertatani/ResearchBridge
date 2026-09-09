@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Nav } from "@/components/Nav";
 import { assessmentApi, type AssessmentSummary } from "@/lib/assessmentApi";
 import { projectApi, type ResearchProject } from "@/lib/projectApi";
@@ -23,6 +24,7 @@ export default function ProjectPage({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function load() {
     const [loaded, assessmentPage] = await Promise.all([
@@ -127,12 +129,7 @@ export default function ProjectPage({
   }
 
   async function deleteProject() {
-    if (
-      !window.confirm(
-        "Delete this project? Its assessments will remain available.",
-      )
-    )
-      return;
+    setConfirmingDelete(false);
     setBusy(true);
     try {
       await projectApi.remove(id);
@@ -217,7 +214,7 @@ export default function ProjectPage({
                 </button>
                 <button
                   type="button"
-                  onClick={deleteProject}
+                  onClick={() => setConfirmingDelete(true)}
                   disabled={busy}
                   className="eyebrow text-[var(--ink-faint)] hover:text-[var(--live)] disabled:opacity-40"
                 >
@@ -341,6 +338,15 @@ export default function ProjectPage({
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this project?"
+        description="Its assessments will remain available and can be re-attached to another project."
+        confirmLabel="delete project"
+        busy={busy}
+        onConfirm={deleteProject}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </main>
   );
 }
