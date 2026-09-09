@@ -687,3 +687,46 @@ def test_status_is_found_when_an_explicit_gap_claim_exists(session_factory, embe
     session.close()
     assert result.status == "found"
     assert result.text is not None
+
+
+def test_prefers_strong_tier_claim_over_nearer_weak_tier_claim(session_factory, embedder) -> None:
+    """A weak-tier (generic future-work) claim on the nearest paper must
+    not win over a strong-tier (unambiguous gap language) claim on a
+    farther-but-still-relevant paper."""
+    session = session_factory()
+    near_paper = _paper(session, "near", title="Near Paper")
+    far_paper = _paper(session, "far", title="Far Paper")
+    _claim(
+        session, near_paper, "research_gap",
+        "Future work will extend this evaluation along four directions.", validation_tier="weak",
+    )
+    _claim(
+        session, far_paper, "research_gap",
+        "No existing method handles concept drift under adversarial relabeling.", validation_tier="strong",
+    )
+    session.commit()
+
+    result = assess_research_gap(session, [(near_paper.id, 0.10), (far_paper.id, 0.30)], embedder)
+
+    session.close()
+    assert "No existing method handles concept drift" in result.text
+    assert result.is_strongly_stated is True
+
+
+def test_falls_back_to_weak_tier_claim_with_explicit_label_when_no_strong_claim_exists(
+    session_factory, embedder
+) -> None:
+    session = session_factory()
+    only_paper = _paper(session, "p1", title="Only Paper")
+    _claim(
+        session, only_paper, "research_gap",
+        "Future work will extend this evaluation along four directions.", validation_tier="weak",
+    )
+    session.commit()
+
+    result = assess_research_gap(session, [(only_paper.id, 0.10)], embedder)
+
+    session.close()
+    assert result.text.startswith("No explicit gap stated")
+    assert "Future work will extend this evaluation along four directions." in result.text
+    assert result.is_strongly_stated is False

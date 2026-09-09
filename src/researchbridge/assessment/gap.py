@@ -202,11 +202,14 @@ def _explicit_research_gap_claim(
     session: Session, relevant_paper_ids: list[uuid.UUID]
 ) -> GapAssessmentResult | None:
     """Checks papers in the given order (nearest-first, per the caller's own
-    retrieval ranking) and returns the first explicit claim found - NOT an
-    arbitrary one. An unordered `paper_id IN (...)` query would let the DB
-    return any matching row first, regardless of how relevant that paper
-    actually is to the input; that defeats the point of scoping this to
-    the assessment's own neighborhood."""
+    retrieval ranking) for an explicit research_gap claim, preferring a
+    STRONG-tier claim (unambiguous gap language) over a nearer WEAK-tier one
+    (generic future-work boilerplate) - a nearer paper's vague "future work
+    will..." sentence should not outrank a farther-but-still-relevant
+    paper's specific stated gap. Falls back to the nearest weak-tier claim
+    only if no strong-tier claim exists among the relevant papers, and
+    labels that fallback explicitly so a weak, generic sentence is never
+    presented as a confident finding the way a strong explicit gap is."""
     rows = session.execute(
         select(
             ExtractedClaim.paper_id, ExtractedClaim.text, ExtractedClaim.evidence_id, Paper.title,
@@ -222,25 +225,39 @@ def _explicit_research_gap_claim(
     ).all()
     by_paper_id = {row.paper_id: (row.text, row.evidence_id, row.title, row.validation_tier) for row in rows}
 
+    def _result_for(paper_id: uuid.UUID, *, weak_fallback: bool) -> GapAssessmentResult:
+        text, evidence_id, paper_title, validation_tier = by_paper_id[paper_id]
+        display_text = (
+            f'No explicit gap stated; nearest related paper mentions future work generically: '
+            f'"{text}" (from "{paper_title}")'
+            if weak_fallback
+            else f'Explicitly stated in "{paper_title}": "{text}"'
+        )
+        return GapAssessmentResult(
+            source="input_specific",
+            text=display_text,
+            candidate_gap_id=None,
+            evidence_ids=[evidence_id],
+            # "strong" tier means unambiguous gap language ("remains an
+            # open problem"); "weak" means boilerplate that could just as
+            # easily be generic filler ("future research") - see
+            # extraction/validation.py's own strong/weak tier docstring.
+            # Never fabricate a strength judgment the extractor didn't
+            # already make.
+            is_strongly_stated=(validation_tier == "strong"),
+            # exactly one paper behind this claim - genuine, but no
+            # cross-paper convergence by construction
+            tier="known_limitation",
+        )
+
+    for paper_id in relevant_paper_ids:
+        if paper_id in by_paper_id and by_paper_id[paper_id][3] == "strong":
+            return _result_for(paper_id, weak_fallback=False)
+
     for paper_id in relevant_paper_ids:
         if paper_id in by_paper_id:
-            text, evidence_id, paper_title, validation_tier = by_paper_id[paper_id]
-            return GapAssessmentResult(
-                source="input_specific",
-                text=f'Explicitly stated in "{paper_title}": "{text}"',
-                candidate_gap_id=None,
-                evidence_ids=[evidence_id],
-                # "strong" tier means unambiguous gap language ("remains an
-                # open problem"); "weak" means boilerplate that could just as
-                # easily be generic filler ("future research") - see
-                # extraction/validation.py's own strong/weak tier docstring.
-                # Never fabricate a strength judgment the extractor didn't
-                # already make.
-                is_strongly_stated=(validation_tier == "strong"),
-                # exactly one paper behind this claim - genuine, but no
-                # cross-paper convergence by construction
-                tier="known_limitation",
-            )
+            return _result_for(paper_id, weak_fallback=True)
+
     return None
 
 
