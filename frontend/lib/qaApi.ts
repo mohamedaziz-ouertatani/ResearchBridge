@@ -10,6 +10,7 @@ export type QuoteHit = {
   section: string | null;
   confidence: string;
   score: number;
+  source?: "claim" | "passage";
 };
 
 export type AskResponse = {

@@ -529,6 +529,30 @@ class PaperFullText(Base):
     fetched_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class PaperFullTextChunk(Base):
+    """One paragraph-level chunk of a paper's full text, embedded for
+    retrieval (full-text retrieval follow-on to Sec 46 / the corpus-qa
+    design). Split from PaperFullText.sections by
+    fulltext/chunking.py::split_paragraphs; populated by
+    fulltext/chunk_pipeline.py.
+
+    `model_name` mirrors Embedding.model_name's reasoning: lets more than
+    one embedding model's chunks coexist without a schema change if the
+    model in use is ever swapped.
+    """
+
+    __tablename__ = "paper_fulltext_chunk"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), nullable=False)
+    section: Mapped[str] = mapped_column(String, nullable=False)
+    paragraph_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class FullTextFetchRun(Base):
     """One rb-fulltext-fetch run - same run-history shape as
     ExtractionRun/EmbeddingRun/CitationFetchRun/GapDetectionRun, updated

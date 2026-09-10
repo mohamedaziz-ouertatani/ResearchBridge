@@ -5,7 +5,7 @@ import uuid
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from researchbridge.db.models import FullTextFetchError, FullTextFetchRun, Paper, PaperFullText
+from researchbridge.db.models import FullTextFetchError, FullTextFetchRun, Paper, PaperFullText, PaperFullTextChunk
 
 
 def _paper(session, source_id: str = "p1") -> Paper:
@@ -46,6 +46,32 @@ def test_paper_fulltext_enforces_one_row_per_paper(session_factory) -> None:
         session.commit()
     session.rollback()
     session.close()
+
+
+def test_paper_fulltext_chunk_persists_paragraph(session_factory) -> None:
+    session = session_factory()
+    paper = _paper(session)
+    session.commit()
+
+    vector = [0.1] * 384
+    chunk = PaperFullTextChunk(
+        paper_id=paper.id,
+        section="introduction",
+        paragraph_index=0,
+        text="A full paragraph of introduction text.",
+        model_name="fake-embedder-v1",
+        embedding=vector,
+    )
+    session.add(chunk)
+    session.commit()
+
+    fetched = session.get(PaperFullTextChunk, chunk.id)
+    session.close()
+    assert fetched.section == "introduction"
+    assert fetched.paragraph_index == 0
+    assert fetched.text == "A full paragraph of introduction text."
+    assert fetched.model_name == "fake-embedder-v1"
+    assert len(fetched.embedding) == 384
 
 
 def test_fulltext_fetch_error_links_to_its_run(session_factory) -> None:
