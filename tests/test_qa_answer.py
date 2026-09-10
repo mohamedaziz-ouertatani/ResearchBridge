@@ -4,7 +4,7 @@ import hashlib
 import uuid
 from dataclasses import dataclass, field
 
-from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper
+from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, PaperFullTextChunk
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 from researchbridge.qa.answer import answer_question
 
@@ -51,6 +51,16 @@ def _add_claim(
     session.flush()
     session.add(
         ExtractedClaim(paper_id=paper.id, claim_type=claim_type, text=text, evidence_id=evidence.id, confidence="medium")
+    )
+
+
+def _add_chunk(session, embedder, paper, text, section="introduction", index=0) -> None:
+    [vector] = embedder.embed_texts([text])
+    session.add(
+        PaperFullTextChunk(
+            paper_id=paper.id, section=section, paragraph_index=index, text=text,
+            model_name=embedder.model_name, embedding=vector,
+        )
     )
 
 
@@ -152,4 +162,70 @@ def test_hit_carries_paper_and_section_metadata(session_factory) -> None:
     assert hits[0].claim_type == "limitations"
     assert hits[0].section == "Discussion"
     assert hits[0].confidence == "medium"
+    session.close()
+
+
+def test_surfaces_a_fulltext_passage_alongside_claims(session_factory) -> None:
+    session = session_factory()
+    embedder = FakeEmbedder()
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_chunk(session, embedder, paper, "the exact question text", section="results")
+    session.commit()
+
+    hits = answer_question(session, embedder, "the exact question text")
+
+    assert hits[0].text == "the exact question text"
+    assert hits[0].source == "passage"
+    assert hits[0].evidence_id is None
+    assert hits[0].section == "results"
+    session.close()
+
+
+def test_existing_claim_hits_are_tagged_source_claim(session_factory) -> None:
+    session = session_factory()
+    embedder = FakeEmbedder()
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    hits = answer_question(session, embedder, "graph transformers for fraud detection")
+
+    assert hits[0].source == "claim"
+    assert hits[0].evidence_id is not None
+    session.close()
+
+
+def test_drops_a_passage_that_already_contains_a_candidate_claim(session_factory) -> None:
+    session = session_factory()
+    embedder = FakeEmbedder()
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    _add_chunk(
+        session, embedder, paper,
+        "In our experiments, the model was evaluated only on offline datasets due to access constraints.",
+        section="results",
+    )
+    session.commit()
+
+    hits = answer_question(session, embedder, "graph transformers for fraud detection")
+
+    assert all(
+        hit.text != "In our experiments, the model was evaluated only on offline datasets due to access constraints."
+        for hit in hits
+    )
+    session.close()
+
+
+def test_paper_with_only_passages_and_no_claims_still_returns_hits(session_factory) -> None:
+    session = session_factory()
+    embedder = FakeEmbedder()
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_chunk(session, embedder, paper, "the exact question text")
+    session.commit()
+
+    hits = answer_question(session, embedder, "the exact question text")
+
+    assert len(hits) == 1
+    assert hits[0].source == "passage"
     session.close()
