@@ -56,6 +56,11 @@ from sqlalchemy.orm import Session
 
 from researchbridge.api.deps import get_corpus_idf, get_embedder, get_session
 from researchbridge.api.schemas import (
+    ClaimEvidenceGraphOut,
+    ClaimGraphEdgeOut,
+    ClaimGraphNodeOut,
+    GapDensityBucketOut,
+    GapDensityOut,
     GraphEdgeOut,
     GraphNodeOut,
     ResearchAssessmentCreate,
@@ -68,6 +73,7 @@ from researchbridge.api.schemas import (
 )
 from researchbridge.api.serializers import to_assessment_claims, to_assessment_evidence
 from researchbridge.assessment.build import build_assessment
+from researchbridge.assessment.claim_graph import build_claim_evidence_graph
 from researchbridge.assessment.claims import sync_claim_status
 from researchbridge.assessment.export import build_docx, build_markdown, build_pdf
 from researchbridge.assessment.graph import build_similarity_graph
@@ -82,6 +88,7 @@ from researchbridge.assessment.opportunity_synthesis import (
 from researchbridge.benchmark.fulltext import extract_text
 from researchbridge.db.models import ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
 from researchbridge.embedding.base import Embedder
+from researchbridge.gaps.density import compute_gap_density
 
 router = APIRouter(prefix="/api/assessments")
 
@@ -314,6 +321,50 @@ def get_assessment_graph(
             for node in graph.nodes
         ],
         edges=[GraphEdgeOut(source=edge.source, target=edge.target, distance=edge.distance) for edge in graph.edges],
+    )
+
+
+@router.get("/{assessment_id}/claim-graph", response_model=ClaimEvidenceGraphOut)
+def get_assessment_claim_graph(
+    assessment_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> ClaimEvidenceGraphOut:
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    graph = build_claim_evidence_graph(session, assessment)
+
+    return ClaimEvidenceGraphOut(
+        nodes=[
+            ClaimGraphNodeOut(
+                id=node.id, kind=node.kind, label=node.label, claim_type=node.claim_type,
+                confidence=node.confidence, status=node.status, paper_id=node.paper_id,
+                paper_title=node.paper_title, section=node.section, gap_status=node.gap_status,
+                categories=node.categories,
+            )
+            for node in graph.nodes
+        ],
+        edges=[
+            ClaimGraphEdgeOut(source=edge.source, target=edge.target, relationship=edge.relationship)
+            for edge in graph.edges
+        ],
+    )
+
+
+@router.get("/{assessment_id}/gap-density", response_model=GapDensityOut)
+def get_gap_density(
+    assessment_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> GapDensityOut:
+    assessment = session.get(ResearchAssessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(status_code=404, detail=f"No assessment with id {assessment_id}")
+
+    buckets = compute_gap_density(session)
+
+    return GapDensityOut(
+        buckets=[GapDensityBucketOut(category=b.category, gap_count=b.gap_count) for b in buckets]
     )
 
 

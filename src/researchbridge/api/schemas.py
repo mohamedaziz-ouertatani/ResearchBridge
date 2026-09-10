@@ -482,6 +482,40 @@ class SimilarityGraphOut(BaseModel):
     edges: list[GraphEdgeOut]
 
 
+class ClaimGraphNodeOut(BaseModel):
+    id: str
+    kind: Literal["claim", "evidence", "gap"]
+    label: str
+    claim_type: str | None = None
+    confidence: str | None = None
+    status: str | None = None
+    paper_id: str | None = None
+    paper_title: str | None = None
+    section: str | None = None
+    gap_status: str | None = None
+    categories: list[str] = Field(default_factory=list)
+
+
+class ClaimGraphEdgeOut(BaseModel):
+    source: str
+    target: str
+    relationship: Literal["supports", "contradicts", "contextualizes", "addresses_gap"]
+
+
+class ClaimEvidenceGraphOut(BaseModel):
+    nodes: list[ClaimGraphNodeOut]
+    edges: list[ClaimGraphEdgeOut]
+
+
+class GapDensityBucketOut(BaseModel):
+    category: str
+    gap_count: int
+
+
+class GapDensityOut(BaseModel):
+    buckets: list[GapDensityBucketOut]
+
+
 class CitationNodeOut(BaseModel):
     id: str
     type: Literal["center", "paper"]
