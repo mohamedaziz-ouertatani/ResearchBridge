@@ -3,11 +3,13 @@
 Detection is still the same rb-gaps-detect logic as always - /detect just
 launches it as a subprocess (via pipeline_triggers, the same mechanism the
 admin panel uses for ingestion/extraction/embedding) instead of requiring
-an operator to run it from a terminal. Always incremental, whole-corpus
-(--all --save, no --force): a good fit for a button since it only touches
-papers that don't have a candidate gap yet. Approving/rejecting remains the
-only way a candidate gap's status ever leaves "pending"; nothing here
-scores or auto-approves anything.
+an operator to run it from a terminal. Whole-corpus (--all --save), and
+incremental by default: only touches papers that don't have a candidate
+gap yet, unless --force is passed to reprocess papers that already have
+one (see gaps/batch.py's _select_seed_papers). Force doesn't delete or
+touch existing candidate gaps, just adds new ones for reprocessed papers.
+Approving/rejecting remains the only way a candidate gap's status ever
+leaves "pending"; nothing here scores or auto-approves anything.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from researchbridge.api.schemas import (
     CandidateGapPage,
     CandidateGapReview,
     GapsDetectStatus,
+    GapsDetectTrigger,
     PipelineTriggerOut,
 )
 from researchbridge.api.serializers import to_gaps
@@ -101,15 +104,20 @@ def review_gap(
 
 
 @router.post("/detect", response_model=PipelineTriggerOut)
-def trigger_detect(session: Session = Depends(get_session)) -> PipelineTriggerOut:
+def trigger_detect(
+    payload: GapsDetectTrigger = GapsDetectTrigger(), session: Session = Depends(get_session)
+) -> PipelineTriggerOut:
     # Same guard as admin_routes.py's _trigger_or_409: is_running() alone
     # can't see a detection run started directly from the CLI rather than
     # this button, so a click here could otherwise launch a genuine
     # concurrent duplicate against a run already going.
     if is_running(PIPELINE_KEY) or has_running_db_row(session, PIPELINE_KEY):
         raise HTTPException(status_code=409, detail=f"{PIPELINE_KEY} is already running")
+    args = ["--all", "--save"]
+    if payload.force:
+        args += ["--force"]
     try:
-        log_path = trigger(PIPELINE_KEY, "researchbridge.gaps.cli_detect", ["--all", "--save"])
+        log_path = trigger(PIPELINE_KEY, "researchbridge.gaps.cli_detect", args)
     except PipelineAlreadyRunning as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return PipelineTriggerOut(started=True, pipeline=PIPELINE_KEY, log_file=str(log_path))

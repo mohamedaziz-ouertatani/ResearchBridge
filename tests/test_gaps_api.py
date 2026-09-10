@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -355,3 +356,29 @@ def test_trigger_detect_409s_for_a_run_this_server_did_not_spawn_but_is_still_al
     response = client.post("/api/gaps/detect")
 
     assert response.status_code == 409
+
+
+def test_trigger_detect_with_force_passes_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.gaps_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/gaps/detect", json={"force": True})
+
+    assert calls == [("gaps", "researchbridge.gaps.cli_detect", ["--all", "--save", "--force"])]
+
+
+def test_trigger_detect_without_force_omits_force_flag(client, monkeypatch) -> None:
+    import researchbridge.api.gaps_routes as routes_module
+
+    calls = []
+    monkeypatch.setattr(
+        routes_module, "trigger", lambda key, module, args: calls.append((key, module, args)) or Path("x.log")
+    )
+
+    client.post("/api/gaps/detect")
+
+    assert calls == [("gaps", "researchbridge.gaps.cli_detect", ["--all", "--save"])]

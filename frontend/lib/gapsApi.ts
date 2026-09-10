@@ -94,7 +94,11 @@ export const gapsApi = {
       body: JSON.stringify({ status, review_note: reviewNote || null, ...ratings }),
     }),
 
-  detect: () => request<{ started: boolean; pipeline: string; log_file: string }>(`/api/gaps/detect`, { method: "POST" }),
+  detect: (params: { force?: boolean } = {}) =>
+    request<{ started: boolean; pipeline: string; log_file: string }>(`/api/gaps/detect`, {
+      method: "POST",
+      body: JSON.stringify({ force: params.force ?? false }),
+    }),
 
   detectStatus: () => request<GapsDetectStatus>(`/api/gaps/detect/status`),
 };

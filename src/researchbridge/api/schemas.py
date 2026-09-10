@@ -613,6 +613,13 @@ class PipelineStatus(BaseModel):
     """All-time count of every analysis_claims row by claim_type (fact/
     inference/hypothesis/opportunity/speculation), across both producers
     (gaps/claims.py, assessment/claims.py)."""
+    extracted_claims_by_type: dict[str, int]
+    """Corpus-wide coverage per Sec 28 extraction field (problem/method/
+    research_question/main_contribution/limitations/results/dataset/
+    research_gap/applications) - distinct PAPER count per claim_type, not
+    a raw claim-row count, so this answers "what fraction of the corpus
+    has this field" the same way papers_with_claims does for extraction
+    overall."""
     ingestion_runs: list[PipelineRunOut]
     extraction_runs: list[PipelineRunOut]
     embedding_runs: list[PipelineRunOut]
@@ -774,6 +781,10 @@ class CitationsFetchTrigger(BaseModel):
 class PipelineStopOut(BaseModel):
     stopped: bool
     pipeline: str
+
+
+class GapsDetectTrigger(BaseModel):
+    force: bool = False
 
 
 class GapsDetectStatus(BaseModel):

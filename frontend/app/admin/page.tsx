@@ -21,11 +21,10 @@ import { SkeletonStats } from "@/components/Skeleton";
   since the earliest migrations but were never exposed anywhere outside
   direct SQL; this page shows run history AND lets an operator start a new
   run of most pipelines (four ingestion sources, extraction, embedding,
-  retrieval evaluation) as a background subprocess of the same CLI commands
-  (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/rb-ingest-core/
-  rb-extract/rb-embed/rb-retrieval-evaluate) - a button, not a new execution
-  engine. Gap detection stays a deliberate CLI-only step (see
-  gaps_routes.py) - not triggerable here, by design.
+  retrieval evaluation, gap detection) as a background subprocess of the
+  same CLI commands (rb-ingest/rb-ingest-springer/rb-ingest-semantic-scholar/
+  rb-ingest-core/rb-extract/rb-embed/rb-retrieval-evaluate/rb-gaps-detect) -
+  a button, not a new execution engine.
 
   Retrieval evaluation and extraction evaluation have no *_runs history
   table (both are one-off diagnostics, not repeating pipeline stages -
@@ -559,8 +558,10 @@ export default function AdminPipeline() {
                   runs={status.gap_detection_runs}
                   running={status.running.gaps}
                   fields={[]}
-                  onRun={() => gapsApi.detect()}
+                  onRun={(values) => gapsApi.detect({ force: Boolean(values.force) })}
                   onStarted={reload}
+                  forceLabel="force re-run detection"
+                  forceWarning="This reprocesses every paper that already has a candidate gap, instead of only papers without one yet. Not destructive - existing candidate gaps are left alone - but reprocessed papers can end up with new, possibly duplicate pending gaps to review, and it re-runs over the whole corpus again, which takes a while."
                 />
               )}
 
