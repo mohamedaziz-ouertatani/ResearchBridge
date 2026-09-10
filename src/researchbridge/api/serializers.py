@@ -24,6 +24,7 @@ from researchbridge.api.schemas import (
     AssessmentEvidenceOut,
     CandidateGapOut,
     ClaimEvidenceOut,
+    ExtractedClaimListItem,
     ExtractedClaimOut,
     GapEvidenceOut,
     PaperSummary,
@@ -110,6 +111,30 @@ def to_claims(session: Session, paper_id: uuid.UUID) -> list[ExtractedClaimOut]:
             extraction_method=evidence.extraction_method,
         )
         for claim, evidence in rows
+    ]
+
+
+def to_extracted_claim_list_items(
+    rows: Sequence[tuple[ExtractedClaim, Evidence, str]],
+) -> list[ExtractedClaimListItem]:
+    """Rows already joined to Evidence (for section/extraction_method) and
+    Paper.title (for paper context - see ExtractedClaimListItem's own
+    docstring on why that differs from to_claims()'s per-paper
+    ExtractedClaimOut). Order/filtering/stub-exclusion is the caller's
+    (claims_routes.py's) responsibility, same division as to_claims()."""
+    return [
+        ExtractedClaimListItem(
+            id=claim.id,
+            claim_type=claim.claim_type,
+            text=claim.text,
+            confidence=claim.confidence,
+            section=evidence.section,
+            extraction_method=evidence.extraction_method,
+            paper_id=claim.paper_id,
+            paper_title=paper_title,
+            created_at=claim.created_at,
+        )
+        for claim, evidence, paper_title in rows
     ]
 
 

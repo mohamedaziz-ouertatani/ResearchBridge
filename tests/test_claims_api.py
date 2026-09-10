@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_session
-from researchbridge.db.models import AnalysisClaim, ClaimEvidence, Evidence, Paper
+from researchbridge.db.models import AnalysisClaim, ClaimEvidence, Evidence, ExtractedClaim, Paper
 
 
 @pytest.fixture()
@@ -142,4 +142,81 @@ def test_list_claims_rejects_invalid_source_table(client) -> None:
 
 def test_list_claims_empty_when_none_exist(client, session) -> None:
     body = client.get("/api/claims").json()
+    assert body == {"items": [], "total": 0, "limit": 20, "offset": 0}
+
+
+# --- /api/extracted-claims: Sec 28 raw per-paper extraction claims
+# (problem/method/.../applications), a different table (extracted_claims)
+# from analysis_claims above - no status or source_table, since a paper's
+# extraction has neither concept.
+
+
+def _extracted_evidence(
+    session, paper: Paper, claim_type: str = "problem", extraction_method: str = "hybrid",
+) -> Evidence:
+    evidence = Evidence(
+        paper_id=paper.id, evidence_type=claim_type, section="introduction", text=f"a {claim_type} sentence",
+        extraction_method=extraction_method, model_version="v1", confidence="medium",
+    )
+    session.add(evidence)
+    session.flush()
+    return evidence
+
+
+def _extracted_claim(session, paper: Paper, evidence: Evidence, claim_type: str = "problem") -> ExtractedClaim:
+    claim = ExtractedClaim(
+        paper_id=paper.id, claim_type=claim_type, text=evidence.text, evidence_id=evidence.id, confidence="medium",
+    )
+    session.add(claim)
+    session.commit()
+    return claim
+
+
+def test_list_extracted_claims_returns_claims_with_paper_context(client, session) -> None:
+    paper = _paper(session)
+    evidence = _extracted_evidence(session, paper, claim_type="applications")
+    claim = _extracted_claim(session, paper, evidence, claim_type="applications")
+
+    body = client.get("/api/extracted-claims").json()
+
+    assert body["total"] == 1
+    item = body["items"][0]
+    assert item["id"] == str(claim.id)
+    assert item["claim_type"] == "applications"
+    assert item["text"] == evidence.text
+    assert item["section"] == "introduction"
+    assert item["extraction_method"] == "hybrid"
+    assert item["paper_id"] == str(paper.id)
+    assert item["paper_title"] == "A Paper"
+
+
+def test_list_extracted_claims_filters_by_claim_type(client, session) -> None:
+    paper = _paper(session)
+    problem_evidence = _extracted_evidence(session, paper, claim_type="problem")
+    _extracted_claim(session, paper, problem_evidence, claim_type="problem")
+    apps_evidence = _extracted_evidence(session, paper, claim_type="applications")
+    _extracted_claim(session, paper, apps_evidence, claim_type="applications")
+
+    body = client.get("/api/extracted-claims", params={"claim_type": "applications"}).json()
+
+    assert body["total"] == 1
+    assert body["items"][0]["claim_type"] == "applications"
+
+
+def test_list_extracted_claims_excludes_stub_rows(client, session) -> None:
+    paper = _paper(session)
+    stub_evidence = _extracted_evidence(session, paper, extraction_method="stub")
+    _extracted_claim(session, paper, stub_evidence)
+
+    body = client.get("/api/extracted-claims").json()
+
+    assert body["total"] == 0
+
+
+def test_list_extracted_claims_rejects_invalid_claim_type(client) -> None:
+    assert client.get("/api/extracted-claims", params={"claim_type": "bogus"}).status_code == 422
+
+
+def test_list_extracted_claims_empty_when_none_exist(client, session) -> None:
+    body = client.get("/api/extracted-claims").json()
     assert body == {"items": [], "total": 0, "limit": 20, "offset": 0}

@@ -66,6 +66,31 @@ class ExtractedClaimOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExtractedClaimListItem(BaseModel):
+    """Same fields as ExtractedClaimOut, plus paper identity - that one
+    omits paper_id/paper_title because GET /papers/{id}/claims already
+    scopes to one paper via the URL; a corpus-wide list (GET
+    /api/extracted-claims) has no such scoping, so each item needs to
+    name its own paper."""
+
+    id: uuid.UUID
+    claim_type: str
+    text: str
+    confidence: str
+    section: str | None
+    extraction_method: str
+    paper_id: uuid.UUID
+    paper_title: str
+    created_at: datetime
+
+
+class ExtractedClaimPage(BaseModel):
+    items: list[ExtractedClaimListItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class SearchHit(BaseModel):
     paper: PaperSummary
     distance: float

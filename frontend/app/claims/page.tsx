@@ -4,11 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   claimsApi,
+  extractedClaimsApi,
   CLAIM_TYPE_LABELS,
+  EXTRACTED_CLAIM_TYPE_LABELS,
   SOURCE_TABLE_LABELS,
   type AnalysisClaim,
   type ClaimStatusFilter,
   type ClaimTypeFilter,
+  type ExtractedClaim,
+  type ExtractedClaimTypeFilter,
   type SourceTableFilter,
 } from "@/lib/claimsApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -16,6 +20,8 @@ import { Nav } from "@/components/Nav";
 import { SkeletonRows } from "@/components/Skeleton";
 
 const LIMIT = 20;
+
+type View = "reasoning" | "extraction";
 
 const STATUS_OPTIONS: { value: ClaimStatusFilter; label: string }[] = [
   { value: "all", label: "all statuses" },
@@ -39,10 +45,19 @@ const SOURCE_TABLE_OPTIONS: { value: SourceTableFilter; label: string }[] = [
   { value: "research_assessments", label: "assessments only" },
 ];
 
+const EXTRACTED_CLAIM_TYPE_OPTIONS: { value: ExtractedClaimTypeFilter; label: string }[] = [
+  { value: "all", label: "all types" },
+  ...(Object.entries(EXTRACTED_CLAIM_TYPE_LABELS) as [ExtractedClaimTypeFilter, string][]).map(
+    ([value, label]) => ({ value, label }),
+  ),
+];
+
 const SELECT_CLASS =
   "readout border-b border-[var(--rule)] bg-transparent py-1 text-[0.8125rem] text-[var(--ink)] focus:border-[var(--ink)] focus:outline-none";
 
 export default function Claims() {
+  const [view, setView] = useState<View>("reasoning");
+
   const [status, setStatus] = useState<ClaimStatusFilter>("all");
   const [claimType, setClaimType] = useState<ClaimTypeFilter>("all");
   const [sourceTable, setSourceTable] = useState<SourceTableFilter>("all");
@@ -53,6 +68,7 @@ export default function Claims() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (view !== "reasoning") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
@@ -64,7 +80,29 @@ export default function Claims() {
       })
       .catch(() => setError("Couldn't load claims."))
       .finally(() => setLoading(false));
-  }, [status, claimType, sourceTable, offset]);
+  }, [view, status, claimType, sourceTable, offset]);
+
+  const [extractedType, setExtractedType] = useState<ExtractedClaimTypeFilter>("all");
+  const [extractedOffset, setExtractedOffset] = useState(0);
+  const [extractedClaims, setExtractedClaims] = useState<ExtractedClaim[]>([]);
+  const [extractedTotal, setExtractedTotal] = useState(0);
+  const [extractedLoading, setExtractedLoading] = useState(true);
+  const [extractedError, setExtractedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view !== "extraction") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExtractedLoading(true);
+    setExtractedError(null);
+    extractedClaimsApi
+      .list({ claim_type: extractedType }, LIMIT, extractedOffset)
+      .then((page) => {
+        setExtractedClaims(page.items);
+        setExtractedTotal(page.total);
+      })
+      .catch(() => setExtractedError("Couldn't load claims."))
+      .finally(() => setExtractedLoading(false));
+  }, [view, extractedType, extractedOffset]);
 
   function resetAndSet<T>(setter: (v: T) => void) {
     return (value: T) => {
@@ -80,97 +118,202 @@ export default function Claims() {
       <div className="pt-12">
         <span className="eyebrow">claims</span>
         <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-[var(--ink-soft)]">
-          The Sec 16 structured-reasoning layer: every candidate gap and every gradeable assessment
-          field, mirrored as a typed claim (fact/inference/hypothesis/opportunity/speculation) linked
-          to the real evidence it was grounded in — the Evidence → Inference chain made inspectable
-          on its own, not nested inside a specific gap or assessment page.
+          {view === "reasoning" ? (
+            <>
+              The Sec 16 structured-reasoning layer: every candidate gap and every gradeable assessment
+              field, mirrored as a typed claim (fact/inference/hypothesis/opportunity/speculation) linked
+              to the real evidence it was grounded in — the Evidence → Inference chain made inspectable
+              on its own, not nested inside a specific gap or assessment page.
+            </>
+          ) : (
+            <>
+              The Sec 28 extraction layer: every raw claim pulled straight out of a paper&apos;s own text
+              (problem/method/research question/main contribution/limitations/results/dataset/research
+              gap/applications), corpus-wide — one quote per claim, not synthesized.
+            </>
+          )}
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">status</span>
-            <select
-              value={status}
-              onChange={(e) => resetAndSet(setStatus)(e.target.value as ClaimStatusFilter)}
-              className={SELECT_CLASS}
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-2">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">type</span>
-            <select
-              value={claimType}
-              onChange={(e) => resetAndSet(setClaimType)(e.target.value as ClaimTypeFilter)}
-              className={SELECT_CLASS}
-            >
-              {CLAIM_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-2">
-            <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">source</span>
-            <select
-              value={sourceTable}
-              onChange={(e) => resetAndSet(setSourceTable)(e.target.value as SourceTableFilter)}
-              className={SELECT_CLASS}
-            >
-              {SOURCE_TABLE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <InfoTooltip text="A claim's status mirrors its source's own review: a candidate gap's approve/reject, or an assessment's human_reviewed flag. It is never reviewed independently here." />
+        <div className="mt-6 flex flex-wrap items-center gap-1 border-b border-[var(--rule)]">
+          <button
+            onClick={() => setView("reasoning")}
+            className={`eyebrow -mb-px px-3 py-2 ${
+              view === "reasoning"
+                ? "border-b-2 border-[var(--ink)] text-[var(--ink)]"
+                : "border-b-2 border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+            }`}
+          >
+            reasoning claims
+          </button>
+          <button
+            onClick={() => setView("extraction")}
+            className={`eyebrow -mb-px px-3 py-2 ${
+              view === "extraction"
+                ? "border-b-2 border-[var(--ink)] text-[var(--ink)]"
+                : "border-b-2 border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]"
+            }`}
+          >
+            extraction claims
+          </button>
         </div>
 
-        {loading && <SkeletonRows count={4} />}
-        {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
+        {view === "reasoning" && (
+          <>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2">
+                <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">status</span>
+                <select
+                  value={status}
+                  onChange={(e) => resetAndSet(setStatus)(e.target.value as ClaimStatusFilter)}
+                  className={SELECT_CLASS}
+                >
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-        {!loading && !error && claims.length === 0 && (
-          <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">No claims match these filters.</p>
+              <label className="flex items-center gap-2">
+                <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">type</span>
+                <select
+                  value={claimType}
+                  onChange={(e) => resetAndSet(setClaimType)(e.target.value as ClaimTypeFilter)}
+                  className={SELECT_CLASS}
+                >
+                  {CLAIM_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-2">
+                <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">source</span>
+                <select
+                  value={sourceTable}
+                  onChange={(e) => resetAndSet(setSourceTable)(e.target.value as SourceTableFilter)}
+                  className={SELECT_CLASS}
+                >
+                  {SOURCE_TABLE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <InfoTooltip text="A claim's status mirrors its source's own review: a candidate gap's approve/reject, or an assessment's human_reviewed flag. It is never reviewed independently here." />
+            </div>
+
+            {loading && <SkeletonRows count={4} />}
+            {error && <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{error}</p>}
+
+            {!loading && !error && claims.length === 0 && (
+              <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">No claims match these filters.</p>
+            )}
+
+            {!loading && !error && claims.length > 0 && (
+              <>
+                <ul>
+                  {claims.map((claim, i) => (
+                    <ClaimCard key={claim.id} claim={claim} index={i} />
+                  ))}
+                </ul>
+
+                <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-4">
+                  <span className="readout text-[0.75rem] text-[var(--ink-faint)]">
+                    {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setOffset((o) => Math.max(0, o - LIMIT))}
+                      disabled={offset === 0}
+                      className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                    >
+                      previous
+                    </button>
+                    <button
+                      onClick={() => setOffset((o) => o + LIMIT)}
+                      disabled={offset + LIMIT >= total}
+                      className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                    >
+                      next
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         )}
 
-        {!loading && !error && claims.length > 0 && (
+        {view === "extraction" && (
           <>
-            <ul>
-              {claims.map((claim, i) => (
-                <ClaimCard key={claim.id} claim={claim} index={i} />
-              ))}
-            </ul>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2">
+                <span className="eyebrow text-[0.625rem] text-[var(--ink-faint)]">type</span>
+                <select
+                  value={extractedType}
+                  onChange={(e) => {
+                    setExtractedOffset(0);
+                    setExtractedType(e.target.value as ExtractedClaimTypeFilter);
+                  }}
+                  className={SELECT_CLASS}
+                >
+                  {EXTRACTED_CLAIM_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-4">
-              <span className="readout text-[0.75rem] text-[var(--ink-faint)]">
-                {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setOffset((o) => Math.max(0, o - LIMIT))}
-                  disabled={offset === 0}
-                  className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
-                >
-                  previous
-                </button>
-                <button
-                  onClick={() => setOffset((o) => o + LIMIT)}
-                  disabled={offset + LIMIT >= total}
-                  className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
-                >
-                  next
-                </button>
-              </div>
+              <InfoTooltip text="Applications stays rare by design - it requires a real named actor, institution, or downstream use, not a restatement of the paper's own task. See the admin panel's claim-type coverage for corpus-wide rates." />
             </div>
+
+            {extractedLoading && <SkeletonRows count={4} />}
+            {extractedError && (
+              <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">{extractedError}</p>
+            )}
+
+            {!extractedLoading && !extractedError && extractedClaims.length === 0 && (
+              <p className="py-16 text-[0.9375rem] text-[var(--ink-soft)]">No claims match this filter.</p>
+            )}
+
+            {!extractedLoading && !extractedError && extractedClaims.length > 0 && (
+              <>
+                <ul>
+                  {extractedClaims.map((claim, i) => (
+                    <ExtractedClaimCard key={claim.id} claim={claim} index={i} />
+                  ))}
+                </ul>
+
+                <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-4">
+                  <span className="readout text-[0.75rem] text-[var(--ink-faint)]">
+                    {extractedOffset + 1}–{Math.min(extractedOffset + LIMIT, extractedTotal)} of{" "}
+                    {extractedTotal}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setExtractedOffset((o) => Math.max(0, o - LIMIT))}
+                      disabled={extractedOffset === 0}
+                      className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                    >
+                      previous
+                    </button>
+                    <button
+                      onClick={() => setExtractedOffset((o) => o + LIMIT)}
+                      disabled={extractedOffset + LIMIT >= extractedTotal}
+                      className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                    >
+                      next
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -384,6 +527,39 @@ function ClaimCard({ claim, index }: { claim: AnalysisClaim; index: number }) {
           </ul>
         </details>
       )}
+    </li>
+  );
+}
+
+// Simpler than ClaimCard: an ExtractedClaim is always one quote from one
+// paper (see extraction/pipeline.py - one ClaimCandidate per field per
+// paper), never a bundle of several papers' quotes the way a "fact"
+// AnalysisClaim can be, so it needs neither FactClaimText's bullet-parsing
+// nor a nested evidence <details> - the paper link IS the evidence.
+function ExtractedClaimCard({ claim, index }: { claim: ExtractedClaim; index: number }) {
+  return (
+    <li
+      className="resolve border-t border-[var(--rule-soft)] py-6 first:border-t-0"
+      style={{ animationDelay: `${Math.min(index * 28, 280)}ms` }}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="eyebrow">
+          {EXTRACTED_CLAIM_TYPE_LABELS[claim.claim_type]} · confidence: {claim.confidence}
+        </span>
+        <span className="readout text-[0.6875rem] text-[var(--ink-faint)]">
+          {claim.extraction_method}
+          {claim.section ? ` · ${claim.section}` : ""}
+        </span>
+      </div>
+
+      <PlainClaimText text={claim.text} />
+
+      <Link
+        href={`/papers/${claim.paper_id}`}
+        className="eyebrow mt-2 inline-block hover:text-[var(--ink)]"
+      >
+        {claim.paper_title}
+      </Link>
     </li>
   );
 }

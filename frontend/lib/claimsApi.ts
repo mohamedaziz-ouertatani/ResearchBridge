@@ -47,6 +47,57 @@ export const SOURCE_TABLE_LABELS: Record<SourceTable, string> = {
   research_assessments: "assessment",
 };
 
+// Sec 28's raw per-paper extraction fields - a different vocabulary and a
+// different table (extracted_claims) from ClaimType/AnalysisClaim above
+// (the Sec 16 analysis-claims layer). No status or source_table: a
+// paper's extraction has neither concept.
+export type ExtractedClaimType =
+  | "problem"
+  | "method"
+  | "research_question"
+  | "main_contribution"
+  | "limitations"
+  | "results"
+  | "dataset"
+  | "research_gap"
+  | "applications";
+
+export type ExtractedClaim = {
+  id: string;
+  claim_type: ExtractedClaimType;
+  text: string;
+  confidence: string;
+  section: string | null;
+  extraction_method: string;
+  paper_id: string;
+  paper_title: string;
+  created_at: string;
+};
+
+export type ExtractedClaimPage = {
+  items: ExtractedClaim[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type ExtractedClaimTypeFilter = ExtractedClaimType | "all";
+
+// Ordered by how common each field is corpus-wide (see the admin panel's
+// claim-type coverage) rather than alphabetically, matching
+// AdminStats.tsx's EXTRACTED_CLAIM_TYPE_ORDER.
+export const EXTRACTED_CLAIM_TYPE_LABELS: Record<ExtractedClaimType, string> = {
+  problem: "problem",
+  method: "method",
+  research_question: "research question",
+  main_contribution: "main contribution",
+  limitations: "limitations",
+  results: "results",
+  dataset: "dataset",
+  research_gap: "research gap",
+  applications: "applications",
+};
+
 async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Request failed (${response.status})`);
@@ -64,5 +115,13 @@ export const claimsApi = {
     if (filters.claim_type && filters.claim_type !== "all") params.set("claim_type", filters.claim_type);
     if (filters.source_table && filters.source_table !== "all") params.set("source_table", filters.source_table);
     return request<AnalysisClaimPage>(`/api/claims?${params.toString()}`);
+  },
+};
+
+export const extractedClaimsApi = {
+  list: (filters: { claim_type?: ExtractedClaimTypeFilter } = {}, limit = 20, offset = 0) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (filters.claim_type && filters.claim_type !== "all") params.set("claim_type", filters.claim_type);
+    return request<ExtractedClaimPage>(`/api/extracted-claims?${params.toString()}`);
   },
 };
