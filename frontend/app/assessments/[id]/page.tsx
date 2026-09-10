@@ -6,6 +6,7 @@ import { assessmentApi, type ResearchAssessment } from "@/lib/assessmentApi";
 import { AssessmentReport } from "@/components/AssessmentReport";
 import { SimilarityGraph } from "@/components/SimilarityGraph";
 import { SkeletonReport } from "@/components/Skeleton";
+import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
 
 export default function AssessmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -42,6 +43,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ id: strin
         <div className="pt-12">
           <AssessmentReport assessment={assessment} onAssessmentUpdated={setAssessment} />
           <SimilarityGraph assessmentId={id} />
+          <ClaimEvidenceGraph assessmentId={id} />
         </div>
       )}
     </main>
