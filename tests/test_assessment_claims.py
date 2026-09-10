@@ -68,6 +68,29 @@ def test_creates_a_fact_claim_for_comparison_and_inference_for_the_rest(session_
     assert by_role_type == {"existing solutions text": "fact", "novelty reasoning": "inference"}
 
 
+def test_risk_role_is_typed_fact_not_inference(session_factory) -> None:
+    # risks.py's own docstring: "strictly extractive, never synthesized" -
+    # a verbatim per-paper quote, the same character as comparison_summary's
+    # facts, not something the assessment itself inferred.
+    session = session_factory()
+    ri = _research_input(session)
+    paper = _paper(session)
+    ev = _evidence(session, paper)
+    session.commit()
+    assessment = _assessment(session, ri)
+
+    saved = save_claims_for_assessment(
+        session,
+        assessment,
+        texts_by_role={"risk": '- Some Paper: "a stated limitation"'},
+        evidence_by_role={"risk": [ev.id]},
+    )
+    session.commit()
+
+    assert [c.claim_type for c in saved] == ["fact"]
+    session.close()
+
+
 def test_skips_roles_with_no_text_or_no_evidence(session_factory) -> None:
     session = session_factory()
     ri = _research_input(session)
@@ -229,7 +252,14 @@ def test_render_opportunities_text_joins_tier_and_opportunity() -> None:
         {"tier": "direct", "opportunity": "a direct product", "source_applications": []},
         {"tier": "adjacent", "opportunity": "a broader platform", "source_applications": []},
     ]
-    assert render_opportunities_text(opportunities) == "direct: a direct product\nadjacent: a broader platform"
+    assert render_opportunities_text(opportunities) == (
+        "- a direct product (directly applicable)\n- a broader platform (adjacent application)"
+    )
+
+
+def test_render_opportunities_text_falls_back_to_the_raw_tier_for_an_unknown_value() -> None:
+    opportunities = [{"tier": "novel", "opportunity": "a wildcard idea", "source_applications": []}]
+    assert render_opportunities_text(opportunities) == "- a wildcard idea (novel)"
 
 
 def test_sync_claim_status_approves_claims_when_human_reviewed_is_true(session_factory) -> None:

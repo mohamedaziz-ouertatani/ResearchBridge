@@ -178,6 +178,166 @@ export default function Claims() {
   );
 }
 
+// Above this, a claim's text routinely runs several paragraphs (an
+// inference claim mirrors a whole novelty_reasoning field verbatim,
+// dimension-coverage appendix included - see assessment/claims.py) and
+// reads as a wall of text in a list of otherwise short claims. Collapsed
+// by default past this length, same "make the reader ask for more" pattern
+// as the evidence <details> below it.
+const LONG_CLAIM_TEXT_THRESHOLD = 320;
+
+// A "fact" claim mirrors an entire report field verbatim (assessment/
+// claims.py - comparison_summary and risks_and_limitations both bundle
+// several different papers' own quotes into one claim, deliberately never
+// synthesized into a single sentence). Parsed into per-paper bullets here
+// so it reads as "several papers say X, Y, Z" instead of one dense
+// paragraph of dashes and quotation marks - same content, legible shape.
+// Two bullet shapes exist depending on which field produced it:
+//   - "Title": unquoted claim text        (comparison_summary)
+//   - Title: "quoted claim text"          (risks_and_limitations)
+// [\s\S]* (not .*) for the captured claim text so an extracted quote that
+// itself wraps mid-sentence - a real, observed shape in extraction output -
+// doesn't get cut off at the first embedded newline.
+const QUOTED_TITLE_BULLET_RE = /^-\s*"([^"]*)":\s*([\s\S]*)$/;
+const QUOTED_TEXT_BULLET_RE = /^-\s*(.+?):\s*"([\s\S]*)"$/;
+
+type FactItem = { title: string; text: string };
+type FactBlock = { heading: string | null; items: FactItem[] };
+
+function parseBulletLine(line: string): FactItem | null {
+  const quotedTitle = QUOTED_TITLE_BULLET_RE.exec(line);
+  if (quotedTitle) return { title: quotedTitle[1], text: quotedTitle[2] };
+  const quotedText = QUOTED_TEXT_BULLET_RE.exec(line);
+  if (quotedText) return { title: quotedText[1], text: quotedText[2] };
+  return null;
+}
+
+/** A new bullet starts on a "- " line; any line before the next one is a
+ * continuation of it (or of the heading, for the block's first line) - the
+ * same wrapped-quote case QUOTED_*_BULLET_RE's [\s\S]* accounts for. */
+function groupBulletLines(lines: string[]): string[] {
+  const chunks: string[] = [];
+  for (const line of lines) {
+    if (chunks.length === 0 || /^-\s/.test(line)) {
+      chunks.push(line);
+    } else {
+      chunks[chunks.length - 1] += `\n${line}`;
+    }
+  }
+  return chunks;
+}
+
+/** Returns null (render as plain text instead) when claim_text doesn't
+ * actually look like the bundled bullet format - never guess. Exported for
+ * __tests__/claimsFactParsing.test.ts. */
+export function parseFactBlocks(text: string): FactBlock[] | null {
+  const blocks = (text.includes("\n\n") ? text.split("\n\n") : [text]).filter(Boolean);
+  if (blocks.length === 0) return null;
+
+  const parsed: FactBlock[] = [];
+  for (const block of blocks) {
+    const chunks = groupBulletLines(block.split("\n").filter(Boolean));
+    const heading = parseBulletLine(chunks[0]) ? null : chunks[0];
+    const itemChunks = heading ? chunks.slice(1) : chunks;
+    if (itemChunks.length === 0) return null;
+
+    const items = itemChunks.map(parseBulletLine);
+    if (items.some((item) => item === null)) return null;
+    parsed.push({ heading, items: items as FactItem[] });
+  }
+  return parsed;
+}
+
+const FACT_ITEMS_SHOWN_BY_DEFAULT = 3;
+
+/** Truncates a flat item budget across blocks without touching block
+ * boundaries or headings - a pure pass, no state, so it's safe to
+ * recompute on every render. */
+function takeBlocks(blocks: FactBlock[], limit: number | null): FactBlock[] {
+  const taken: FactBlock[] = [];
+  let budget = limit;
+  for (const block of blocks) {
+    if (budget !== null && budget <= 0) break;
+    const items = budget === null ? block.items : block.items.slice(0, budget);
+    if (items.length === 0) continue;
+    taken.push({ heading: block.heading, items });
+    if (budget !== null) budget -= items.length;
+  }
+  return taken;
+}
+
+function FactClaimText({ text }: { text: string }) {
+  const blocks = parseFactBlocks(text);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!blocks) return <PlainClaimText text={text} />;
+
+  const totalItems = blocks.reduce((n, b) => n + b.items.length, 0);
+  const hasMore = totalItems > FACT_ITEMS_SHOWN_BY_DEFAULT;
+  const visibleBlocks = takeBlocks(blocks, expanded ? null : FACT_ITEMS_SHOWN_BY_DEFAULT);
+
+  return (
+    <div className="mt-2 max-w-[68ch] space-y-4">
+      {visibleBlocks.map((block, blockIndex) => (
+        <div key={blockIndex}>
+          {block.heading && (
+            <p className="font-[family-name:var(--type-text)] text-[0.9375rem] font-semibold leading-snug text-[var(--ink)]">
+              {block.heading}
+            </p>
+          )}
+          <ul className={`space-y-2 ${block.heading ? "mt-2" : ""}`}>
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex}>
+                <p className="font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)]">
+                  {item.text}
+                </p>
+                <span className="eyebrow mt-0.5 inline-block text-[var(--ink-faint)]">
+                  {item.title}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="eyebrow text-[var(--ink-faint)] hover:text-[var(--ink)]"
+        >
+          {expanded ? "show fewer" : `show ${totalItems - FACT_ITEMS_SHOWN_BY_DEFAULT} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PlainClaimText({ text }: { text: string }) {
+  const isLong = text.length > LONG_CLAIM_TEXT_THRESHOLD;
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <p
+        className={`mt-2 max-w-[68ch] whitespace-pre-line font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)] ${
+          isLong && !expanded ? "line-clamp-4" : ""
+        }`}
+      >
+        {text}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="eyebrow mt-1.5 text-[var(--ink-faint)] hover:text-[var(--ink)]"
+        >
+          {expanded ? "show less" : "show more"}
+        </button>
+      )}
+    </>
+  );
+}
+
 function ClaimCard({ claim, index }: { claim: AnalysisClaim; index: number }) {
   return (
     <li
@@ -193,9 +353,11 @@ function ClaimCard({ claim, index }: { claim: AnalysisClaim; index: number }) {
         </span>
       </div>
 
-      <p className="mt-2 max-w-[68ch] whitespace-pre-line font-[family-name:var(--type-text)] text-[0.9375rem] leading-relaxed text-[var(--ink)]">
-        {claim.claim_text}
-      </p>
+      {claim.claim_type === "fact" ? (
+        <FactClaimText text={claim.claim_text} />
+      ) : (
+        <PlainClaimText text={claim.claim_text} />
+      )}
 
       {claim.evidence.length > 0 && (
         <details className="mt-3">

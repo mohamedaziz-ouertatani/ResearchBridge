@@ -55,12 +55,16 @@ from researchbridge.db.models import AnalysisClaim, ClaimEvidence, ResearchAsses
 
 SOURCE_TABLE = "research_assessments"
 
-# role -> claim_type. "comparison" summarizes what retrieved papers directly
-# show (fact). "application"/"opportunity" are plausible practical uses of a
-# capability - Sec 16's "opportunity" bucket, not a certainty. "speculation"
-# is the speculative-tier subset of potential_opportunities specifically -
-# see this module's docstring. Everything else is reasoning derived from
-# evidence (inference).
+# role -> claim_type. "comparison" and "risk" both summarize what retrieved
+# papers directly show - risks.py's own docstring calls itself "strictly
+# extractive, never synthesized", the same character as comparison_summary's
+# verbatim per-paper quotes (fact), not something WE inferred. "application"/
+# "opportunity" are plausible practical uses of a capability - Sec 16's
+# "opportunity" bucket, not a certainty. "speculation" is the speculative-tier
+# subset of potential_opportunities specifically - see this module's
+# docstring. novelty/research_gap/feasibility are the fields where the
+# assessment layer actually reasons over the evidence, not just quotes it
+# (inference).
 CLAIM_TYPE_BY_ROLE = {
     "comparison": "fact",
     "novelty": "inference",
@@ -69,7 +73,7 @@ CLAIM_TYPE_BY_ROLE = {
     "opportunity": "opportunity",
     "speculation": "speculation",
     "feasibility": "inference",
-    "risk": "inference",
+    "risk": "fact",
 }
 
 
@@ -80,8 +84,21 @@ def render_applications_text(applications: list[dict]) -> str:
     return "\n".join(f"- {app['application']} (source: {app['source_paper']})" for app in applications)
 
 
+_OPPORTUNITY_TIER_LABELS = {
+    "direct": "directly applicable",
+    "adjacent": "adjacent application",
+    "speculative": "speculative direction",
+}
+
+
 def render_opportunities_text(opportunities: list[dict]) -> str:
-    return "\n".join(f"{o['tier']}: {o['opportunity']}" for o in opportunities)
+    """Reads as a labeled list ("- <opportunity> (<tier>)"), not the raw
+    "tier: opportunity" internal join opportunity_synthesis.py itself works
+    in - that format leaked its own jargon (bare "direct"/"adjacent"/
+    "speculative" prefixes) straight into a claim a human reads."""
+    return "\n".join(
+        f"- {o['opportunity']} ({_OPPORTUNITY_TIER_LABELS.get(o['tier'], o['tier'])})" for o in opportunities
+    )
 
 
 def save_claims_for_assessment(
