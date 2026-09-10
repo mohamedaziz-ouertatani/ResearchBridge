@@ -10,3 +10,13 @@ import "@testing-library/jest-dom/vitest";
 afterEach(() => {
   cleanup();
 });
+
+// jsdom has no ResizeObserver - @xyflow/react's viewport measurement calls
+// it unconditionally on mount, so any test rendering a <ReactFlow> throws
+// without this stub.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
