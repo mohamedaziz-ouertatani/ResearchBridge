@@ -158,6 +158,46 @@ export type GraphData = {
   edges: GraphEdge[];
 };
 
+export type ClaimGraphNode = {
+  id: string;
+  kind: "claim" | "evidence" | "gap";
+  label: string;
+  claim_type:
+    | "fact"
+    | "inference"
+    | "hypothesis"
+    | "opportunity"
+    | "speculation"
+    | null;
+  confidence: string | null;
+  status: "pending" | "approved" | "rejected" | null;
+  paper_id: string | null;
+  paper_title: string | null;
+  section: string | null;
+  gap_status: "strong_gap" | "potential_gap" | "known_limitation" | null;
+  categories: string[];
+};
+
+export type ClaimGraphEdge = {
+  source: string;
+  target: string;
+  relationship: "supports" | "contradicts" | "contextualizes" | "addresses_gap";
+};
+
+export type ClaimEvidenceGraphData = {
+  nodes: ClaimGraphNode[];
+  edges: ClaimGraphEdge[];
+};
+
+export type GapDensityBucket = {
+  category: string;
+  gap_count: number;
+};
+
+export type GapDensityData = {
+  buckets: GapDensityBucket[];
+};
+
 export type ReviewFilter = "all" | "reviewed" | "needs_review";
 export type AssessmentSort = "newest" | "priority";
 export type CategoricalLevel = "high" | "medium" | "low" | "not_assessed";
@@ -247,6 +287,10 @@ export const assessmentApi = {
     request<AssessmentHistoryItem[]>(`/api/assessments/${id}/history`),
 
   graph: (id: string) => request<GraphData>(`/api/assessments/${id}/graph`),
+  claimGraph: (id: string) =>
+    request<ClaimEvidenceGraphData>(`/api/assessments/${id}/claim-graph`),
+  gapDensity: (id: string) =>
+    request<GapDensityData>(`/api/assessments/${id}/gap-density`),
 
   list: (
     review: ReviewFilter = "all",
