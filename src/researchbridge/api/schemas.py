@@ -118,6 +118,7 @@ class QuoteHitOut(BaseModel):
     section: str | None
     confidence: str
     score: float
+    source: Literal["claim", "passage"] = "claim"
 
 
 class AskResponse(BaseModel):

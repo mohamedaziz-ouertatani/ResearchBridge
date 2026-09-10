@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from researchbridge.api.app import create_app
 from researchbridge.api.deps import get_embedder, get_session
-from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, QaQuestion
+from researchbridge.db.models import EMBEDDING_DIM, Embedding, Evidence, ExtractedClaim, Paper, PaperFullTextChunk, QaQuestion
 from researchbridge.embedding.pipeline import EMBEDDING_TYPE
 
 
@@ -102,6 +102,41 @@ def test_ask_returns_ranked_quotes(client, session, embedder) -> None:
     assert hit["claim_type"] == "limitations"
     assert hit["paper_id"] == str(paper.id)
     assert isinstance(hit["score"], float)
+
+
+def _add_chunk(session, embedder, paper, text, section="introduction", index=0) -> None:
+    [vector] = embedder.embed_texts([text])
+    session.add(
+        PaperFullTextChunk(
+            paper_id=paper.id, section=section, paragraph_index=index, text=text,
+            model_name=embedder.model_name, embedding=vector,
+        )
+    )
+
+
+def test_ask_tags_fulltext_passages_with_source_passage(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_chunk(session, embedder, paper, "the exact question text")
+    session.commit()
+
+    response = client.post("/api/ask", json={"question": "the exact question text"})
+
+    assert response.status_code == 200
+    hit = response.json()["hits"][0]
+    assert hit["source"] == "passage"
+    assert hit["evidence_id"] is None
+
+
+def test_ask_tags_claims_with_source_claim(client, session, embedder) -> None:
+    paper = _add_paper(session, embedder, "p1", "graph transformers for fraud detection")
+    _add_claim(session, paper, "limitations", "evaluated only on offline datasets")
+    session.commit()
+
+    response = client.post("/api/ask", json={"question": "graph transformers for fraud detection"})
+
+    assert response.status_code == 200
+    hit = response.json()["hits"][0]
+    assert hit["source"] == "claim"
 
 
 def test_ask_returns_empty_hits_when_no_evidence_exists(client, session, embedder) -> None:

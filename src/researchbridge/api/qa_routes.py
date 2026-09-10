@@ -159,6 +159,7 @@ def save_question(
             section=hit.section,
             confidence=hit.confidence,
             score=hit.score,
+            source=hit.source,
         ).model_dump(mode="json")
         for hit in hits
     ]
@@ -206,6 +207,7 @@ def ask(
                 section=hit.section,
                 confidence=hit.confidence,
                 score=hit.score,
+                source=hit.source,
             )
             for hit in hits
         ],
