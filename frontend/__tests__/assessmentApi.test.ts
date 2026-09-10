@@ -98,13 +98,13 @@ describe("assessmentApi", () => {
     );
   });
 
-  it("list() defaults to review=all and limit=50 with no extra params", async () => {
+  it("list() defaults to review=all, limit=50, offset=0 with no extra params", async () => {
     mockFetchOnce({ items: [], total: 0, limit: 50, offset: 0 });
 
     await assessmentApi.list();
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(url).toBe(`${BASE}/api/assessments?review=all&limit=50`);
+    expect(url).toBe(`${BASE}/api/assessments?review=all&limit=50&offset=0`);
   });
 
   it("list() includes sort/novelty/feasibility only when provided", async () => {
@@ -114,8 +114,17 @@ describe("assessmentApi", () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe(
-      `${BASE}/api/assessments?review=needs_review&limit=50&sort=priority&novelty=high`,
+      `${BASE}/api/assessments?review=needs_review&limit=50&offset=0&sort=priority&novelty=high`,
     );
+  });
+
+  it("list() passes a custom limit and offset for pagination", async () => {
+    mockFetchOnce({ items: [], total: 0, limit: 50, offset: 50 });
+
+    await assessmentApi.list("all", undefined, 50, 50);
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe(`${BASE}/api/assessments?review=all&limit=50&offset=50`);
   });
 
   it("throws the backend's detail message on a non-ok response", async () => {

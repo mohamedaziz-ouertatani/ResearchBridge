@@ -255,8 +255,10 @@ export const assessmentApi = {
       novelty?: NoveltyLevel;
       feasibility?: CategoricalLevel;
     },
+    limit = 50,
+    offset = 0,
   ) => {
-    const params = new URLSearchParams({ review, limit: "50" });
+    const params = new URLSearchParams({ review, limit: String(limit), offset: String(offset) });
     if (options?.sort) params.set("sort", options.sort);
     if (options?.novelty) params.set("novelty", options.novelty);
     if (options?.feasibility) params.set("feasibility", options.feasibility);

@@ -34,12 +34,16 @@ const FEASIBILITY_LEVEL_OPTIONS: CategoricalLevel[] = [
 const SELECT_CLASS =
   "eyebrow rounded-[2px] border border-[var(--rule)] bg-transparent px-2 py-1 text-[0.6875rem] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] focus:border-[var(--ink)] focus:outline-none";
 
+const LIMIT = 50;
+
 export default function AssessmentDashboard() {
   const [review, setReview] = useState<ReviewFilter>("needs_review");
   const [sort, setSort] = useState<AssessmentSort>("newest");
   const [novelty, setNovelty] = useState<NoveltyLevel | "">("");
   const [feasibility, setFeasibility] = useState<CategoricalLevel | "">("");
+  const [offset, setOffset] = useState(0);
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
+  const [total, setTotal] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,15 +56,35 @@ export default function AssessmentDashboard() {
     setLoading(true);
     setError(null);
     assessmentApi
-      .list(review, {
-        sort,
-        novelty: novelty || undefined,
-        feasibility: feasibility || undefined,
+      .list(
+        review,
+        {
+          sort,
+          novelty: novelty || undefined,
+          feasibility: feasibility || undefined,
+        },
+        LIMIT,
+        offset,
+      )
+      .then((page) => {
+        setAssessments(page.items);
+        setTotal(page.total);
       })
-      .then((page) => setAssessments(page.items))
       .catch(() => setError("Couldn't load assessments."))
       .finally(() => setLoading(false));
-  }, [review, sort, novelty, feasibility]);
+  }, [review, sort, novelty, feasibility, offset]);
+
+  // A filter/sort change must always land back on the first page - the
+  // previous offset may not even exist under the new, narrower result set
+  // (found live: 211 assessments, only the newest 50 ever fetched, no way
+  // to reach the rest at all - this and the pagination footer below are
+  // the fix).
+  function resetOffsetAndSet<T>(setter: (v: T) => void) {
+    return (value: T) => {
+      setOffset(0);
+      setter(value);
+    };
+  }
 
   return (
     <main className="mx-auto max-w-[80rem] px-6 pb-24 sm:px-8">
@@ -93,7 +117,7 @@ export default function AssessmentDashboard() {
           {FILTERS.map((f) => (
             <button
               key={f}
-              onClick={() => setReview(f)}
+              onClick={() => resetOffsetAndSet(setReview)(f)}
               className={`eyebrow -mb-px border-b-2 px-3 py-2 ${
                 review === f
                   ? "border-[var(--ink)] text-[var(--ink)]"
@@ -112,7 +136,7 @@ export default function AssessmentDashboard() {
             </span>
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value as AssessmentSort)}
+              onChange={(e) => resetOffsetAndSet(setSort)(e.target.value as AssessmentSort)}
               className={SELECT_CLASS}
             >
               <option value="newest">newest</option>
@@ -126,7 +150,7 @@ export default function AssessmentDashboard() {
             </span>
             <select
               value={novelty}
-              onChange={(e) => setNovelty(e.target.value as NoveltyLevel | "")}
+              onChange={(e) => resetOffsetAndSet(setNovelty)(e.target.value as NoveltyLevel | "")}
               className={SELECT_CLASS}
             >
               <option value="">any</option>
@@ -145,7 +169,7 @@ export default function AssessmentDashboard() {
             <select
               value={feasibility}
               onChange={(e) =>
-                setFeasibility(e.target.value as CategoricalLevel | "")
+                resetOffsetAndSet(setFeasibility)(e.target.value as CategoricalLevel | "")
               }
               className={SELECT_CLASS}
             >
@@ -233,6 +257,32 @@ export default function AssessmentDashboard() {
             />
           ))}
         </ul>
+
+        {!loading && !error && assessments.length > 0 && (
+          <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-4">
+            <span className="readout text-[0.75rem] text-[var(--ink-faint)]">
+              {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
+            </span>
+            {total > LIMIT && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setOffset((o) => Math.max(0, o - LIMIT))}
+                  disabled={offset === 0}
+                  className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                >
+                  previous
+                </button>
+                <button
+                  onClick={() => setOffset((o) => o + LIMIT)}
+                  disabled={offset + LIMIT >= total}
+                  className="eyebrow rounded-[2px] border border-[var(--rule)] px-3 py-1.5 hover:border-[var(--ink)] hover:text-[var(--ink)] disabled:opacity-40"
+                >
+                  next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
