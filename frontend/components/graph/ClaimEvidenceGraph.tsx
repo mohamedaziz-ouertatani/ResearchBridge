@@ -111,7 +111,7 @@ export function ClaimEvidenceGraph({ assessmentId }: ClaimEvidenceGraphProps) {
       <div className="mt-3">
         <GapDensityOverlay assessmentId={assessmentId} gapCategories={gapCategories} onHighlightChange={setGapHighlighted} />
       </div>
-      <div style={{ height: 480 }} className="mt-4 border border-[var(--rule-soft)]">
+      <div style={{ height: 480 }} className="relative mt-4 border border-[var(--rule-soft)]">
         <ReactFlowProvider>
           <ReactFlow
             nodes={flowNodes}
@@ -125,8 +125,8 @@ export function ClaimEvidenceGraph({ assessmentId }: ClaimEvidenceGraphProps) {
             <Controls />
           </ReactFlow>
         </ReactFlowProvider>
+        <InspectorDrawer node={selected} onClose={() => setSelected(null)} />
       </div>
-      <InspectorDrawer node={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

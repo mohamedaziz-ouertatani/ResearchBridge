@@ -14,7 +14,7 @@ export function InspectorDrawer({ node, onClose }: InspectorDrawerProps) {
   }
 
   return (
-    <aside className="fixed right-0 top-0 h-full w-[340px] overflow-y-auto border-l border-[var(--rule)] p-6">
+    <aside className="absolute right-0 top-0 h-full w-[340px] overflow-y-auto border-l border-[var(--rule)] bg-[var(--panel)] p-6">
       <button type="button" onClick={onClose} className="eyebrow text-[var(--ink-faint)] hover:text-[var(--ink)]">
         close
       </button>
