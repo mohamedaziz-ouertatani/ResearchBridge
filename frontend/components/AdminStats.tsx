@@ -41,6 +41,23 @@ const CLAIM_TYPE_ORDER = [
   "speculation",
 ] as const;
 
+// Sec 28's nine extraction fields, ordered roughly by how common each is
+// across the corpus (problem opens nearly every abstract; applications is
+// the rarest, gated on naming a real external actor/institution - see
+// extraction/validation.py's Gate 1) rather than alphabetically, so the
+// list reads as "how thin does coverage get" top to bottom.
+const EXTRACTED_CLAIM_TYPE_ORDER = [
+  "problem",
+  "method",
+  "research_question",
+  "main_contribution",
+  "limitations",
+  "results",
+  "dataset",
+  "research_gap",
+  "applications",
+] as const;
+
 const GAP_RATING_DIMENSIONS: {
   key: keyof GapReviewStats & `mean_${string}`;
   label: string;
@@ -156,6 +173,27 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
             </div>
           </>
         )}
+      </StatGroup>
+
+      <StatGroup title="claim-type coverage">
+        <p className="mb-4 max-w-[58ch] text-[0.8125rem] leading-relaxed text-[var(--ink-faint)]">
+          What fraction of the corpus has each Sec 28 extraction field,
+          by distinct paper - not every field is expected to reach the
+          same coverage as &quot;with extracted claims&quot; above.
+          Applications in particular stays low by design: it requires a
+          real named actor, institution, or downstream use, not a
+          restatement of the paper&apos;s own task.
+        </p>
+        <div className="space-y-3">
+          {EXTRACTED_CLAIM_TYPE_ORDER.map((type) => (
+            <ProportionBar
+              key={type}
+              label={type.replace(/_/g, " ")}
+              value={status.extracted_claims_by_type[type] ?? 0}
+              total={status.total_papers}
+            />
+          ))}
+        </div>
       </StatGroup>
 
       <StatGroup title="corpus health">

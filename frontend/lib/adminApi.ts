@@ -64,6 +64,7 @@ export type PipelineStatus = {
   extraction_errors_by_type: Record<string, number>;
   fulltext_errors_by_type: Record<string, number>;
   analysis_claims_by_type: Record<string, number>;
+  extracted_claims_by_type: Record<string, number>;
   ingestion_runs: PipelineRun[];
   extraction_runs: PipelineRun[];
   embedding_runs: PipelineRun[];

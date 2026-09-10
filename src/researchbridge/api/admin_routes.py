@@ -148,6 +148,7 @@ def pipeline_status(session: Session = Depends(get_session)) -> PipelineStatus:
         extraction_errors_by_type=_extraction_errors_by_type(session),
         fulltext_errors_by_type=_fulltext_errors_by_type(session),
         analysis_claims_by_type=_analysis_claims_by_type(session),
+        extracted_claims_by_type=_extracted_claims_by_type(session),
         ingestion_runs=[
             _to_run(run, ("records_fetched", "records_inserted", "records_duplicate", "records_failed"))
             for run in _recent(session, IngestionRun)
@@ -528,6 +529,24 @@ def _analysis_claims_by_type(session: Session) -> dict[str, int]:
     error-log volume."""
     return dict(
         session.execute(select(AnalysisClaim.claim_type, func.count()).group_by(AnalysisClaim.claim_type)).all()
+    )
+
+
+def _extracted_claims_by_type(session: Session) -> dict[str, int]:
+    """Corpus-wide coverage per Sec 28 field (problem/method/research_question/
+    main_contribution/limitations/results/dataset/research_gap/applications),
+    counted by DISTINCT PAPER rather than raw claim rows - a paper with two
+    "problem" claims should still only count once toward "problem" coverage,
+    the same "how much of the corpus has this" question _corpus_health and
+    the other *_by_type helpers on this page answer, not "how many claims
+    exist". All-time, not a recent sample, matching _analysis_claims_by_type's
+    reasoning (this table only grows via extraction runs, nothing like
+    ingestion's error-log volume)."""
+    return dict(
+        session.execute(
+            select(ExtractedClaim.claim_type, func.count(func.distinct(ExtractedClaim.paper_id)))
+            .group_by(ExtractedClaim.claim_type)
+        ).all()
     )
 
 

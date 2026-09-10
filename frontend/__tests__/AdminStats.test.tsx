@@ -33,6 +33,7 @@ const status = {
   extraction_errors_by_type: { extractor_error: 2 },
   fulltext_errors_by_type: { pdf_parse: 1 },
   analysis_claims_by_type: {},
+  extracted_claims_by_type: { problem: 4, applications: 1 },
   ingestion_runs: [],
   extraction_runs: [],
   embedding_runs: [],
@@ -90,5 +91,30 @@ describe("AdminStats", () => {
     expect(
       screen.getByText("recent full-text errors by type"),
     ).toBeInTheDocument();
+  });
+
+  it("renders claim-type coverage against total papers", async () => {
+    vi.spyOn(api, "stats").mockResolvedValue(corpusStats);
+    vi.spyOn(assessmentApi, "list").mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    });
+
+    render(<AdminStats status={status} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("claim-type coverage")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("problem")).toBeInTheDocument();
+    expect(screen.getByText("4 / 4")).toBeInTheDocument();
+    expect(screen.getByText("applications")).toBeInTheDocument();
+    expect(screen.getByText("1 / 4")).toBeInTheDocument();
+    // a type with zero coverage still renders its own row, at 0 - seven
+    // of the nine types are unset in this fixture, so several rows share
+    // this same "0 / 4" text
+    expect(screen.getByText("research gap")).toBeInTheDocument();
+    expect(screen.getAllByText("0 / 4").length).toBe(7);
   });
 });

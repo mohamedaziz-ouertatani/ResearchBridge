@@ -354,6 +354,44 @@ def test_pipeline_status_analysis_claims_by_type_empty_when_none(client) -> None
     assert body["analysis_claims_by_type"] == {}
 
 
+def _add_extracted_claim(session, paper: Paper, claim_type: str) -> None:
+    evidence = Evidence(
+        paper_id=paper.id, evidence_type=claim_type, section=None, text=f"a {claim_type} sentence",
+        extraction_method="hybrid", model_version="v1", confidence="medium",
+    )
+    session.add(evidence)
+    session.flush()
+    session.add(
+        ExtractedClaim(
+            paper_id=paper.id, claim_type=claim_type, text=f"a {claim_type} sentence",
+            evidence_id=evidence.id, confidence="medium",
+        )
+    )
+
+
+def test_pipeline_status_reports_extracted_claims_by_type(client, session, embedder) -> None:
+    """Corpus-wide coverage per claim type, by distinct paper - not a raw
+    row count, so a paper with two "problem" claims (shouldn't normally
+    happen, but the count must stay meaningful either way) still counts
+    as one paper toward "problem" coverage."""
+    p1 = _add_paper(session, embedder, "p1")
+    p2 = _add_paper(session, embedder, "p2")
+    _add_extracted_claim(session, p1, "problem")
+    _add_extracted_claim(session, p1, "applications")
+    _add_extracted_claim(session, p2, "problem")
+    session.commit()
+
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["extracted_claims_by_type"] == {"problem": 2, "applications": 1}
+
+
+def test_pipeline_status_extracted_claims_by_type_empty_when_none(client) -> None:
+    body = client.get("/api/admin/pipeline").json()
+
+    assert body["extracted_claims_by_type"] == {}
+
+
 def test_pipeline_status_lists_recent_ingestion_runs(client, session) -> None:
     session.add(
         IngestionRun(
