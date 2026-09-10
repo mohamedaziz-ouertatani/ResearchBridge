@@ -1056,3 +1056,55 @@ def test_can_be_employed_in_vague_filler_stays_the_same_weak_fallback_as_other_v
 
     assert result.is_valid is True
     assert result.tier == "weak"
+
+
+# Fix F (2026-09-10): a clinical/medical-qualified "decision-making" is a
+# recognized downstream action, but bare "decision-making" was tried and
+# NOT added - see _DOWNSTREAM_ACTION_RE's own comment for the measured
+# precision difference.
+def test_clinical_decision_making_is_a_recognized_downstream_action() -> None:
+    result = validate_claim_type(
+        "applications",
+        "An automated optical image-processing system has recently been applied to facilitate "
+        "clinical decision-making.",
+    )
+
+    assert result.is_valid is True
+    assert result.tier == "strong"
+
+
+def test_bare_decision_making_without_a_clinical_qualifier_is_still_rejected() -> None:
+    # regression guard: only the qualified phrase is recognized
+    result = validate_claim_type(
+        "applications", "Deep reinforcement learning has been successfully applied in many decision making scenarios."
+    )
+
+    assert result.is_valid is False
+
+
+def test_xai_explaining_the_models_own_decisions_is_still_rejected() -> None:
+    # the specific false-positive class bare "decision-making" would have
+    # introduced: an interpretability method explaining the MODEL's own
+    # decisions is self-referential, not a deployment claim
+    result = validate_claim_type(
+        "applications",
+        "We also employ eXplainable Artificial Intelligence (XAI) tools to provide effective "
+        "explanations of the model decisions, thus making the final results more useful to human "
+        "decision-making processes.",
+    )
+
+    assert result.is_valid is False
+
+
+def test_enumeration_of_adjacent_ml_subfields_with_like_is_still_rejected() -> None:
+    # the specific false-positive class adding "like" to _ENUMERATION_RE
+    # would have introduced: listing neighboring ML subfields is not the
+    # same as naming genuine external deployment settings
+    result = validate_claim_type(
+        "applications",
+        "Now-a-days, deep learning has been used in various applications like computer vision, "
+        "natural language processing, speech recognition, social network filtering, and neural "
+        "machine translation, etc.",
+    )
+
+    assert result.is_valid is False

@@ -439,6 +439,22 @@ _ACTOR_SETTING_RE = re.compile(
 # specifically-confirmed "policy evaluation(s)" collision is excluded,
 # same narrow-lookahead approach as research_gap's "open (question|
 # problem)(?!\s+answering)" above.
+# Fix F (2026-09-10, investigating downstream-action widening): bare
+# "decision-making" and "like"-as-enumeration were both TRIED against the
+# still-rejected pool and DROPPED - each landed at ~45-55% precision on
+# manual read, well below every other fix in this module. "like" catches
+# enumerations of adjacent ML subfields ("used in applications like
+# computer vision, NLP, speech recognition" - the paper's own neighboring
+# method domains, not a deployment) and even fires inside unrelated
+# hyphenated adjectives ("stroke-like textures"). Bare "decision-making"
+# catches a genuinely new false-positive class: XAI/interpretability
+# papers explaining "the model's own decisions"/"human decision-making
+# processes" - self-referential, not a deployment - plus vague filler
+# ("many decision making scenarios") and future-work framing. Scoping to
+# a clinical/medical qualifier immediately before it, though, verified
+# clean: every match found (3 unique real-corpus candidates) is a genuine
+# clinical deployment claim, none of the XAI/vague/future-work patterns
+# above ever pair with these qualifiers.
 _DOWNSTREAM_ACTION_RE = re.compile(
     r"\binterventions?\b|\btriage\b|\bmanual review\b|\bcounsel(l)?ing\b"
     r"|\btreatment plan(ning)?\b|\bresource allocation\b"
@@ -446,6 +462,7 @@ _DOWNSTREAM_ACTION_RE = re.compile(
     r"|\bremediation\b|\bprioriti[sz](e|ation|ing)\b|\bdecision support\b"
     r"|\brisk mitigation\b|\bearly (intervention|warning)\b|\bscreening\b"
     r"|\breferrals?\b|\bflagg?ing\b|\balert(ing)?\b"
+    r"|\b(?:clinical|medical|patient|treatment|diagnostic)\s+decision[- ]making\b"
     r"|\bsupport(?:s|ed|ing)?\s+[a-z]+\s+in\s+[a-z]+ing\b"
     r"|\binform(?:s|ed|ing)?\s+(?:[a-z]+\s+){0,3}decisions?\b",
     re.IGNORECASE,
