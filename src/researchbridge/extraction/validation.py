@@ -335,8 +335,35 @@ _ABBREVIATION_RE = re.compile(r"\b(e\.g|i\.e|etc)\.", re.IGNORECASE)
 # the way "applied to predicting X" is), so this doesn't reopen the
 # original bare-task-restatement bug - verified with
 # test_deployed_via_a_bare_task_restatement_is_still_rejected.
+# Fix E (2026-09-10, sampling the still-rejected pool with today's code -
+# ~40,821 candidates after excluding ones later fixes already now accept):
+# "employed"/"utilized"/"leveraged"/"exploited" are ordinary synonyms of the
+# already-recognized "applied"/"used"/"deployed" in the same passive-modal
+# shape ("(can/could) be VERB (to/for/in) X"), but weren't recognized, so
+# real deployment claims phrased with them were invisible to every check
+# downstream. Programmatically re-ran _has_application_signal against the
+# full still-rejected pool with each candidate verb added and manually read
+# every newly-accepted result before keeping it:
+#   employed (4 newly accepted): 3 genuine (clinical ICD coding, clinical
+#     decision-making/treatment prediction, real-time cyber-attack
+#     prevention), 1 vague ("various practical applications" - the same
+#     pre-existing _QUALIFYING_CONTEXT_RE fallback weakness "used"/"applied"
+#     already have, not a new risk from this verb).
+#   utilized (1): genuine (clinical screening - the "screening" downstream
+#     action literally matches _DOWNSTREAM_ACTION_RE).
+#   leveraged (4): 3 genuine (eldercare workforce support, assistive tech
+#     for sensory/motor/cognitive impairment, social-media sentiment/opinion
+#     analytics), 1 restates the paper's own data-augmentation method.
+#   exploited (1): genuine (social-media sentiment/opinion analytics).
+# "adopted" was tried and DROPPED: its one newly-accepted match ("research
+# directions that can be adopted in the future to create...AI systems") is
+# future-work language, not a deployment claim - a real false positive, not
+# a borderline one. "harnessed"/"utilised" were tried and dropped too:
+# zero newly-accepted matches either way in the same pool, so there's no
+# measured case for adding them (this project's own precedent throughout
+# this module is to add only what's verified, not what merely seems safe).
 _DEPLOYMENT_CLAUSE_RE = re.compile(
-    r"\b(?:can|could) be (?:applied|used|deployed)\s+(?:to|for|in)\s+[a-z]"
+    r"\b(?:can|could) be (?:applied|used|deployed|employed|utilized|leveraged|exploited)\s+(?:to|for|in)\s+[a-z]"
     r"|\b(?:is\s+)?applicable\s+(?:to|in)\s+[a-z]"
     r"|\bapplications?\s+(?:such as|include|in|to|for)\s+[a-z]"
     r"|\bapplications?\s*(?:,\s*|\s+(?:of|for|in)\s+[A-Za-z0-9][\w\-' ]{0,30}?,\s*)(?:such as|includes?|including)\s+[a-z]"

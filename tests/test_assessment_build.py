@@ -206,9 +206,16 @@ def test_comparison_creates_a_fact_analysis_claim(session_factory, embedder) -> 
         )
     ).scalars().all()
     session.close()
-    comparison_claims = [c for c in claim if c.claim_type == "fact"]
-    assert len(comparison_claims) == 1
-    assert "evaluated only in offline settings." in comparison_claims[0].claim_text
+    # claim_type="fact" now also covers risks_and_limitations (assessment/
+    # claims.py's CLAIM_TYPE_BY_ROLE - both comparison and risk are
+    # verbatim-extractive, never synthesized), so this paper's one
+    # limitations claim produces a "fact" claim under BOTH roles here.
+    # Matched by exact text against comparison_summary specifically, the
+    # same mirror-by-exact-text contract claims.py itself documents.
+    comparison_claim = next(
+        c for c in claim if c.claim_type == "fact" and c.claim_text == assessment.comparison_summary
+    )
+    assert "evaluated only in offline settings." in comparison_claim.claim_text
 
 
 def test_applications_creates_an_opportunity_analysis_claim(session_factory, embedder) -> None:

@@ -981,3 +981,78 @@ def test_existing_actor_action_path_still_accepts_at_strong_tier() -> None:
 
     assert result.is_valid
     assert result.tier == "strong"
+
+
+# Fix E (2026-09-10): "employed"/"utilized"/"leveraged"/"exploited" added as
+# synonyms of the already-recognized "applied"/"used"/"deployed" in the
+# "(can/could) be VERB (to/for/in) X" shape - see _DEPLOYMENT_CLAUSE_RE's own
+# comment for the corpus measurement behind each one. Real (paraphrased)
+# corpus examples, one per newly-recognized verb.
+def test_can_be_employed_for_a_named_clinical_task_is_accepted() -> None:
+    result = validate_claim_type(
+        "applications",
+        "The proposed model can be employed for coding electronic medical records with ICD codes "
+        "including diagnosis and procedure codes.",
+    )
+
+    assert result.is_valid is True
+
+
+def test_can_be_utilized_for_a_named_clinical_screening_task_is_accepted() -> None:
+    result = validate_claim_type(
+        "applications",
+        "This tool can be utilized for online real-time screening of interlinked disease cascades.",
+    )
+
+    assert result.is_valid is True
+    assert result.tier == "strong"  # "screening" is a recognized downstream action
+
+
+def test_can_be_leveraged_to_support_a_named_actor_is_accepted() -> None:
+    result = validate_claim_type(
+        "applications",
+        "AI can be leveraged to support care workers by recognizing, reducing, and redistributing "
+        "their workload.",
+    )
+
+    assert result.is_valid is True
+
+
+def test_can_be_exploited_for_a_named_analytics_task_is_accepted() -> None:
+    result = validate_claim_type(
+        "applications",
+        "These signals can be exploited to monitor public opinion close to important events and "
+        "identify the main topics discussed by policymakers.",
+    )
+
+    assert result.is_valid is True
+
+
+def test_can_be_adopted_is_not_a_recognized_deployment_verb() -> None:
+    # tried and deliberately dropped: unlike employed/utilized/leveraged/
+    # exploited, the one real-corpus "can be adopted" match found sampling
+    # the rejected pool was future-work language ("research directions that
+    # can be adopted in the future"), not a deployment claim - a genuine
+    # false positive, so "adopted" was not added alongside the others.
+    result = validate_claim_type(
+        "applications",
+        "This survey concludes by identifying further research directions that can be adopted in "
+        "the future to build practical AI systems.",
+    )
+
+    assert result.is_valid is False
+
+
+def test_can_be_employed_in_vague_filler_stays_the_same_weak_fallback_as_other_verbs() -> None:
+    # the same pre-existing _QUALIFYING_CONTEXT_RE vague-filler weakness
+    # "used"/"applied" already have (see
+    # test_qualifying_context_fallback_only_acceptance_is_tier_weak above) -
+    # not a new risk introduced by adding "employed".
+    result = validate_claim_type(
+        "applications",
+        "The results obtained can be employed for algebraic description of a real genetic code in "
+        "various practical applications.",
+    )
+
+    assert result.is_valid is True
+    assert result.tier == "weak"
