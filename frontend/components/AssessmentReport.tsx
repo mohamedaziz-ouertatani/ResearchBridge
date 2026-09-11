@@ -14,6 +14,7 @@ import {
 import { api, API_BASE } from "@/lib/api";
 import { ResearchActionPlan } from "@/components/ResearchActionPlan";
 import { EvidenceReviewControl } from "@/components/EvidenceReviewControl";
+import { AddToProjectControl } from "@/components/AddToProjectControl";
 
 /*
   The assessment report, read as an instrument readout sheet.
@@ -563,6 +564,8 @@ function Verdict({
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
+          <AddToProjectControl researchInputId={assessment.research_input.id} />
+
           <ExportMenu assessmentId={assessment.id} />
 
           <button
