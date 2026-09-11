@@ -10,6 +10,7 @@ import type {
 } from "@/lib/adminApi";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { YearStrip } from "@/components/YearStrip";
+import { formatLanguage } from "@/lib/languages";
 
 /*
   The stats tab: the same instrument-faceplate monochrome bars as the rest
@@ -137,8 +138,17 @@ export function AdminStats({ status }: { status: PipelineStatus }) {
                 papers by language
               </summary>
               <div className="mt-2">
-                <BarList counts={corpusStats.papers_by_language} />
+                <BarList
+                  counts={corpusStats.papers_by_language}
+                  labelFor={formatLanguage}
+                />
               </div>
+              <p className="mt-3 max-w-[58ch] text-[0.75rem] leading-relaxed text-[var(--ink-faint)]">
+                &quot;not reported&quot; means the source never sent a
+                language for that record (mostly CORE and Semantic
+                Scholar, whose APIs don&apos;t reliably expose one) -
+                not a bug in ingestion.
+              </p>
             </details>
           </div>
         )}
@@ -555,10 +565,16 @@ function BarList({
   counts,
   limit,
   preserveOrder = false,
+  labelFor,
 }: {
   counts: Record<string, number>;
   limit?: number;
   preserveOrder?: boolean;
+  /** Formats the raw key for display (e.g. an ISO language code into a
+   * flag + full name) - the raw key stays the React key and the title
+   * tooltip's fallback, so hover still shows it when the formatted label
+   * is ambiguous. Defaults to the raw key unchanged. */
+  labelFor?: (key: string) => string;
 }) {
   let entries = Object.entries(counts);
   if (!preserveOrder) entries = entries.sort((a, b) => b[1] - a[1]);
@@ -571,16 +587,16 @@ function BarList({
 
   return (
     <ul className="space-y-1.5">
-      {entries.map(([label, count]) => (
+      {entries.map(([key, count]) => (
         <li
-          key={label}
+          key={key}
           className="grid grid-cols-[9rem_1fr_3.5rem] items-center gap-3"
         >
           <span
             className="truncate text-[0.8125rem] text-[var(--ink-soft)]"
-            title={label}
+            title={key}
           >
-            {label}
+            {labelFor ? labelFor(key) : key}
           </span>
           <span className="h-2 rounded-[1px] bg-[var(--rule-soft)]">
             <span

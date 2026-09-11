@@ -84,7 +84,8 @@ describe("AdminStats", () => {
     await waitFor(() =>
       expect(screen.getByText("papers by language")).toBeInTheDocument(),
     );
-    expect(screen.getByText("unknown")).toBeInTheDocument();
+    expect(screen.getByText("not reported")).toBeInTheDocument();
+    expect(screen.getByText("🇬🇧 English")).toBeInTheDocument();
     expect(
       screen.getByText("recent extraction errors by type"),
     ).toBeInTheDocument();
