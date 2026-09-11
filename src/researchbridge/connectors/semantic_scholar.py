@@ -28,6 +28,14 @@ bugs:
   coverage on Semantic Scholar's side) - categories ends up an empty
   list for them, same handling as any paper with no categories.
 
+A third issue found live (2026-09-11) WAS a mapping bug, not a data gap:
+open_access used to be inferred as `openAccessPdf is not None`, but a
+1000-record live sample showed 524 records with a populated
+openAccessPdf and isOpenAccess=false - S2 attaches a best-effort PDF
+link to plenty of papers that aren't themselves open access. Fixed to
+read isOpenAccess directly (now requested in FIELDS) - see
+_normalize_entry.
+
 A later real ingestion pass (11+ consecutive pages, unauthenticated) hit a
 429 after the connector's retry budget was exhausted, at the throttle
 value that first testing considered safe - see MIN_REQUEST_INTERVAL_SECONDS.
@@ -60,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 SEMANTIC_SCHOLAR_BULK_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
 
-FIELDS = "title,abstract,year,publicationDate,authors,externalIds,venue,publicationTypes,openAccessPdf,fieldsOfStudy"
+FIELDS = "title,abstract,year,publicationDate,authors,externalIds,venue,publicationTypes,openAccessPdf,fieldsOfStudy,isOpenAccess"
 
 # Verified live 2026-08-22: 3.0s (the nominal ~100 req/5min average) still
 # got a sustained unauthenticated run 429'd after 11 consecutive requests -
@@ -190,7 +198,19 @@ class SemanticScholarConnector:
             document_type=document_type,
             language=None,  # not provided by the bulk search endpoint's default fields
             url=url,
-            open_access=open_access_pdf is not None,
+            # NOT open_access_pdf is not None - found live (2026-09-11): 524/1000
+            # sampled records carry a populated openAccessPdf while
+            # isOpenAccess is false, so that inference was wrong on the
+            # majority of "open access" records it produced (S2 attaches a
+            # best-effort PDF link - green OA, a preprint copy, etc. - to
+            # plenty of papers that aren't themselves open access). This
+            # matters beyond labeling: fulltext/pipeline.py selects on
+            # Paper.open_access to decide which papers to attempt full-text
+            # fetch for, so the old inference was sending roughly half of
+            # Semantic Scholar's "open access" candidates at a PDF that was
+            # never going to be fetchable. isOpenAccess is S2's own
+            # authoritative field for exactly this question.
+            open_access=bool(record.get("isOpenAccess")),
             raw_metadata={
                 "externalIds": external_ids,
                 "year": record.get("year"),

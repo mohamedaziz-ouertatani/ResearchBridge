@@ -81,6 +81,27 @@ def test_paper_without_doi_or_open_access_pdf() -> None:
 
 
 @responses.activate
+def test_open_access_reads_isOpenAccess_not_pdf_presence() -> None:
+    """Live check (2026-09-11): 524/1000 sampled S2 records carried a
+    populated openAccessPdf with isOpenAccess=false - a best-effort PDF
+    link S2 found for a paper it doesn't consider open access. open_access
+    must follow isOpenAccess, not "does a PDF link exist"."""
+    responses.add(
+        responses.GET,
+        SEMANTIC_SCHOLAR_BULK_SEARCH_URL,
+        body=_load("semantic_scholar_pdf_but_not_open_access.json"),
+        status=200,
+    )
+
+    connector = SemanticScholarConnector(query='"machine learning"')
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[0]
+
+    assert paper.url == "https://example.org/pdf/00009.pdf"  # the PDF link is still surfaced as a URL
+    assert paper.open_access is False  # but open_access follows isOpenAccess, not PDF presence
+
+
+@responses.activate
 def test_empty_page_is_exhausted() -> None:
     empty_response = b'{"total": 0, "data": []}'
     responses.add(responses.GET, SEMANTIC_SCHOLAR_BULK_SEARCH_URL, body=empty_response, status=200)

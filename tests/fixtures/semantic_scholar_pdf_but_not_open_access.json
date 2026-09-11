@@ -1,0 +1,21 @@
+{
+  "total": 1,
+  "data": [
+    {
+      "paperId": "a1b2c3d4e5f60000000000000000000000000009",
+      "title": "A Paper With A Cached PDF Link That Isn't Actually Open Access",
+      "abstract": "Reproduces a real live-observed shape: S2 attaches a best-effort PDF link to a paper it does not consider open access.",
+      "year": 2026,
+      "publicationDate": "2026-02-01",
+      "venue": "Some Venue",
+      "publicationTypes": ["JournalArticle"],
+      "fieldsOfStudy": ["Computer Science"],
+      "externalIds": {},
+      "openAccessPdf": {"url": "https://example.org/pdf/00009.pdf", "status": "GREEN"},
+      "isOpenAccess": false,
+      "authors": [
+        {"authorId": "1000000009", "name": "Eve Person"}
+      ]
+    }
+  ]
+}

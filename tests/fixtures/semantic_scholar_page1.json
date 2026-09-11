@@ -13,6 +13,7 @@
       "fieldsOfStudy": ["Computer Science", "Artificial Intelligence"],
       "externalIds": {"DOI": "10.1007/s10994-026-00001-1", "ArXiv": "2601.00001"},
       "openAccessPdf": {"url": "https://example.org/pdf/00001.pdf", "status": "GREEN"},
+      "isOpenAccess": true,
       "authors": [
         {"authorId": "1000000001", "name": "Alice Example"},
         {"authorId": "1000000002", "name": "Bob Sample"}
@@ -29,6 +30,7 @@
       "fieldsOfStudy": ["Computer Science"],
       "externalIds": {},
       "openAccessPdf": null,
+      "isOpenAccess": false,
       "authors": [
         {"authorId": "1000000003", "name": "Carol Person"}
       ]
