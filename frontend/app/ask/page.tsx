@@ -11,6 +11,7 @@ import {
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Nav } from "@/components/Nav";
 import { EvidenceReviewControl } from "@/components/EvidenceReviewControl";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 /*
   Extractive Q&A: every quote result is verbatim and already-grounded -
@@ -42,6 +43,8 @@ export default function AskPage() {
   const [collectionError, setCollectionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDeleteCollection, setConfirmingDeleteCollection] =
+    useState(false);
 
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -213,11 +216,8 @@ export default function AskPage() {
   }
 
   async function deleteCollection() {
-    if (
-      !selectedCollectionId ||
-      !window.confirm("Delete this collection and its saved questions?")
-    )
-      return;
+    setConfirmingDeleteCollection(false);
+    if (!selectedCollectionId) return;
     setCollectionBusy(true);
     try {
       await qaApi.deleteCollection(selectedCollectionId);
@@ -311,7 +311,7 @@ export default function AskPage() {
             </form>
             <button
               type="button"
-              onClick={deleteCollection}
+              onClick={() => setConfirmingDeleteCollection(true)}
               disabled={!collection || collectionBusy}
               className="eyebrow py-2 text-[var(--ink-faint)] hover:text-[var(--live)] disabled:opacity-40"
             >
@@ -461,6 +461,16 @@ export default function AskPage() {
           </ul>
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmingDeleteCollection}
+        title="Delete this collection?"
+        description="Its saved questions will be deleted along with it - this can't be undone."
+        confirmLabel="delete collection"
+        busy={collectionBusy}
+        onConfirm={deleteCollection}
+        onCancel={() => setConfirmingDeleteCollection(false)}
+      />
     </main>
   );
 }
