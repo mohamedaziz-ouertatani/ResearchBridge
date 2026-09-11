@@ -19,7 +19,7 @@
       "sourceFulltextUrls": ["https://example.org/mlstudy-2026.pdf"],
       "publisher": "Example University Press",
       "documentType": "research",
-      "subjects": ["Computer Science", "Artificial Intelligence"]
+      "fieldOfStudy": "Journal Article"
     },
     {
       "id": 987654321,
@@ -36,7 +36,7 @@
       "sourceFulltextUrls": ["https://example.org/dl-chapter.pdf"],
       "publisher": "Example Publisher",
       "documentType": "thesis",
-      "subjects": ["Computer Science"]
+      "fieldOfStudy": null
     }
   ]
 }

@@ -11,13 +11,16 @@ api_key validation below). Register at https://core.ac.uk/services/api.
 
 Docs verification note: unlike the Springer/Semantic Scholar connectors,
 this one could NOT be "verified live" against the real API during
-development - api.core.ac.uk/docs/v3 and core.ac.uk/documentation/api
-both returned HTTP 403 to automated fetches. The request/response shape
-below (offset/limit pagination, `results`/`totalHits` envelope, Bearer
-auth, per-record fields) is reconstructed from secondary sources
-(existing open-source CORE API clients) rather than the primary docs.
-Treat field names as best-effort until a real ingestion run against a
-live key confirms them, and revisit this docstring once that happens.
+initial development - api.core.ac.uk/docs/v3 and
+core.ac.uk/documentation/api both returned HTTP 403 to automated
+fetches. The request/response shape below (offset/limit pagination,
+`results`/`totalHits` envelope, Bearer auth) held up, but the
+reconstructed-from-secondary-sources field name for topic
+classification did not: a live query against api.core.ac.uk/v3/search/
+works (2026-09-11) found no `subjects` field anywhere in the response.
+The real field is `fieldOfStudy` (singular, one string per record, not
+a list) - see _normalize_entry's categories mapping for what that field
+actually contains in practice.
 
 Rate limit note: CORE's free tier is documented informally as roughly
 5 single requests per 10 seconds. MIN_REQUEST_INTERVAL_SECONDS defaults
@@ -174,7 +177,18 @@ class CoreConnector:
             abstract=clean_harvested_abstract(record.get("abstract")),
             publication_date=publication_date,
             authors=authors,
-            categories=list(record.get("subjects") or []),
+            # No "subjects" field exists in the real v3 response (see module
+            # docstring note below) - fieldOfStudy is the closest thing CORE
+            # actually returns, and it's a single string, not a list. Found
+            # live 2026-09-11: it's null on ~45% of records and, when
+            # present, is often repository-supplied genre/document-type text
+            # in the source institution's own language (e.g. "A1
+            # Alkuperäisartikkeli tieteellisessä aikakauslehdessä", "Artículo
+            # de revista") rather than a genuine subject/topic taxonomy like
+            # arXiv's cs.LG - store it as-is (never invent structure that
+            # isn't there) and let downstream readers judge its quality
+            # themselves, the same "never invent" rule as everywhere else.
+            categories=[record["fieldOfStudy"]] if record.get("fieldOfStudy") else [],
             doi=record.get("doi") or None,
             venue=record.get("publisher") or None,
             document_type=record.get("documentType"),

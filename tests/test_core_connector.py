@@ -51,7 +51,7 @@ def test_normalized_paper_fields() -> None:
     assert [a.name for a in paper.authors] == ["Alice Example", "Bob Sample"]
     assert paper.authors[0].order == 0
     assert paper.authors[1].order == 1
-    assert set(paper.categories) == {"Computer Science", "Artificial Intelligence"}
+    assert paper.categories == ["Journal Article"]
     assert paper.venue == "Example University Press"
     assert paper.publication_date.isoformat() == "2026-01-15"
     assert paper.document_type == "research"
@@ -59,6 +59,19 @@ def test_normalized_paper_fields() -> None:
     assert paper.url == "https://core.ac.uk/download/123456789.pdf"
     assert paper.open_access is True
     assert paper.raw_metadata["yearPublished"] == 2026
+
+
+@responses.activate
+def test_null_field_of_study_yields_no_categories() -> None:
+    """Live check (2026-09-11): CORE's fieldOfStudy is null on a large share
+    of real records - it must never crash or produce [None]."""
+    responses.add(responses.GET, CORE_SEARCH_URL, body=_load("core_page1.json"), status=200)
+
+    connector = CoreConnector(query="machine learning", api_key="fake-key")
+    result = connector.fetch(resume_state=None)
+    paper = result.papers[1]  # fieldOfStudy is null
+
+    assert paper.categories == []
 
 
 @responses.activate
