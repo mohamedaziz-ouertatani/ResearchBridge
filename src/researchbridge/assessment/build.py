@@ -66,6 +66,7 @@ that doesn't pass one simply gets the pre-existing 0.35-only behavior.
 from __future__ import annotations
 
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -98,7 +99,7 @@ from researchbridge.assessment.recommendation import assess_recommendation
 from researchbridge.assessment.representation import build_research_representation
 from researchbridge.assessment.risks import assess_risks
 from researchbridge.db.models import Evidence, ExtractedClaim, ResearchAssessment, ResearchAssessmentEvidence, ResearchInput
-from researchbridge.embedding.base import Embedder
+from researchbridge.embedding.base import CachingEmbedder, Embedder
 from researchbridge.embedding.search import search_by_text
 
 
@@ -130,21 +131,41 @@ def build_assessment(
     if research_input is None:
         raise ValueError(f"no research input with id {research_input_id}")
 
+    # Wrapped once per call so the several independent sub-assessments below
+    # (dimension coverage, gap clustering, applications matching) that each
+    # re-embed overlapping sets of the same retrieved claims share one cache
+    # instead of re-encoding duplicates - see CachingEmbedder's docstring.
+    embedder = CachingEmbedder(embedder)
+
     query_text = (
         build_research_representation(research_input.raw_text, embedder)
         if research_input.input_type == "document"
         else research_input.raw_text
     )
-    results = search_by_text(session, query_text, embedder, top_k)
-    papers_with_claims = [(paper, distance, _claims_for_paper(session, paper.id)) for paper, distance in results]
-
-    # Gated behind enable_llm_stages like the other two optional local-LLM
+    # extract_dimensions_with_fallback (when enable_llm_stages) is a
+    # network-bound Ollama call with no dependency on retrieval - it only
+    # needs query_text, which is already final at this point - so it runs
+    # on a background thread concurrently with search_by_text/claims
+    # fetch below instead of strictly after them. Only worth the thread for
+    # the LLM path: plain extract_dimensions() (RAKE) is local and fast
+    # enough that spawning a thread for it would be pure overhead. Gated
+    # behind enable_llm_stages like the other two optional local-LLM
     # stages (application relevance filtering, opportunity synthesis) - see
     # this function's own docstring on why an unconditional call here would
     # break the "no external dependency unless explicitly opted in"
     # invariant every existing/future direct caller (tests, scripts,
     # benchmarks) relies on.
-    dimensions = extract_dimensions_with_fallback(query_text) if enable_llm_stages else extract_dimensions(query_text)
+    if enable_llm_stages:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            dimensions_future = pool.submit(extract_dimensions_with_fallback, query_text)
+            results = search_by_text(session, query_text, embedder, top_k)
+            dimensions = dimensions_future.result()
+    else:
+        results = search_by_text(session, query_text, embedder, top_k)
+        dimensions = extract_dimensions(query_text)
+
+    claims_by_paper = _claims_for_papers(session, [paper.id for paper, _distance in results])
+    papers_with_claims = [(paper, distance, claims_by_paper.get(paper.id, [])) for paper, distance in results]
     dimension_coverages = compute_dimension_coverage(
         dimensions,
         [(paper.title, distance, claims) for paper, distance, claims in papers_with_claims],
@@ -471,11 +492,24 @@ def build_assessment(
     return assessment
 
 
-def _claims_for_paper(session: Session, paper_id: uuid.UUID) -> list[tuple[str, str, uuid.UUID]]:
-    """(claim_type, text, evidence_id) for one paper's real (non-stub) claims."""
+def _claims_for_papers(
+    session: Session, paper_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[tuple[str, str, uuid.UUID]]]:
+    """paper_id -> [(claim_type, text, evidence_id)] for each paper's real (non-stub) claims.
+
+    Batched into one query instead of one-per-paper (was _claims_for_paper, called
+    in a loop over the retrieved set - top_k round-trips for what's really one
+    WHERE ... IN (...) - see the assessment-pipeline perf pass, 2026-09-11)."""
+    if not paper_ids:
+        return {}
     rows = session.execute(
-        select(ExtractedClaim.claim_type, ExtractedClaim.text, ExtractedClaim.evidence_id)
+        select(
+            ExtractedClaim.paper_id, ExtractedClaim.claim_type, ExtractedClaim.text, ExtractedClaim.evidence_id
+        )
         .join(Evidence, Evidence.id == ExtractedClaim.evidence_id)
-        .where(ExtractedClaim.paper_id == paper_id, Evidence.extraction_method != "stub")
+        .where(ExtractedClaim.paper_id.in_(paper_ids), Evidence.extraction_method != "stub")
     ).all()
-    return [(claim_type, text, evidence_id) for claim_type, text, evidence_id in rows]
+    claims_by_paper: dict[uuid.UUID, list[tuple[str, str, uuid.UUID]]] = {}
+    for paper_id, claim_type, text, evidence_id in rows:
+        claims_by_paper.setdefault(paper_id, []).append((claim_type, text, evidence_id))
+    return claims_by_paper

@@ -1,8 +1,11 @@
 """Similarity search over paper embeddings, using pgvector cosine distance.
 
-No ANN index (ivfflat/hnsw) yet — a sequential scan is fine at Phase 1's
-corpus scale. Add one only once corpus size demonstrates it's needed, same
-reasoning as deferring a dedicated graph database (blueprint §12/§47).
+`embeddings.vector` is backed by an HNSW index (migration 0028, added once
+the corpus reached 82k+ papers and a sequential scan was no longer "fine
+at Phase 1's scale" - see that migration's docstring). ANN, so results are
+approximate nearest-neighbor rather than an exact sort, same tradeoff
+every other cosine_distance() ORDER BY ... LIMIT query in this module now
+makes.
 """
 
 from __future__ import annotations
